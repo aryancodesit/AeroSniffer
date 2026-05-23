@@ -30,14 +30,14 @@ cd AeroSniffer
 bash tools/install_libraries.sh
 
 # 3. Configure your settings (WiFi + GPS bounding box)
-nano MultiBoot_DeskGadget/Config.h
+nano AeroSniffer/Config.h
 
 # 4. Configure TFT_eSPI for your display
-#    Copy the contents of MultiBoot_DeskGadget/TFT_eSPI_UserSetup.h
+#    Copy the contents of AeroSniffer/TFT_eSPI_UserSetup.h
 #    into: ~/Arduino/libraries/TFT_eSPI/User_Setup.h
 
 # 5. Open in Arduino IDE
-#    File → Open → MultiBoot_DeskGadget/MultiBoot_DeskGadget.ino
+#    File → Open → AeroSniffer/AeroSniffer.ino
 #    Board: ESP32S3 Dev Module
 #    Flash → Upload
 ```
@@ -100,8 +100,8 @@ ESP32-S3 DevKitC-1
 ```
 AeroSniffer/
 │
-├── MultiBoot_DeskGadget/          ← Arduino sketch (open this in IDE)
-│   ├── MultiBoot_DeskGadget.ino   ← Main file — orchestration + FreeRTOS tasks
+├── AeroSniffer/                   ← Arduino sketch (open this in IDE)
+│   ├── AeroSniffer.ino            ← Main file — orchestration + FreeRTOS tasks
 │   ├── Config.h                   ← ⭐ EDIT THIS — all pins, WiFi, bounding box
 │   ├── Mode1_Pet.h                ← Desk companion — FFT, FSR, animations, audio
 │   ├── Mode2_Security.h           ← WiFi sniffer — promiscuous mode, UI, alerts
@@ -130,7 +130,7 @@ AeroSniffer/
 
 ## ⚙️ The Only File You Need to Edit
 
-Open **`MultiBoot_DeskGadget/Config.h`** and change these 3 sections:
+Open **`AeroSniffer/Config.h`** and change these 3 sections:
 
 ```cpp
 // ── Your WiFi credentials ──────────────────────────────

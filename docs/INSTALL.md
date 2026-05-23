@@ -86,7 +86,7 @@ This is the most important step. TFT_eSPI needs to know your exact pin wiring.
 
 3. **Replace the entire contents** with the contents of:
    ```
-   MultiBoot_DeskGadget/TFT_eSPI_UserSetup.h
+   AeroSniffer/TFT_eSPI_UserSetup.h
    ```
 
 4. Save and close
@@ -103,7 +103,7 @@ This is the most important step. TFT_eSPI needs to know your exact pin wiring.
 
 ## Step 6 — Edit Your Config
 
-Open `MultiBoot_DeskGadget/Config.h` and update these values:
+Open `AeroSniffer/Config.h` and update these values:
 
 ```cpp
 // Your home WiFi (used by Mode 2 scan base and Mode 3 API)
@@ -141,7 +141,7 @@ Mode 3 uses a local SQLite-style lookup database for airline names.
 
 ## Step 8 — Compile and Flash
 
-1. Open: **File → Open → `MultiBoot_DeskGadget/MultiBoot_DeskGadget.ino`**
+1. Open: **File → Open → `AeroSniffer/AeroSniffer.ino`**
 2. Connect ESP32-S3 via USB-C
 3. Select the correct **Port** under Tools → Port
 4. Click the **Upload** button (→ arrow)

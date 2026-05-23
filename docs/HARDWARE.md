@@ -163,3 +163,29 @@ Full component list with purchase options for India and global alternatives.
 3. **Amazon.in** — Faster delivery but verify seller ratings
 4. **AliExpress** — Cheapest but 2–4 week shipping; good for displays and sensors
 5. **Local "Lamington Road equivalent"** — Bhubaneswar: Electronics Market near Old Town / Sahid Nagar for resistors, wires, breadboards
+
+---
+
+## 📦 3D Printed Cube Enclosure (Cheapest & Easiest)
+
+If you are planning to build a case for the AeroSniffer, the easiest form factor is a simple **cube or cuboid**. 
+
+Based on the components listed above, here are the recommended internal dimensions to ensure everything fits comfortably with standard Dupont jumper wires:
+
+### Recommended Dimensions (Internal)
+* **Width:** `60 mm`
+* **Height:** `60 mm`
+* **Depth:** `50 mm`
+
+### Placement Guide
+* **Front Face:** 
+  * A `26 x 26 mm` square cutout for the 1.3" ST7789 TFT display.
+  * A small `2 mm` hole near the bottom for the INMP441 Microphone (it needs air access to hear properly).
+* **Top Face:** 
+  * Leave a flat surface to adhere the FSR-402 Force Sensor. You can cover the sensor with a piece of felt or silicone for a nicer "petting" feel.
+* **Back/Bottom Face:**
+  * A `40 mm` circular grid/cutout for the 8Ω speaker to let audio out.
+  * A slot for the ESP32-S3's USB-C port to stick out so you can power it and flash updates.
+* **Internal:**
+  * The ESP32-S3 DevKit is about `55 mm x 26 mm`, so it will fit perfectly diagonally or flat against the side wall.
+  * The MPU-6050 and MAX98357A are very small and can be hot-glued to the internal side walls.

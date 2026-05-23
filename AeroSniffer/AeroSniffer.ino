@@ -27,9 +27,11 @@
 
 #include <TFT_eSPI.h>
 #include <Wire.h>
+#include <Preferences.h>
 
 // ── Global TFT instance ──────────────────────────────────────────
 TFT_eSPI tft = TFT_eSPI();
+Preferences prefs;
 
 // ── State machine ────────────────────────────────────────────────
 volatile uint8_t  g_mode       = 0;      // 0=Pet  1=Security  2=Aviation
@@ -141,6 +143,7 @@ void task_core1(void*) {
     // ── Handle mode switch (triggered by ISR) ──────────────────
     if (g_mode_dirty) {
       g_mode_dirty  = false;
+      prefs.putUInt("mode", g_mode);
       uint8_t prev  = (g_mode + TOTAL_MODES - 1) % TOTAL_MODES;
       teardown_mode(prev);
 
@@ -178,6 +181,11 @@ void setup() {
   tft.init();
   tft.setRotation(0);        // Portrait — adjust 0-3 for your mount
   tft.fillScreen(TFT_BLACK);
+
+  // ── Load Mode State ───────────────────────────────────────────
+  prefs.begin("aerosniffer", false);
+  g_mode = prefs.getUInt("mode", 0);
+  if (g_mode >= TOTAL_MODES) g_mode = 0;
 
   // ── Backlight ON ─────────────────────────────────────────────
   pinMode(TFT_BL, OUTPUT);
