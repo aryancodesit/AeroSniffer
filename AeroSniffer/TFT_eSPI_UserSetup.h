@@ -15,12 +15,12 @@
 // ── Display Driver Selection ─────────────────────────────────────
 // Uncomment ONE of the following to match your exact display:
 
-#define ST7789_DRIVER       // 240x240 square (most common "GC9A01 style" round or square)
-// #define ILI9341_DRIVER   // 240x320 rectangular — uncomment this instead if using ILI9341
+#define ILI9341_DRIVER   // 240x320 rectangular — default
+// #define ST7789_DRIVER       // 240x240 square (most common "GC9A01 style" round or square)
 
 // ── Display Dimensions ───────────────────────────────────────────
 #define TFT_WIDTH   240
-#define TFT_HEIGHT  240   // ← Change to 320 if using ILI9341
+#define TFT_HEIGHT  320   // ← Change to 240 if using ST7789
 
 // ── SPI Pin Mapping (must match Config.h) ────────────────────────
 #define TFT_MOSI    11    // Data Out

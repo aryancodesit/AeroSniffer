@@ -50,7 +50,7 @@
 
 // ── Display Resolution ───────────────────────────────────────────
 #define TFT_W           240
-#define TFT_H           240      // ← Change to 320 for ILI9341 rectangular
+#define TFT_H           320      // ← Change to 240 for ST7789 square
 
 // ── Wi-Fi Credentials  (Mode 2 scan base / Mode 3 API client) ───
 #define WIFI_SSID         "YOUR_WIFI_SSID"

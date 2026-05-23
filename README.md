@@ -53,7 +53,7 @@ That's it. See [INSTALL.md](docs/INSTALL.md) for the full step-by-step with scre
 | # | Component | Model | Qty | Purpose | Buy (India) |
 |---|-----------|-------|-----|---------|-------------|
 | 1 | **Microcontroller** | ESP32-S3 DevKitC-1 (16MB) | 1 | Main brain | Robu.in / Quartzcomponents |
-| 2 | **TFT Display** | ST7789 240×240 SPI *(or ILI9341 240×320)* | 1 | All UI rendering | AliExpress / Robu.in |
+| 2 | **TFT Display** | ILI9341 240×320 SPI *(or ST7789 240×240)* | 1 | All UI rendering | Robu.in / AliExpress |
 | 3 | **Microphone** | INMP441 I2S Digital Mic | 1 | FFT music analysis | Robu.in / Amazon.in |
 | 4 | **Amplifier + Speaker** | MAX98357A I2S DAC + 8Ω 1W speaker | 1 | Audio output | Robu.in |
 | 5 | **Force Sensor** | FSR-402 Pressure Resistor | 1 | Pet touch sensing | Amazon.in |
@@ -146,7 +146,7 @@ Open **`AeroSniffer/Config.h`** and change these 3 sections:
 
 // ── Your TFT display resolution ────────────────────────
 #define TFT_W  240
-#define TFT_H  240   // Change to 320 if using ILI9341 rectangular panel
+#define TFT_H  320   // Change to 240 if using ST7789 square panel
 ```
 
 Everything else is pre-configured for the default hardware matrix.

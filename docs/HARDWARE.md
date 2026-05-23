@@ -47,7 +47,18 @@ Full component list with purchase options for India and global alternatives.
 
 ### 2. TFT Display
 
-**Option A — ST7789 240×240 (Recommended)**
+**Option A — ILI9341 240×320 (Recommended)**
+
+| Spec | Value |
+|------|-------|
+| Driver IC | ILI9341 |
+| Resolution | 240 × 320 pixels |
+| Interface | 4-wire SPI |
+| Shape | Rectangular (portrait) |
+
+**Buy:** Robu.in — "2.4 inch ILI9341 SPI TFT"
+
+**Option B — ST7789 240×240 (Square)**
 
 | Spec | Value |
 |------|-------|
@@ -59,19 +70,8 @@ Full component list with purchase options for India and global alternatives.
 
 **Buy:** AliExpress — "1.3 inch ST7789 SPI TFT LCD"
 
-**Option B — ILI9341 240×320 (Rectangular)**
-
-| Spec | Value |
-|------|-------|
-| Driver IC | ILI9341 |
-| Resolution | 240 × 320 pixels |
-| Interface | 4-wire SPI |
-| Shape | Rectangular (portrait) |
-
-**Buy:** Robu.in — "2.4 inch ILI9341 SPI TFT"
-
-> ⚠️ If using ILI9341, change `TFT_HEIGHT` to 320 in `Config.h` and
-> update `TFT_eSPI_UserSetup.h` to use `ILI9341_DRIVER` instead of `ST7789_DRIVER`.
+> ⚠️ If using ST7789, change `TFT_HEIGHT` to 240 in `Config.h` and
+> update `TFT_eSPI_UserSetup.h` to use `ST7789_DRIVER` instead of `ILI9341_DRIVER`.
 
 ---
 
@@ -173,13 +173,13 @@ If you are planning to build a case for the AeroSniffer, the easiest form factor
 Based on the components listed above, here are the recommended internal dimensions to ensure everything fits comfortably with standard Dupont jumper wires:
 
 ### Recommended Dimensions (Internal)
-* **Width:** `60 mm`
-* **Height:** `60 mm`
+* **Width:** `70 mm`
+* **Height:** `90 mm`
 * **Depth:** `50 mm`
 
 ### Placement Guide
 * **Front Face:** 
-  * A `26 x 26 mm` square cutout for the 1.3" ST7789 TFT display.
+  * A `44 x 61 mm` rectangular cutout for the 2.4" ILI9341 TFT display.
   * A small `2 mm` hole near the bottom for the INMP441 Microphone (it needs air access to hear properly).
 * **Top Face:** 
   * Leave a flat surface to adhere the FSR-402 Force Sensor. You can cover the sensor with a piece of felt or silicone for a nicer "petting" feel.

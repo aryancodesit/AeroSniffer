@@ -96,8 +96,8 @@ This is the most important step. TFT_eSPI needs to know your exact pin wiring.
    #include <User_Setup.h>
    ```
 
-> ✅ **ST7789 (240×240 square):** Default config — no changes needed after copy.
-> 🟡 **ILI9341 (240×320 rectangular):** In the copied file, comment out `#define ST7789_DRIVER` and uncomment `#define ILI9341_DRIVER`. Also change `TFT_HEIGHT` to 320 in both `TFT_eSPI_UserSetup.h` and `Config.h`.
+> ✅ **ILI9341 (240×320 rectangular):** Default config — no changes needed after copy.
+> 🟡 **ST7789 (240×240 square):** In the copied file, comment out `#define ILI9341_DRIVER` and uncomment `#define ST7789_DRIVER`. Also change `TFT_HEIGHT` to 240 in both `TFT_eSPI_UserSetup.h` and `Config.h`.
 
 ---
 
