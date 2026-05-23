@@ -1,0 +1,71 @@
+# ================================================================
+#  AeroSniffer .gitignore
+# ================================================================
+
+# ── Secret / personal config ────────────────────────────────────
+# Config.h contains WiFi credentials — DO NOT commit your version.
+# The template version (with placeholder values) is tracked.
+# After cloning, edit Config.h locally. It won't be re-tracked.
+# Uncomment the line below only after your first commit of Config.h:
+# MultiBoot_DeskGadget/Config.h
+
+# ── Arduino build output ─────────────────────────────────────────
+build/
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+
+# ── Arduino IDE temp files ───────────────────────────────────────
+*.bak
+~*.tmp
+*.tmp
+
+# ── PlatformIO (if you switch build systems later) ───────────────
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# ── VS Code ──────────────────────────────────────────────────────
+.vscode/
+*.code-workspace
+
+# ── macOS ────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ── Windows ──────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ── Linux ────────────────────────────────────────────────────────
+*~
+.nfs*
+
+# ── Python (tools scripts) ───────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+
+# ── Logs ─────────────────────────────────────────────────────────
+*.log
+serial_output.txt
+
+# ── Generated animation headers (large — regenerate with gif2cpp) ─
+# Uncomment if you don't want to track generated bitmap arrays:
+# MultiBoot_DeskGadget/animations/
+
+# ── IDE project files ─────────────────────────────────────────────
+*.suo
+*.user
+*.sdf
+.idea/
