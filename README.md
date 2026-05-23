@@ -23,7 +23,7 @@ AeroSniffer treats the ESP32-S3 like a mini operating system with three complete
 
 ```bash
 # 1. Clone this repo
-git clone https://github.com/YOUR_USERNAME/AeroSniffer.git
+git clone https://github.com/aryancodesit/AeroSniffer.git
 cd AeroSniffer
 
 # 2. Install Arduino libraries (run once)
