@@ -12,7 +12,7 @@ AeroSniffer treats the ESP32-S3 like a mini operating system with three complete
 | Mode | Name | What It Does |
 |------|------|--------------|
 | 🐾 **Mode 1** | The Companion | Interactive desk pet with animated face expressions, capacitive touch interaction (head-pats!), and automatic blinking |
-| 🛡️ **Mode 2** | Network Auditor | 802.11 packet sniffer with animated radar sweep display + companion web app for full Marauder control |
+| 🛡️ **Mode 2** | Network Auditor | 802.11 packet sniffer with animated radar sweep display + companion web app ([aero-sniffer.vercel.app](https://aero-sniffer.vercel.app/)) for full Marauder control |
 | ✈️ **Mode 3** | Flight Radar | Live ADS-B flight tracker pulling from OpenSky Network API with callsign, altitude, speed, and compass heading |
 
 **Switch modes instantly** with a 1.5-second long-press on the capacitive touch sensor. No reboot needed — FreeRTOS handles clean teardown and re-init of all hardware between modes.
@@ -84,6 +84,7 @@ XIAO ESP32S3
 │
 ├── USB  → Companion App (Mode 2 control)
 │          Native USB-C Serial for Marauder commands
+│          Access the dashboard: https://aero-sniffer.vercel.app/
 │
 └── WiFi → Mode 3 Flight Radar (STA mode)
            Connects to home WiFi for OpenSky API
