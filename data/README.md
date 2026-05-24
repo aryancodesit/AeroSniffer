@@ -1,4 +1,4 @@
-# SPIFFS Data Files — AeroSniffer Mode 3
+# SPIFFS Data Files — AeroSniffer Mode 3 (DeskBuddy 2.0)
 
 This folder contains the local lookup databases used by Mode 3 (Flight Radar)
 to resolve ICAO codes into human-readable airline and aircraft names without
@@ -21,7 +21,7 @@ project by rzeldent, which compiled them from public ICAO data.
 
 ## How to Upload to ESP32-S3
 
-These files must be uploaded to the ESP32-S3's flash filesystem (LittleFS)
+These files must be uploaded to the XIAO ESP32S3's flash filesystem (LittleFS)
 separately from the sketch firmware.
 
 ### Step 1 — Install the Upload Plugin
@@ -37,9 +37,9 @@ Restart Arduino IDE.
 
 ### Step 2 — Upload
 
-With `MultiBoot_DeskGadget.ino` open:
+With `AeroSniffer.ino` open:
 1. Go to **Tools → LittleFS Data Upload**
-2. Arduino IDE will upload all files in the `data/` folder to the ESP32-S3
+2. Arduino IDE will upload all files in the `data/` folder to the XIAO ESP32S3
 
 ### Step 3 — Verify
 

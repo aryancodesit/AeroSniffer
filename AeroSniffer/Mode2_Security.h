@@ -1,27 +1,321 @@
 // ================================================================
-//  Mode2_Security.h  —  Integration Wrapper for ESP32 Marauder
+//  Mode2_Security.h  —  Web-UI Hybrid Security Monitor
 //  AeroSniffer | ESP32-S3 Multi-Boot Desk Gadget
 //
-//  NOTE: This mode hands over control to the ESP32 Marauder firmware.
-//  Marauder is a massive standalone application that expects to own
-//  the microcontroller entirely. Once started, it cannot be cleanly
-//  stopped. Therefore, to switch out of Mode 2 back to Mode 0 or 3,
-//  this wrapper will simply restart the ESP32.
+//  DESKBUDDY 2.0 ARCHITECTURE:
+//    The 1.3" 240×240 screen is too small for Marauder's full UI.
+//    Instead we use a split architecture:
+//      • DISPLAY: Animated radar sweep + live packet stats
+//      • CONTROL: Web interface at http://192.168.4.1 (phone/laptop)
+//
+//  DEVKITC ARCHITECTURE:
+//    Falls back to the original Marauder integration wrapper.
+//
+//  NOTE (DevKitC): Marauder cannot be cleanly stopped. Switching out
+//  of Mode 2 triggers ESP.restart().
 // ================================================================
 #pragma once
 
 #include <TFT_eSPI.h>
+#include <WiFi.h>
+#include <WebServer.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_wifi.h"
+#include "Config.h"
 
-// ── Extern declarations for Marauder ────────────────────────────
-// You MUST rename Marauder's setup() and loop() to these names
-// in its main .ino / .cpp file before compiling!
+static TFT_eSPI* _stft = nullptr;
+
+// ================================================================
+//  DESKBUDDY 2.0 — WEB-UI HYBRID SECURITY MONITOR
+// ================================================================
+#ifdef HW_DESKBUDDY_2
+
+// ── Packet capture state ────────────────────────────────────────
+static volatile uint32_t pkt_total     = 0;
+static volatile uint32_t pkt_deauth    = 0;
+static volatile uint32_t pkt_beacon    = 0;
+static volatile uint32_t pkt_probe     = 0;
+static volatile uint32_t pkt_per_sec   = 0;
+static volatile uint8_t  current_ch    = 1;
+static volatile uint32_t device_count  = 0;
+static volatile bool     sec_scanning  = false;
+
+// Rolling PPS counter
+static uint32_t _pps_last_ms    = 0;
+static uint32_t _pps_count      = 0;
+
+// Radar sweep animation
+static float    _sweep_angle    = 0.0f;
+static uint32_t _sweep_last_ms  = 0;
+
+// Web server
+static WebServer* _webserver    = nullptr;
+
+// ── Promiscuous mode packet sniffer callback ────────────────────
+static void IRAM_ATTR sec_sniffer_cb(void* buf, wifi_promiscuous_pkt_type_t type) {
+  pkt_total++;
+  _pps_count++;
+
+  wifi_promiscuous_pkt_t* pkt = (wifi_promiscuous_pkt_t*)buf;
+  if (pkt->rx_ctrl.sig_len < 24) return;
+
+  uint8_t frame_type    = (pkt->payload[0] & 0x0C) >> 2;
+  uint8_t frame_subtype = (pkt->payload[0] & 0xF0) >> 4;
+
+  if (frame_type == 0) {  // Management frame
+    switch (frame_subtype) {
+      case 0x04: pkt_probe++;   break;  // Probe request
+      case 0x08: pkt_beacon++;  break;  // Beacon
+      case 0x0C: pkt_deauth++;  break;  // Deauthentication
+    }
+  }
+}
+
+// ── Channel hopping (Core 0) ────────────────────────────────────
+static void sec_hop_channel() {
+  current_ch = (current_ch % 13) + 1;
+  esp_wifi_set_channel(current_ch, WIFI_SECOND_CHAN_NONE);
+}
+
+// ── Web server routes ───────────────────────────────────────────
+static void sec_handle_root() {
+  String html = R"rawliteral(
+<!DOCTYPE html><html><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AeroSniffer Security</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e17;color:#e0e0e0;font-family:'Courier New',monospace;padding:16px}
+h1{color:#00ffcc;font-size:1.5em;margin-bottom:12px;text-align:center}
+.card{background:#141b2d;border:1px solid #1e3a5f;border-radius:8px;padding:14px;margin:10px 0}
+.stat{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #1e2a3f}
+.stat:last-child{border:none}
+.label{color:#6b8aad}.value{color:#00ffcc;font-weight:bold}
+.alert{color:#ff4444;font-weight:bold}
+.btn{display:block;width:100%;padding:12px;margin:8px 0;border:1px solid #00ffcc;
+background:transparent;color:#00ffcc;font-family:inherit;font-size:1em;
+border-radius:6px;cursor:pointer;text-align:center}
+.btn:hover{background:#00ffcc22}.btn.stop{border-color:#ff4444;color:#ff4444}
+.btn.stop:hover{background:#ff444422}
+footer{text-align:center;color:#3a4a6a;margin-top:20px;font-size:0.8em}
+</style></head><body>
+<h1>🛡 AeroSniffer // Security</h1>
+<div class="card" id="stats"></div>
+<div class="card">
+<button class="btn" onclick="fetch('/api/scan/start')">▶ Start Scan</button>
+<button class="btn stop" onclick="fetch('/api/scan/stop')">■ Stop Scan</button>
+</div>
+<footer>AeroSniffer v2.0 | DeskBuddy 2.0</footer>
+<script>
+setInterval(()=>{
+  fetch('/api/stats').then(r=>r.json()).then(d=>{
+    document.getElementById('stats').innerHTML=
+    `<div class="stat"><span class="label">Status</span><span class="value">${d.scanning?'SCANNING':'IDLE'}</span></div>
+     <div class="stat"><span class="label">Channel</span><span class="value">${d.ch}</span></div>
+     <div class="stat"><span class="label">PKT/s</span><span class="value">${d.pps}</span></div>
+     <div class="stat"><span class="label">Total Packets</span><span class="value">${d.total}</span></div>
+     <div class="stat"><span class="label">Beacons</span><span class="value">${d.beacons}</span></div>
+     <div class="stat"><span class="label">Probes</span><span class="value">${d.probes}</span></div>
+     <div class="stat"><span class="label">Deauths</span><span class="${d.deauths>0?'alert':'value'}">${d.deauths}</span></div>`;
+  });
+},1000);
+</script></body></html>)rawliteral";
+  _webserver->send(200, "text/html", html);
+}
+
+static void sec_handle_stats() {
+  char json[256];
+  snprintf(json, sizeof(json),
+    "{\"scanning\":%s,\"ch\":%d,\"pps\":%lu,\"total\":%lu,"
+    "\"beacons\":%lu,\"probes\":%lu,\"deauths\":%lu}",
+    sec_scanning ? "true" : "false", current_ch,
+    pkt_per_sec, pkt_total, pkt_beacon, pkt_probe, pkt_deauth);
+  _webserver->send(200, "application/json", json);
+}
+
+static void sec_handle_scan_start() {
+  if (!sec_scanning) {
+    sec_scanning = true;
+    esp_wifi_set_promiscuous(true);
+  }
+  _webserver->send(200, "text/plain", "OK");
+}
+
+static void sec_handle_scan_stop() {
+  if (sec_scanning) {
+    sec_scanning = false;
+    esp_wifi_set_promiscuous(false);
+  }
+  _webserver->send(200, "text/plain", "OK");
+}
+
+// ── Display: Draw radar sweep + stats ───────────────────────────
+static void sec_draw_display() {
+  if (!_stft) return;
+  _stft->fillScreen(TFT_BLACK);
+
+  // Header
+  _stft->fillRect(0, 0, TFT_W, 14, 0x000F);
+  _stft->setTextColor(0x07FF);
+  _stft->setTextSize(1);
+  _stft->setCursor(2, 3);
+  _stft->print("MODE 2: SECURITY MONITOR");
+
+  // Radar sweep circle
+  int rcx = TFT_W / 2, rcy = 90, rr = 54;
+  _stft->fillCircle(rcx, rcy, rr, 0x0841);
+  _stft->drawCircle(rcx, rcy, rr, 0x0340);
+  _stft->drawCircle(rcx, rcy, rr / 2, 0x0220);
+  _stft->drawFastHLine(rcx - rr, rcy, rr * 2, 0x0220);
+  _stft->drawFastVLine(rcx, rcy - rr, rr * 2, 0x0220);
+
+  // Sweep line
+  float rad = _sweep_angle * DEG_TO_RAD;
+  int sx = rcx + (int)((rr - 2) * cosf(rad));
+  int sy = rcy + (int)((rr - 2) * sinf(rad));
+  _stft->drawLine(rcx, rcy, sx, sy, 0x07E0);
+  _stft->fillCircle(rcx, rcy, 3, TFT_WHITE);
+
+  // Status badge
+  uint16_t badge_col = sec_scanning ? 0x07E0 : 0x4208;
+  _stft->fillRoundRect(TFT_W - 68, 18, 64, 12, 3, badge_col);
+  _stft->setTextColor(TFT_BLACK);
+  _stft->setTextSize(1);
+  _stft->setCursor(TFT_W - 62, 20);
+  _stft->print(sec_scanning ? "SCANNING" : "  IDLE  ");
+
+  // Stats area below radar
+  int sy_base = 154;
+  _stft->setTextColor(0x528A);
+  _stft->setTextSize(1);
+
+  // PKT/s bar
+  _stft->setCursor(4, sy_base);
+  _stft->print("PKT/s:");
+  int bar_w = min((int)(pkt_per_sec / 5), TFT_W - 60);
+  _stft->fillRect(48, sy_base, bar_w, 8, 0x07E0);
+  _stft->setTextColor(TFT_YELLOW);
+  _stft->setCursor(TFT_W - 42, sy_base);
+  _stft->printf("%4lu", pkt_per_sec);
+
+  // Data rows
+  _stft->setTextColor(0x07FF);
+  _stft->setTextSize(1);
+  _stft->setCursor(4, sy_base + 16);
+  _stft->printf("TOTAL: %lu", pkt_total);
+
+  _stft->setCursor(4, sy_base + 28);
+  _stft->printf("BCN: %lu  PRB: %lu", pkt_beacon, pkt_probe);
+
+  _stft->setCursor(4, sy_base + 40);
+  _stft->setTextColor(pkt_deauth > 0 ? TFT_RED : 0x07FF);
+  _stft->printf("DEAUTH: %lu", pkt_deauth);
+  if (pkt_deauth >= DEAUTH_SPIKE_COUNT) {
+    _stft->setTextColor(TFT_RED);
+    _stft->print("  !! ALERT");
+  }
+
+  _stft->setTextColor(0x528A);
+  _stft->setCursor(4, sy_base + 52);
+  _stft->printf("CH: %d", current_ch);
+
+  // Footer: web UI URL
+  _stft->fillRect(0, TFT_H - 14, TFT_W, 14, 0x0008);
+  _stft->setTextColor(0x2CA0);
+  _stft->setTextSize(1);
+  _stft->setCursor(4, TFT_H - 12);
+  _stft->print("http://192.168.4.1");
+}
+
+// ── Public API ──────────────────────────────────────────────────
+void security_setup(TFT_eSPI* tft) {
+  _stft = tft;
+  pkt_total = pkt_deauth = pkt_beacon = pkt_probe = 0;
+  pkt_per_sec = 0;
+  _pps_count = 0;
+  _pps_last_ms = millis();
+  sec_scanning = false;
+  _sweep_angle = 0;
+
+  // Start WiFi in AP mode for web control
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(SEC_AP_SSID, SEC_AP_PASS);
+  Serial.printf("[SEC] AP started: %s / %s\n", SEC_AP_SSID, SEC_AP_PASS);
+  Serial.printf("[SEC] Web UI: http://%s\n", WiFi.softAPIP().toString().c_str());
+
+  // Set up promiscuous callback
+  esp_wifi_set_promiscuous_rx_cb(sec_sniffer_cb);
+
+  // Start web server
+  _webserver = new WebServer(SEC_WEB_PORT);
+  _webserver->on("/", sec_handle_root);
+  _webserver->on("/api/stats", sec_handle_stats);
+  _webserver->on("/api/scan/start", sec_handle_scan_start);
+  _webserver->on("/api/scan/stop", sec_handle_scan_stop);
+  _webserver->begin();
+
+  sec_draw_display();
+}
+
+void security_teardown() {
+  if (sec_scanning) {
+    esp_wifi_set_promiscuous(false);
+    sec_scanning = false;
+  }
+  if (_webserver) {
+    _webserver->stop();
+    delete _webserver;
+    _webserver = nullptr;
+  }
+  WiFi.softAPdisconnect(true);
+  WiFi.mode(WIFI_OFF);
+  _stft = nullptr;
+}
+
+void security_core0_task() {
+  // Channel hopping
+  if (sec_scanning) {
+    sec_hop_channel();
+  }
+
+  // PPS calculation
+  uint32_t now = millis();
+  if (now - _pps_last_ms >= 1000) {
+    pkt_per_sec  = _pps_count;
+    _pps_count   = 0;
+    _pps_last_ms = now;
+  }
+
+  vTaskDelay(pdMS_TO_TICKS(CHANNEL_HOP_MS));
+}
+
+void security_core1_task() {
+  if (!_stft) return;
+
+  // Handle web clients
+  if (_webserver) _webserver->handleClient();
+
+  // Animate radar sweep
+  uint32_t now = millis();
+  if (now - _sweep_last_ms > 40) {
+    _sweep_angle += sec_scanning ? 6.0f : 1.0f;
+    if (_sweep_angle >= 360.0f) _sweep_angle -= 360.0f;
+    _sweep_last_ms = now;
+  }
+
+  sec_draw_display();
+  vTaskDelay(pdMS_TO_TICKS(100));
+}
+
+// ================================================================
+//  DEVKITC — ORIGINAL MARAUDER INTEGRATION WRAPPER
+// ================================================================
+#elif defined(HW_DEVKITC)
+
 extern void marauder_setup(TFT_eSPI* tft) __attribute__((weak));
 extern void marauder_loop() __attribute__((weak));
 
-// Provide dummy weak implementations so the project compiles
-// even before you copy the Marauder files.
 void marauder_setup(TFT_eSPI* tft) {
   if (tft) {
     tft->fillScreen(TFT_BLACK);
@@ -38,34 +332,21 @@ void marauder_loop() {
 }
 
 void security_setup(TFT_eSPI* tft) {
-  // Let Marauder perform its own hardware initialization.
-  // It will likely initialize its own TFT_eSPI instance, but we pass
-  // the pointer just in case the weak dummy needs it.
+  _stft = tft;
   marauder_setup(tft);
 }
 
 void security_teardown() {
-  // ESP32 Marauder cannot be cleanly torn down because it
-  // spins up numerous FreeRTOS tasks and hardware interrupts
-  // that do not have de-initialization routines.
-  //
-  // We rely on the MultiBoot orchestration layer to save the next
-  // mode to EEPROM/Preferences and then we restart.
   ESP.restart();
 }
 
 void security_core0_task() {
-  // Marauder typically relies heavily on the main loop() (Core 1)
-  // and spawns its own WiFi sniffer tasks on Core 0.
-  // We yield this task to free up Core 0 for Marauder's use.
   vTaskDelay(pdMS_TO_TICKS(500));
 }
 
 void security_core1_task() {
-  // Drive Marauder's main loop
   marauder_loop();
-  
-  // Yield occasionally to prevent watchdog resets if Marauder 
-  // hogs the CPU without yielding natively.
   taskYIELD();
 }
+
+#endif // HW_DESKBUDDY_2 / HW_DEVKITC

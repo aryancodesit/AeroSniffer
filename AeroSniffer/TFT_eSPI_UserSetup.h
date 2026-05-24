@@ -10,29 +10,71 @@
 //  Then in the same folder, open User_Setup_Select.h and make sure
 //  only this line is uncommented:
 //      #include <User_Setup.h>
+//
+//  HARDWARE VARIANTS:
+//    - HW_DESKBUDDY_2: XIAO ESP32S3 + ST7789 240×240
+//    - HW_DEVKITC:     ESP32-S3 DevKitC + ILI9341 240×320
+//
+//  Toggle the #define below to match your build.
 // ================================================================
 
-// ── Display Driver Selection ─────────────────────────────────────
-// Uncomment ONE of the following to match your exact display:
+// ── Hardware Variant ─────────────────────────────────────────────
+// Must match the setting in Config.h!
+// #define HW_DEVKITC
+#define HW_DESKBUDDY_2
 
-#define ILI9341_DRIVER   // 240x320 rectangular — default
-// #define ST7789_DRIVER       // 240x240 square (most common "GC9A01 style" round or square)
+// ================================================================
+//  DESKBUDDY 2.0 — XIAO ESP32S3 + ST7789 240×240
+// ================================================================
+#ifdef HW_DESKBUDDY_2
 
-// ── Display Dimensions ───────────────────────────────────────────
+// ── Display Driver ──────────────────────────────────────────────
+#define ST7789_DRIVER        // 240×240 square IPS — DeskBuddy 2.0 display
+
+// ── Display Dimensions ──────────────────────────────────────────
 #define TFT_WIDTH   240
-#define TFT_HEIGHT  320   // ← Change to 240 if using ST7789
+#define TFT_HEIGHT  240      // Square!
 
-// ── SPI Pin Mapping (must match Config.h) ────────────────────────
-#define TFT_MOSI    11    // Data Out
-#define TFT_SCLK    12    // Clock
-#define TFT_CS      10    // Chip Select
-#define TFT_DC      13    // Data / Command
-#define TFT_RST     14    // Reset
+// ── SPI Pin Mapping (XIAO ESP32S3 hardware SPI) ────────────────
+#define TFT_MOSI     9      // D10 → GPIO 9
+#define TFT_SCLK     7      // D8  → GPIO 7
+#define TFT_CS       4      // D3  → GPIO 4
+#define TFT_DC       3      // D2  → GPIO 3
+#define TFT_RST      8      // D9  → GPIO 8
 
-// Backlight is controlled separately via PWM in firmware, but
-// define it here so the library can toggle it during init:
+// Backlight is wired to VCC on DeskBuddy carrier — always on
+// No BL pin defined (saves a GPIO)
+
+// ================================================================
+//  ORIGINAL DEVKITC — ESP32-S3 DevKitC + ILI9341 240×320
+// ================================================================
+#elif defined(HW_DEVKITC)
+
+// ── Display Driver ──────────────────────────────────────────────
+#define ILI9341_DRIVER       // 240×320 rectangular — original build
+
+// ── Display Dimensions ──────────────────────────────────────────
+#define TFT_WIDTH   240
+#define TFT_HEIGHT  320
+
+// ── SPI Pin Mapping (DevKitC) ───────────────────────────────────
+#define TFT_MOSI    11       // Data Out
+#define TFT_SCLK    12       // Clock
+#define TFT_CS      10       // Chip Select
+#define TFT_DC      13       // Data / Command
+#define TFT_RST     14       // Reset
+
+// Backlight on GPIO 15
 #define TFT_BL      15
 #define TFT_BACKLIGHT_ON  HIGH
+
+#else
+  #error "Define HW_DESKBUDDY_2 or HW_DEVKITC in TFT_eSPI_UserSetup.h"
+#endif
+
+// ================================================================
+//  SHARED SETTINGS (both variants)
+// ================================================================
 
 // ── Font Loading — keep all for max flexibility ──────────────────
 #define LOAD_GLCD     // Adafruit GFX built-in 5x7 font

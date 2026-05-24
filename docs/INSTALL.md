@@ -1,6 +1,6 @@
-# 📦 Installation Guide — AeroSniffer
+# 📦 Installation Guide — AeroSniffer (DeskBuddy 2.0 Kit)
 
-Complete software setup from zero to flashed firmware. Follow every step in order.
+Complete software setup from zero to flashed firmware on the XIAO ESP32S3.
 
 ---
 
@@ -29,18 +29,18 @@ Install the **2.x version** (not legacy 1.8). The IDE 2 has better serial monito
 
 ## Step 3 — Select Your Board
 
-1. Go to **Tools → Board → esp32 → ESP32S3 Dev Module**
+1. Go to **Tools → Board → esp32 → XIAO_ESP32S3**
 2. Configure these settings under **Tools**:
 
    | Setting | Value |
    |---------|-------|
-   | Board | ESP32S3 Dev Module |
-   | Flash Size | 16MB (128Mb) |
-   | Flash Mode | QIO 80MHz |
+   | Board | XIAO_ESP32S3 |
+   | Flash Size | 8MB (64Mb) |
    | PSRAM | OPI PSRAM |
-   | Partition Scheme | 16M Flash (3MB APP/9.9MB FATFS) |
-   | USB Mode | Hardware CDC and JTAG |
+   | USB CDC On Boot | **Enabled** |
    | Upload Speed | 921600 |
+
+> ⚠️ **USB CDC On Boot: Enabled** is critical! The XIAO ESP32S3 uses native USB — without this, Serial Monitor won't work.
 
 ---
 
@@ -62,15 +62,12 @@ tools\install_libraries.bat
 
 Open **Sketch → Include Library → Manage Libraries**, then search and install each:
 
-| Library | Author | Version |
-|---------|--------|---------|
-| **TFT_eSPI** | Bodmer | Latest |
-| **ArduinoFFT** | kosme | Latest |
-| **ArduinoJson** | Benoit Blanchon | 7.x |
-| **NimBLE-Arduino** | h2zero | Latest |
-| **AnimatedGIF** | Larry Bank | Latest |
+| Library | Author | Version | Used By |
+|---------|--------|---------|---------|
+| **TFT_eSPI** | Bodmer | Latest | Display rendering (all modes) |
+| **ArduinoJson** | Benoit Blanchon | 7.x | Flight API parsing (Mode 3) |
 
-> ⚠️ Do **not** install the older `arduinoFFT` (lowercase). Search for `ArduinoFFT` by `kosme`.
+> 💡 That's only **2 libraries** for the DeskBuddy 2.0 build! The original DevKitC build needed ArduinoFFT and NimBLE too, but those are for the mic and BLE features which aren't wired on this kit.
 
 ---
 
@@ -96,8 +93,7 @@ This is the most important step. TFT_eSPI needs to know your exact pin wiring.
    #include <User_Setup.h>
    ```
 
-> ✅ **ILI9341 (240×320 rectangular):** Default config — no changes needed after copy.
-> 🟡 **ST7789 (240×240 square):** In the copied file, comment out `#define ILI9341_DRIVER` and uncomment `#define ST7789_DRIVER`. Also change `TFT_HEIGHT` to 240 in both `TFT_eSPI_UserSetup.h` and `Config.h`.
+> ✅ The file is pre-configured for the DeskBuddy 2.0 kit: **ST7789 driver**, **240×240**, XIAO SPI pins.
 
 ---
 
@@ -106,7 +102,7 @@ This is the most important step. TFT_eSPI needs to know your exact pin wiring.
 Open `AeroSniffer/Config.h` and update these values:
 
 ```cpp
-// Your home WiFi (used by Mode 2 scan base and Mode 3 API)
+// Your home WiFi (used by Mode 2 AP fallback and Mode 3 API)
 #define WIFI_SSID        "YOUR_WIFI_NAME"
 #define WIFI_PASSWORD    "YOUR_WIFI_PASSWORD"
 
@@ -120,11 +116,13 @@ Open `AeroSniffer/Config.h` and update these values:
 #define SKY_LOMAX   86.8f
 ```
 
+The hardware variant is already set to `HW_DESKBUDDY_2`. No pin changes needed.
+
 ---
 
 ## Step 7 — Upload SPIFFS Data (airlines + aircraft database)
 
-Mode 3 uses a local SQLite-style lookup database for airline names.
+Mode 3 uses a local lookup database for airline names.
 
 1. Install the **LittleFS Upload Plugin** for Arduino IDE:
    - Download from: https://github.com/earlephilhower/arduino-littlefs-upload/releases
@@ -135,29 +133,29 @@ Mode 3 uses a local SQLite-style lookup database for airline names.
 
 3. Wait for the upload to complete (you'll see "SPIFFS Upload complete" in the console)
 
-> 📝 The `data/` folder contains `airlines.db` and `aircraft.db`. These are sourced from the rzeldent esp32-flightradar24-ttgo project and contain ICAO codes for ~1000 airlines and aircraft types.
+> 📝 The `data/` folder contains `airlines.db` and `aircraft.db` for ICAO code lookups.
 
 ---
 
 ## Step 8 — Compile and Flash
 
 1. Open: **File → Open → `AeroSniffer/AeroSniffer.ino`**
-2. Connect ESP32-S3 via USB-C
+2. Connect the XIAO ESP32S3 via USB-C
 3. Select the correct **Port** under Tools → Port
 4. Click the **Upload** button (→ arrow)
 5. Watch the console — you should see:
 
 ```
 Connecting...
-Chip is ESP32-S3 (revision 0)
+Chip is ESP32-S3
 ...
 Writing at 0x00010000... (100 %)
 Hash of data verified.
-Leaving...
-Hard resetting via RTS pin...
 ```
 
 6. The display should show the **AeroSniffer boot splash**, then enter **Mode 1 (Pet)**
+
+> 💡 If upload fails, put the XIAO into download mode: **Hold BOOT → Press RESET → Release BOOT**, then try again.
 
 ---
 
@@ -166,10 +164,10 @@ Hard resetting via RTS pin...
 | Test | What to check |
 |------|--------------|
 | Boot splash | "AeroSniffer" text appears for ~3 seconds |
-| Mode 1 (Pet) | Animated eyes appear. Press on FSR → happy expression |
-| Mode switch | Press BOOT button → "SECURITY" transition screen → Mode 2 loads |
-| Mode 2 (Security) | Header shows CH:01, packet counters increment |
-| Mode switch again | Press BOOT → "AVIATION" → Mode 3 loads |
+| Mode 1 (Pet) | Animated eyes appear. Tap the touch sensor → happy expression |
+| Mode switch | Long-press touch sensor (1.5s) → "SECURITY" transition → Mode 2 loads |
+| Mode 2 (Security) | Animated radar sweep, packet counters visible. Connect phone to `AeroSniffer-SEC` WiFi and open `http://192.168.4.1` |
+| Mode switch again | Long-press → "AVIATION" → Mode 3 loads |
 | Mode 3 (Aviation) | Shows "Connecting to WiFi..." then flight cards or "No aircraft" |
 
 ---
@@ -177,9 +175,14 @@ Hard resetting via RTS pin...
 ## Troubleshooting
 
 ### Display shows nothing / white screen
-- Double-check TFT_eSPI User_Setup.h was correctly replaced
-- Verify SPI wiring: MOSI=11, SCLK=12, CS=10, DC=13, RST=14
+- Double-check TFT_eSPI `User_Setup.h` was correctly replaced
+- Verify SPI wiring: MOSI=D10(9), SCLK=D8(7), CS=D3(4), DC=D2(3), RST=D9(8)
 - Try setting `SPI_FREQUENCY` to `27000000` (slower) in User_Setup.h
+
+### Cannot upload — "No serial port detected"
+- The XIAO ESP32S3 uses **native USB** — no CH340/CP2102 driver needed
+- Try download mode: Hold BOOT → Press RESET → Release BOOT
+- Check USB cable supports data (not charge-only)
 
 ### "Guru Meditation Error: Core 1 panic"
 - Stack overflow in UI task — increase stack size in `.ino`:
@@ -191,12 +194,14 @@ Hard resetting via RTS pin...
 - Check SSID and password in Config.h — they are case-sensitive
 - Ensure your router is 2.4GHz (ESP32-S3 does not support 5GHz)
 
-### Mode 2 shows 0 packets
-- Try near a WiFi router and wait 5–10 seconds for channel hop to find traffic
-- Check that `esp_wifi_set_promiscuous(true)` isn't being blocked (requires NULL WiFi mode)
+### Touch sensor not responding
+- Verify D0 (GPIO 1) is wired to the SIG/OUT pin of the touch module
+- Check that VCC and GND are connected
+- The touch module outputs LOW when touched — firmware uses INPUT_PULLUP
 
 ### Serial output for debugging
 Open **Tools → Serial Monitor** at **115200 baud** after flashing.
+Ensure "USB CDC On Boot" is set to **Enabled** in board settings.
 
 ---
 

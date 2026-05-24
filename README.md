@@ -1,7 +1,7 @@
 # ✈️ AeroSniffer
 ### A Multi-Boot ESP32-S3 Desk Gadget
 
-> **Three devices in one.** Press a single button to switch between a living desktop companion, a wireless security monitor, and a real-time flight radar — all running on a single ESP32-S3.
+> **Three devices in one.** Long-press the touch sensor to switch between a living desktop companion, a wireless security monitor, and a real-time flight radar — all running on a single XIAO ESP32S3 inside a DeskBuddy 2.0 enclosure.
 
 ---
 
@@ -11,15 +11,35 @@ AeroSniffer treats the ESP32-S3 like a mini operating system with three complete
 
 | Mode | Name | What It Does |
 |------|------|--------------|
-| 🐾 **Mode 1** | The Companion | Interactive desk pet with animated face, music-reactive bobbing, FSR haptic sensing, and I2S audio |
-| 🛡️ **Mode 2** | Network Auditor | Passive 802.11 packet sniffer — probe requests, beacons, EAPOL handshakes, deauth spike alerts, evil twin detection |
+| 🐾 **Mode 1** | The Companion | Interactive desk pet with animated face expressions, capacitive touch interaction (head-pats!), and automatic blinking |
+| 🛡️ **Mode 2** | Network Auditor | 802.11 packet sniffer with animated radar sweep display + companion web app for full Marauder control |
 | ✈️ **Mode 3** | Flight Radar | Live ADS-B flight tracker pulling from OpenSky Network API with callsign, altitude, speed, and compass heading |
 
-**Switch modes instantly** with the BOOT button (GPIO 0). No reboot needed — FreeRTOS handles clean teardown and re-init of all hardware between modes.
+**Switch modes instantly** with a 1.5-second long-press on the capacitive touch sensor. No reboot needed — FreeRTOS handles clean teardown and re-init of all hardware between modes.
 
 ---
 
-## ⚡ Quick Start (Software Only — No Hardware Yet)
+## 🛒 Hardware: DeskBuddy 2.0 Kit (₹2,299)
+
+> **One purchase, everything included.** No extra components needed.
+
+| # | Component | Included |
+|---|-----------|----------|
+| 1 | Seeed Studio XIAO ESP32S3 | ✅ |
+| 2 | 1.3" ST7789 240×240 IPS Display | ✅ |
+| 3 | Red Capacitive Touch Module | ✅ |
+| 4 | 3.7V LiPo Battery | ✅ |
+| 5 | On/Off Switch | ✅ |
+| 6 | 3D Printed Enclosure | ✅ |
+| 7 | USB-C Cable | ✅ |
+
+**Buy:** [ESC Labs — DeskBuddy 2.0 Kit](https://www.esclabs.in/product/deskbuddy-2-0-kit/)
+
+See [docs/HARDWARE.md](docs/HARDWARE.md) for full specs, pin allocation, and purchase links.
+
+---
+
+## ⚡ Quick Start
 
 ```bash
 # 1. Clone this repo
@@ -38,59 +58,35 @@ nano AeroSniffer/Config.h
 
 # 5. Open in Arduino IDE
 #    File → Open → AeroSniffer/AeroSniffer.ino
-#    Board: ESP32S3 Dev Module
+#    Board: XIAO_ESP32S3
+#    USB CDC On Boot: Enabled
 #    Flash → Upload
 ```
 
-That's it. See [INSTALL.md](docs/INSTALL.md) for the full step-by-step with screenshots.
-
----
-
-## 🛒 Hardware Bill of Materials
-
-> **You only need to buy these 7 components.** Total cost estimate: ₹1,500–2,500 depending on supplier.
-
-| # | Component | Model | Qty | Purpose | Buy (India) |
-|---|-----------|-------|-----|---------|-------------|
-| 1 | **Microcontroller** | ESP32-S3 DevKitC-1 (16MB) | 1 | Main brain | Robu.in / Quartzcomponents |
-| 2 | **TFT Display** | ILI9341 240×320 SPI *(or ST7789 240×240)* | 1 | All UI rendering | Robu.in / AliExpress |
-| 3 | **Microphone** | INMP441 I2S Digital Mic | 1 | FFT music analysis | Robu.in / Amazon.in |
-| 4 | **Amplifier + Speaker** | MAX98357A I2S DAC + 8Ω 1W speaker | 1 | Audio output | Robu.in |
-| 5 | **Force Sensor** | FSR-402 Pressure Resistor | 1 | Pet touch sensing | Amazon.in |
-| 6 | **IMU** | MPU-6050 6-Axis Gyroscope | 1 | Shake/tilt detection | Anywhere |
-| 7 | **Resistor** | 10 kΩ through-hole | 1 | FSR voltage divider | Any electronics shop |
-
-> 🟡 **Note:** The BOOT button (GPIO 0) is already on the ESP32-S3 DevKit — no separate button needed for mode switching.
-
-See [docs/HARDWARE.md](docs/HARDWARE.md) for detailed purchase links and alternatives.
+See [docs/INSTALL.md](docs/INSTALL.md) for the full step-by-step with screenshots.
 
 ---
 
 ## 🔌 Wiring At A Glance
 
-> Full wiring guide with diagrams: [docs/WIRING.md](docs/WIRING.md)
+> Full wiring guide: [docs/WIRING.md](docs/WIRING.md)
 
 ```
-ESP32-S3 DevKitC-1
+XIAO ESP32S3
 │
-├── SPI  → TFT Display (ST7789 / ILI9341)
-│          MOSI=11  SCLK=12  CS=10  DC=13  RST=14  BL=15
+├── SPI  → ST7789 1.3" Display (240×240)
+│          MOSI=D10(9)  SCLK=D8(7)  CS=D3(4)  DC=D2(3)  RST=D9(8)
 │
-├── I2S0 → INMP441 Microphone (input)
-│          WS=4  SCK=5  SD=6   (L/R pin → GND)
+├── DIG  → Capacitive Touch Module
+│          D0(GPIO1) — active LOW, pull-up enabled
+│          Short tap  = pet interaction
+│          Long press = switch mode (1.5s)
 │
-├── I2S1 → MAX98357A DAC Amplifier (output)
-│          BCLK=7  LRC=8  DIN=9
+├── USB  → Companion App (Mode 2 control)
+│          Native USB-C Serial for Marauder commands
 │
-├── I2C  → MPU-6050 IMU
-│          SDA=1  SCL=2   (AD0 → GND = address 0x68)
-│
-├── ADC  → FSR-402 Force Sensor
-│          3.3V → FSR → GPIO3 ──┬── 10kΩ → GND
-│                               └── read here
-│
-└── GPIO → Mode Button
-           GPIO0 (BOOT button, built-in) → Active LOW
+└── WiFi → Mode 3 Flight Radar (STA mode)
+           Connects to home WiFi for OpenSky API
 ```
 
 ---
@@ -102,9 +98,9 @@ AeroSniffer/
 │
 ├── AeroSniffer/                   ← Arduino sketch (open this in IDE)
 │   ├── AeroSniffer.ino            ← Main file — orchestration + FreeRTOS tasks
-│   ├── Config.h                   ← ⭐ EDIT THIS — all pins, WiFi, bounding box
-│   ├── Mode1_Pet.h                ← Desk companion — FFT, FSR, animations, audio
-│   ├── Mode2_Security.h           ← WiFi sniffer — promiscuous mode, UI, alerts
+│   ├── Config.h                   ← ⭐ EDIT THIS — pins, WiFi, bounding box
+│   ├── Mode1_Pet.h                ← Desk companion — touch, animations
+│   ├── Mode2_Security.h           ← WiFi sniffer — radar display + web UI
 │   ├── Mode3_Aviation.h           ← Flight radar — OpenSky API, flight cards
 │   └── TFT_eSPI_UserSetup.h       ← Copy this into TFT_eSPI library folder
 │
@@ -130,7 +126,7 @@ AeroSniffer/
 
 ## ⚙️ The Only File You Need to Edit
 
-Open **`AeroSniffer/Config.h`** and change these 3 sections:
+Open **`AeroSniffer/Config.h`** and change these 2 sections:
 
 ```cpp
 // ── Your WiFi credentials ──────────────────────────────
@@ -143,49 +139,65 @@ Open **`AeroSniffer/Config.h`** and change these 3 sections:
 #define SKY_LOMIN   85.0f   // West longitude
 #define SKY_LAMAX   21.0f   // North latitude
 #define SKY_LOMAX   86.8f   // East longitude
-
-// ── Your TFT display resolution ────────────────────────
-#define TFT_W  240
-#define TFT_H  320   // Change to 240 if using ST7789 square panel
 ```
 
-Everything else is pre-configured for the default hardware matrix.
+The hardware variant is pre-set to `HW_DESKBUDDY_2`. Everything else is pre-configured.
 
 ---
 
 ## 🧩 Software Architecture
 
 ```
-                     ┌─────────────────────────────┐
-                     │   BOOT Button (GPIO 0 ISR)   │
-                     │   cycles mode 0 → 1 → 2 → 0  │
-                     └──────────────┬──────────────┘
-                                    │ modeChanged flag
-                   ┌────────────────▼────────────────┐
-                   │        FreeRTOS Task Router       │
-                   ├────────────────┬─────────────────┤
-                   │    CORE 0      │     CORE 1       │
-                   │  (Background)  │   (UI Engine)    │
-                   ├────────────────┼─────────────────┤
-                   │ FFT / I2S mic  │ TFT rendering    │
-                   │ WiFi promiscu. │ FSR + MPU reads  │
-                   │ HTTP API calls │ State machine     │
-                   └────────────────┴─────────────────┘
+                     ┌───────────────────────────────────┐
+                     │  Capacitive Touch (GPIO 1)         │
+                     │  short tap = interact               │
+                     │  long press (1.5s) = mode switch    │
+                     └────────────────┬──────────────────┘
+                                      │ g_mode_dirty flag
+                   ┌──────────────────▼──────────────────┐
+                   │        FreeRTOS Task Router           │
+                   ├──────────────────┬──────────────────┤
+                   │    CORE 0        │     CORE 1        │
+                   │  (Background)    │   (UI Engine)     │
+                   ├──────────────────┼──────────────────┤
+                   │ WiFi promiscu.   │ TFT rendering     │
+                   │ HTTP API calls   │ Touch polling      │
+                   │ Channel hopping  │ State machine      │
+                   └──────────────────┴──────────────────┘
 ```
+
+---
+
+## 🛡️ Mode 2: Security Monitor + Companion App
+
+Mode 2 uses a split architecture optimized for the tiny 1.3" display:
+
+**On the device (240×240 screen):**
+- Animated radar sweep visualization
+- Live PKT/s bar graph
+- Packet type counters (beacons, probes, deauths)
+- Deauth spike alert indicator
+
+**On your phone/laptop (companion app):**
+- Connect via USB Serial or WiFi AP (`AeroSniffer-SEC`)
+- Full Marauder-style scan controls
+- Firmware update checker
+- How-to tutorial built in
+
+> 🚧 The companion web app (Vercel deployment) / desktop .exe is planned as a separate project.
 
 ---
 
 ## 📚 Inspired By
 
-This project merges concepts and code patterns from three open-source projects:
-
 | Project | Author | What We Borrowed |
 |---------|--------|-----------------|
-| [Dasai Mochi](https://github.com/maraulsav/Dasai-Mochi) + [TFT Clone](https://github.com/huykhoong/esp32_dasai_mochi_clone_and_how_to) | maraulsav / huykhoong | Pet animation pipeline, gif2cpp workflow, buzzer patterns |
+| [Dasai Mochi](https://github.com/maraulsav/Dasai-Mochi) + [TFT Clone](https://github.com/huykhoong/esp32_dasai_mochi_clone_and_how_to) | maraulsav / huykhoong | Pet animation pipeline, expression state machine |
 | [ESP32 Marauder](https://github.com/justcallmekoko/ESP32Marauder) | justcallmekoko | Promiscuous WiFi engine, packet classification logic |
 | [esp32-flightradar24-ttgo](https://github.com/rzeldent/esp32-flightradar24-ttgo) | rzeldent | Flight API parsing, airline DB structure, card layout |
+| [DeskBuddy 2.0](https://www.esclabs.in/product/deskbuddy-2-0-kit/) | ESC Labs | Hardware kit, enclosure design, XIAO form factor |
 
-All firmware in this repository is original code written for ESP32-S3 with FreeRTOS dual-core architecture. Only the conceptual patterns and data formats were studied from the above projects.
+All firmware in this repository is original code written for ESP32-S3 with FreeRTOS dual-core architecture.
 
 ---
 
@@ -208,4 +220,4 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 Issues and PRs welcome. See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
-Built with ❤️ on ESP32-S3 | Bhubaneswar, Odisha, India
+Built with ❤️ on XIAO ESP32S3 | Bhubaneswar, Odisha, India

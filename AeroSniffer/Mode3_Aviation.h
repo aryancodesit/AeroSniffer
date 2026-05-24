@@ -9,6 +9,8 @@
 //    • Auto-scrolling flight cards with heading compass rose
 //    • Mini radar dot-map scaled to your bounding box
 //    • Graceful no-flight / no-WiFi fallback messages
+//
+//  Display layout adapts to TFT_H (240 square or 320 portrait).
 // ================================================================
 #pragma once
 
@@ -89,12 +91,9 @@ static void draw_compass(int cx, int cy, int r, float h) {
 //  MINI RADAR MAP
 // ================================================================
 static void avi_draw_radar(int x, int y, int r) {
-  // Background
   _atft->fillCircle(x, y, r, 0x0841);
-  // Rings
   _atft->drawCircle(x, y, r,     0x0340);
   _atft->drawCircle(x, y, r / 2, 0x0220);
-  // Cross-hairs
   _atft->drawFastHLine(x - r, y, r * 2, 0x0220);
   _atft->drawFastVLine(x, y - r, r * 2, 0x0220);
 
@@ -116,30 +115,55 @@ static void avi_draw_radar(int x, int y, int r) {
 }
 
 // ================================================================
-//  FLIGHT CARD RENDERER
+//  FLIGHT CARD RENDERER — adapts to display height
 // ================================================================
 static void avi_draw_card(int idx) {
   if (!_atft) return;
   _atft->fillScreen(TFT_BLACK);
 
+  // ── Layout constants based on display height ─────────────────
+  #if TFT_H >= 300
+    // 240×320 portrait — original spacious layout
+    const int HDR_H     = 18;
+    const int CS_Y      = 22;
+    const int CS_SIZE   = 3;
+    const int BADGE_Y   = 24;
+    const int DIV1_Y    = 52;
+    const int ROW_START = 58;
+    const int ROW_STEP  = 26;
+    const int COMP_R    = 36;
+    const int FTR_H     = 12;
+  #else
+    // 240×240 square — compact layout
+    const int HDR_H     = 14;
+    const int CS_Y      = 16;
+    const int CS_SIZE   = 2;
+    const int BADGE_Y   = 18;
+    const int DIV1_Y    = 38;
+    const int ROW_START = 42;
+    const int ROW_STEP  = 22;
+    const int COMP_R    = 30;
+    const int FTR_H     = 12;
+  #endif
+
   // ── Header strip ─────────────────────────────────────────────
-  _atft->fillRect(0, 0, TFT_W, 18, 0x000F);
+  _atft->fillRect(0, 0, TFT_W, HDR_H, 0x000F);
   _atft->setTextColor(0x07FF);
   _atft->setTextSize(1);
-  _atft->setCursor(2, 5);
-  _atft->printf("MODE 3: FLIGHT RADAR  [%d/%d]",
+  _atft->setCursor(2, (HDR_H - 8) / 2);
+  _atft->printf("FLIGHT RADAR  [%d/%d]",
                 flight_count > 0 ? idx + 1 : 0, flight_count);
 
   if (flight_count == 0) {
     // ── Empty state ───────────────────────────────────────────
     _atft->setTextColor(TFT_YELLOW);
     _atft->setTextSize(1);
-    _atft->setCursor(20, 90);
+    _atft->setCursor(20, TFT_H / 2 - 20);
     _atft->print("No aircraft in radius.");
-    _atft->setCursor(20, 105);
+    _atft->setCursor(20, TFT_H / 2 - 6);
     _atft->print(status_msg);
     _atft->setTextColor(0x4208);
-    _atft->setCursor(20, 125);
+    _atft->setCursor(20, TFT_H / 2 + 10);
     _atft->printf("Box: %.1f-%.1f N  %.1f-%.1f E",
                   SKY_LAMIN, SKY_LAMAX, SKY_LOMIN, SKY_LOMAX);
     return;
@@ -147,78 +171,79 @@ static void avi_draw_card(int idx) {
 
   FlightRecord& f = flights[idx];
 
-  // ── Callsign (large) ──────────────────────────────────────────
+  // ── Callsign ──────────────────────────────────────────────────
   _atft->setTextColor(TFT_WHITE);
-  _atft->setTextSize(3);
-  _atft->setCursor(6, 22);
+  _atft->setTextSize(CS_SIZE);
+  _atft->setCursor(6, CS_Y);
   _atft->print(f.callsign[0] ? f.callsign : "N/A----");
 
   // Status badge (AIRBORNE / GROUND)
   uint16_t badge_col = f.on_ground ? 0xF800 : 0x07E0;
-  _atft->fillRoundRect(TFT_W - 72, 24, 68, 14, 4, badge_col);
+  _atft->fillRoundRect(TFT_W - 72, BADGE_Y, 68, 14, 4, badge_col);
   _atft->setTextColor(TFT_BLACK);
   _atft->setTextSize(1);
-  _atft->setCursor(TFT_W - 68, 28);
+  _atft->setCursor(TFT_W - 68, BADGE_Y + 3);
   _atft->print(f.on_ground ? "  ON GROUND" : "  AIRBORNE");
 
   // Divider
-  _atft->drawFastHLine(0, 52, TFT_W, 0x2104);
+  _atft->drawFastHLine(0, DIV1_Y, TFT_W, 0x2104);
 
-  // ── Data grid — left column ──────────────────────────────────
+  // ── Data grid ────────────────────────────────────────────────
   int lx = 6, rx = TFT_W / 2 + 4;
-  int row[] = {58, 84, 110, 136};
+  int r0 = ROW_START;
+  int r1 = ROW_START + ROW_STEP;
 
   // Labels
   _atft->setTextColor(0x528A);
   _atft->setTextSize(1);
-  _atft->setCursor(lx, row[0]);     _atft->print("ALTITUDE");
-  _atft->setCursor(lx, row[1]);     _atft->print("GND SPEED");
-  _atft->setCursor(rx, row[0]);     _atft->print("HEADING");
-  _atft->setCursor(rx, row[1]);     _atft->print("POSITION");
+  _atft->setCursor(lx, r0);     _atft->print("ALTITUDE");
+  _atft->setCursor(lx, r1);     _atft->print("GND SPEED");
+  _atft->setCursor(rx, r0);     _atft->print("HEADING");
+  _atft->setCursor(rx, r1);     _atft->print("POSITION");
 
   // Values
   _atft->setTextColor(TFT_YELLOW);
   _atft->setTextSize(2);
-  _atft->setCursor(lx, row[0] + 10);
+  _atft->setCursor(lx, r0 + 10);
   if (f.alt_m > 0)
     _atft->printf("%5.0f m", f.alt_m);
   else
     _atft->print(" N/A  ");
 
-  _atft->setCursor(lx, row[1] + 10);
-  _atft->printf("%4.0f kn", f.vel_ms * 1.94384f);  // m/s → knots
+  _atft->setCursor(lx, r1 + 10);
+  _atft->printf("%4.0f kn", f.vel_ms * 1.94384f);
 
-  _atft->setCursor(rx, row[0] + 10);
-  _atft->printf("%3.0f° %s", f.heading, heading_label(f.heading));
+  _atft->setCursor(rx, r0 + 10);
+  _atft->printf("%3.0f%s", f.heading, heading_label(f.heading));
 
   _atft->setTextColor(0x07FF);
   _atft->setTextSize(1);
-  _atft->setCursor(rx, row[1] + 10);
-  _atft->printf("%.4f N", f.lat);
-  _atft->setCursor(rx, row[1] + 22);
-  _atft->printf("%.4f E", f.lon);
+  _atft->setCursor(rx, r1 + 10);
+  _atft->printf("%.3f N", f.lat);
+  _atft->setCursor(rx, r1 + 20);
+  _atft->printf("%.3f E", f.lon);
 
-  // Divider
-  _atft->drawFastHLine(0, row[2] + 4, TFT_W, 0x2104);
-  _atft->drawFastVLine(TFT_W / 2, row[2] + 4, TFT_H - row[2] - 14, 0x2104);
+  // Divider above compass/radar
+  int div2_y = r1 + ROW_STEP + 10;
+  _atft->drawFastHLine(0, div2_y, TFT_W, 0x2104);
+  _atft->drawFastVLine(TFT_W / 2, div2_y, TFT_H - div2_y - FTR_H, 0x2104);
 
   // ── Compass rose (left lower) ────────────────────────────────
-  int comp_cx = TFT_W / 4, comp_cy = row[2] + 44;
-  draw_compass(comp_cx, comp_cy, 36, f.heading);
+  int widget_cy = div2_y + COMP_R + 6;
+  draw_compass(TFT_W / 4, widget_cy, COMP_R, f.heading);
 
   // ── Radar map (right lower) ──────────────────────────────────
-  int rad_cx = 3 * TFT_W / 4, rad_cy = row[2] + 44;
-  avi_draw_radar(rad_cx, rad_cy, 36);
+  avi_draw_radar(3 * TFT_W / 4, widget_cy, COMP_R);
 
   // ── Footer strip ─────────────────────────────────────────────
-  _atft->fillRect(0, TFT_H - 12, TFT_W, 12, 0x0008);
+  _atft->fillRect(0, TFT_H - FTR_H, TFT_W, FTR_H, 0x0008);
   _atft->setTextColor(0x2CA0);
   _atft->setTextSize(1);
-  _atft->setCursor(2, TFT_H - 10);
+  _atft->setCursor(2, TFT_H - FTR_H + 2);
   uint32_t secs_to_next = (FETCH_INTERVAL_MS - min((uint32_t)(millis() - last_fetch), (uint32_t)FETCH_INTERVAL_MS)) / 1000;
-  _atft->printf("WiFi:%s | Refresh in %lus | %s",
+  _atft->printf("WiFi:%s | Refresh:%lus %s",
                 wifi_ok ? "OK" : "ERR", secs_to_next,
-                fetching ? "Fetching..." : "");
+                fetching ? "..." : "");
 }
 
 // ================================================================
@@ -249,7 +274,6 @@ static void avi_fetch_flights() {
   fetching = true;
   snprintf(status_msg, sizeof(status_msg), "Polling OpenSky...");
 
-  // Build URL at runtime (avoids macro-stringify issues with floats)
   char url[200];
   snprintf(url, sizeof(url),
     "http://opensky-network.org/api/states/all"
@@ -269,7 +293,6 @@ static void avi_fetch_flights() {
     return;
   }
 
-  // Use streaming JSON parser to keep RAM under control
   WiFiClient* stream = http.getStreamPtr();
   DynamicJsonDocument doc(20480);
   DeserializationError err = deserializeJson(doc, *stream);
@@ -290,14 +313,11 @@ static void avi_fetch_flights() {
     FlightRecord& f = flights[flight_count];
     memset(&f, 0, sizeof(f));
 
-    // sv[1] = callsign (string), sv[5]=lon, sv[6]=lat, sv[7]=baro_alt,
-    // sv[8]=on_ground, sv[9]=velocity, sv[10]=true_track
     const char* cs = sv[1].as<const char*>();
     if (!cs || strlen(cs) == 0) continue;
 
     strncpy(f.callsign, cs, 9);
     f.callsign[9] = '\0';
-    // Trim trailing spaces
     for (int k = (int)strlen(f.callsign) - 1; k >= 0 && f.callsign[k] == ' '; k--)
       f.callsign[k] = '\0';
 
@@ -327,18 +347,19 @@ void aviation_setup(TFT_eSPI* tft) {
   disp_page    = 0;
   wifi_ok      = false;
   fetching     = false;
-  last_fetch   = 0;         // Trigger immediate fetch on first core0 call
+  last_fetch   = 0;
   last_scroll  = millis();
   snprintf(status_msg, sizeof(status_msg), "Starting up...");
 
   _atft->fillScreen(TFT_BLACK);
   _atft->setTextColor(TFT_CYAN);
   _atft->setTextSize(2);
-  _atft->setCursor(24, 90);
+  int tx = (TFT_W - 144) / 2;   // Approx center "Flight Radar"
+  _atft->setCursor(tx, TFT_H / 2 - 16);
   _atft->print("Flight Radar");
   _atft->setTextSize(1);
   _atft->setTextColor(TFT_WHITE);
-  _atft->setCursor(30, 115);
+  _atft->setCursor(tx, TFT_H / 2 + 6);
   _atft->print("Connecting to WiFi...");
 }
 
@@ -363,7 +384,6 @@ void aviation_core1_task() {
   if (!_atft) return;
   uint32_t now = millis();
 
-  // Auto-scroll through flight cards every CARD_SCROLL_MS
   if (flight_count > 1 && now - last_scroll > CARD_SCROLL_MS) {
     last_scroll = now;
     disp_page   = (disp_page + 1) % flight_count;

@@ -1,196 +1,122 @@
-# 🔌 Wiring Guide — AeroSniffer
+# 🔌 Wiring Guide — AeroSniffer (DeskBuddy 2.0 Kit)
 
-Complete pin-by-pin connection reference for all hardware modules.
+Complete pin-by-pin connection reference for the DeskBuddy 2.0 build.
 
-> **Golden rule:** All modules run on **3.3V** from the ESP32-S3's 3V3 pin.
-> Never connect anything directly to 5V (VBUS) unless explicitly stated.
+> **Golden rule:** All modules run on **3.3V** from the XIAO ESP32S3's 3V3 pin.
+> The DeskBuddy 2.0 kit comes pre-matched — most wiring is straightforward.
 
 ---
 
-## ESP32-S3 DevKitC-1 — Pin Overview
+## XIAO ESP32S3 — Pin Overview
 
 ```
                     ┌──────────────────────────┐
-                    │     ESP32-S3 DevKitC-1    │
-         [3V3] ─────┤ 3V3              5V  VBUS ├───── [5V from USB]
-         [GND] ─────┤ GND             GND       ├───── [GND]
-                    │                           │
-     TFT MOSI ──────┤ GPIO11         GPIO1  SDA ├───── MPU6050 SDA
-     TFT SCLK ──────┤ GPIO12         GPIO2  SCL ├───── MPU6050 SCL
-       TFT CS ──────┤ GPIO10         GPIO3  ADC ├───── FSR-402
-       TFT DC ──────┤ GPIO13         GPIO4   WS ├───── INMP441 WS
-      TFT RST ──────┤ GPIO14         GPIO5  SCK ├───── INMP441 SCK
-       TFT BL ──────┤ GPIO15         GPIO6   SD ├───── INMP441 SD
-                    │                           │
-   MAX98357A BCLK ──┤ GPIO7          GPIO0      ├───── BOOT Button (built-in)
-    MAX98357A LRC ──┤ GPIO8                     │
-    MAX98357A DIN ──┤ GPIO9                     │
+                    │   Seeed XIAO ESP32S3      │
+         [3V3] ────┤ 3V3              5V  VBUS ├───── [5V from USB]
+         [GND] ────┤ GND             GND       │
+                   │                            │
+  Touch Sensor ────┤ D0 (GPIO1)                 │
+      (free) ──────┤ D1 (GPIO2)                 │
+      TFT DC ──────┤ D2 (GPIO3)                 │
+      TFT CS ──────┤ D3 (GPIO4)                 │
+     (free) ───────┤ D4 (GPIO5)     D10 (GPIO9) ├───── TFT MOSI
+     (free) ───────┤ D5 (GPIO6)      D9 (GPIO8) ├───── TFT RST
+     (free) ───────┤ D6 (GPIO43)     D8 (GPIO7) ├───── TFT SCLK
+     (free) ───────┤ D7 (GPIO44)                │
                     └──────────────────────────┘
 ```
 
 ---
 
-## Module 1 — TFT Display (ST7789 / ILI9341)
+## Module 1 — ST7789 1.3" IPS Display (240×240)
 
 The display connects over 4-wire hardware SPI.
 
-| Display Pin | Label | Wire to ESP32-S3 | Notes |
-|-------------|-------|------------------|-------|
-| VCC | Power | 3V3 | |
-| GND | Ground | GND | |
-| SCL / SCK | SPI Clock | GPIO 12 | |
-| SDA / MOSI | SPI Data | GPIO 11 | |
-| RES / RST | Reset | GPIO 14 | |
-| DC / RS | Data/Command | GPIO 13 | |
-| CS | Chip Select | GPIO 10 | |
-| BLK / BL | Backlight | GPIO 15 | Firmware controls brightness via PWM |
+| Display Pin | Label | Wire to XIAO | GPIO # | Notes |
+|-------------|-------|-------------|--------|-------|
+| VCC | Power | 3V3 | — | |
+| GND | Ground | GND | — | |
+| SCL / SCK | SPI Clock | D8 | GPIO 7 | |
+| SDA / MOSI | SPI Data | D10 | GPIO 9 | |
+| RES / RST | Reset | D9 | GPIO 8 | |
+| DC / RS | Data/Command | D2 | GPIO 3 | |
+| CS | Chip Select | D3 | GPIO 4 | |
+| BLK / BL | Backlight | — | — | Wired to VCC on DeskBuddy carrier (always on) |
 
-> 🟡 Some ST7789 boards label the pins differently. The signal names above are the logical names — match by function, not label text.
+> 🟡 Some display boards label pins differently. Match by **function**, not label text.
 
----
-
-## Module 2 — INMP441 I2S Digital Microphone
-
-The INMP441 outputs audio over the I2S protocol (digital — no ADC noise).
-
-| INMP441 Pin | Wire to ESP32-S3 | Notes |
-|-------------|-----------------|-------|
-| VDD | 3V3 | |
-| GND | GND | |
-| WS | GPIO 4 | Word Select / LRCLK |
-| SCK / BCLK | GPIO 5 | Bit Clock |
-| SD | GPIO 6 | Serial Data output from mic |
-| **L/R** | **GND** | Selects LEFT channel — must be connected |
-
-> ✅ The L/R pin **must** be tied to GND or 3V3. Leaving it floating causes random/no output. GND = left channel, 3V3 = right channel.
+> ⚠️ The backlight is wired to VCC on the DeskBuddy 2.0 carrier board. No GPIO is needed for BL control — it's always on.
 
 ---
 
-## Module 3 — MAX98357A I2S DAC + Amplifier
+## Module 2 — Capacitive Touch Sensor (Red Module)
 
-Drives the 8Ω speaker directly with no additional components.
+The kit includes a red capacitive touch switch module. It outputs a digital signal.
 
-| MAX98357A Pin | Wire to ESP32-S3 | Notes |
-|---------------|-----------------|-------|
-| VIN | 3V3 or 5V | 5V from VBUS gives louder output; 3.3V is fine for desk use |
-| GND | GND | |
-| BCLK | GPIO 7 | Bit Clock |
-| LRC / WS | GPIO 8 | Word Select / LRCLK |
-| DIN | GPIO 9 | Serial Data into DAC |
-| GAIN | Leave floating | Floating = 9 dB gain (default, recommended) |
-| SD_MODE | Leave floating or → 3V3 | Floating = always on |
-| **OUT+** | Speaker + terminal | |
-| **OUT−** | Speaker − terminal | |
+| Touch Module Pin | Wire to XIAO | GPIO # | Notes |
+|-----------------|-------------|--------|-------|
+| VCC | 3V3 | — | |
+| GND | GND | — | |
+| SIG / OUT | D0 | GPIO 1 | Active LOW (LOW when touched) |
 
-> 🔊 Connect the 8Ω 1W speaker's two wires directly to OUT+ and OUT−. Polarity matters for phase — swap if audio sounds thin.
+### Interaction Behavior
 
----
+| Gesture | Duration | Action |
+|---------|----------|--------|
+| Short tap | < 1.5 seconds | Pet interaction (Mode 1), context action (other modes) |
+| Long press | ≥ 1.5 seconds | Switch to next mode |
 
-## Module 4 — MPU-6050 6-Axis IMU
+### Placement
 
-Connects over I2C. Used for shake and drop detection in Mode 1.
-
-| MPU-6050 Pin | Wire to ESP32-S3 | Notes |
-|--------------|-----------------|-------|
-| VCC | 3V3 | |
-| GND | GND | |
-| SDA | GPIO 1 | I2C Data |
-| SCL | GPIO 2 | I2C Clock |
-| **AD0** | **GND** | Sets I2C address to 0x68 (tie to 3V3 for 0x69) |
-| INT | Not connected | Optional — can wire to any GPIO for hardware interrupt |
-| XDA / XCL | Not connected | Auxiliary I2C for external magnetometer — unused |
-
----
-
-## Module 5 — FSR-402 Force Sensitive Resistor
-
-The FSR is a variable resistor. It must be wired as a **voltage divider** with a 10kΩ pull-down resistor so the ESP32 ADC can read pressure as a voltage level.
-
-### Wiring Diagram
-
-```
-3.3V ──────┬──────── [FSR-402 Pin 1]
-           │
-           │          [FSR-402 Pin 2] ──┬──── GPIO 3 (ADC read)
-           │                             │
-           │                            [10kΩ resistor]
-           │                             │
-          GND ────────────────────────────┘
-```
-
-### Step-by-step
-
-1. Connect **one FSR leg** to 3.3V
-2. Connect the **other FSR leg** to GPIO 3
-3. Connect a **10kΩ resistor** between GPIO 3 and GND
-
-When no pressure is applied: GPIO 3 reads ~0 (FSR resistance → ∞)
-When pressed gently: GPIO 3 reads ~500–2000 (ADC counts out of 4095)
-When pressed hard: GPIO 3 reads ~2000–4095
-
-These thresholds are set in `Config.h`:
-```cpp
-#define FSR_GENTLE_MIN  300
-#define FSR_GENTLE_MAX 2000
-#define FSR_HARSH_MIN  2001
-```
-
----
-
-## Module 6 — Mode Select Button
-
-**No soldering needed.** The ESP32-S3 DevKitC-1 has a BOOT button on GPIO 0 already built onto the board. This is your mode switch.
-
-- Press once → switch to next mode
-- 250ms software debounce prevents accidental triggers
-
-If you want an **external button** instead:
-1. Connect one leg of a tactile switch to **GPIO 0**
-2. Connect the other leg to **GND**
-3. The internal pull-up resistor is enabled in firmware — no external resistor needed
+Mount the touch module **under the roof** of the 3D-printed enclosure. The capacitive sensing works through thin plastic (2-3mm). Position it so tapping the top of the shell registers cleanly as a "head-pat."
 
 ---
 
 ## Complete Wire Count Summary
 
-| Module | Wires needed |
+| Module | Wires Needed |
 |--------|-------------|
-| TFT Display | 8 wires |
-| INMP441 Mic | 5 wires (including L/R → GND) |
-| MAX98357A DAC | 5 wires + 2 speaker wires |
-| MPU-6050 | 4 wires |
-| FSR-402 | 3 wires + 1 resistor |
-| Mode Button | Built-in (0 extra wires) |
-| **Total** | **~27 wires** |
+| ST7789 Display | 7 wires (VCC, GND, SCK, MOSI, RST, DC, CS) |
+| Capacitive Touch | 3 wires (VCC, GND, SIG) |
+| **Total** | **10 wires** |
+
+> 🎉 That's it! Only 10 wires total — compare this to the 27+ wires in the original DevKitC build.
 
 ---
 
-## Power Budget Check
-
-All modules powered from ESP32-S3 3V3 pin (max 500mA from USB):
+## Power Budget
 
 | Module | Current Draw |
 |--------|-------------|
+| XIAO ESP32S3 core | ~150 mA |
 | ST7789 TFT (with backlight) | ~80 mA |
-| INMP441 Mic | ~1.4 mA |
-| MAX98357A (idle) | ~2 mA |
-| MAX98357A (peak audio) | ~300 mA |
-| MPU-6050 | ~3.9 mA |
-| FSR-402 circuit | ~0.3 mA |
-| ESP32-S3 core | ~150–250 mA |
-| **Total peak** | **~640 mA** |
+| Capacitive touch module | ~5 mA |
+| WiFi active (Mode 2/3) | +80 mA |
+| **Total peak** | **~315 mA** |
 
-> ⚠️ Peak draw (audio playing) approaches USB limit. Use a USB port rated ≥1A, or power the MAX98357A from 5V VBUS instead of 3.3V. The VBUS pin on the DevKit is connected directly to USB 5V and can supply more current.
+> ✅ Well within the XIAO's USB power budget and the included LiPo battery's discharge capability. Expect **2-4 hours** of battery life depending on WiFi usage.
 
 ---
 
-## Breadboard vs Perfboard
+## Assembly Tips
 
-For **testing:** Use a full-size 830-point breadboard. All modules have 2.54mm pitch pins compatible with standard breadboard jumper wires.
+### Step 1: Wire the display
+Connect the 7 SPI wires from the ST7789 module to the XIAO. Use short Dupont jumper wires (female-to-female) or solder directly for a permanent build.
 
-For **permanent build:** Transfer to a perfboard (veroboard) and use solid core hookup wire. This eliminates the most common failure mode — loose jumper connections.
+### Step 2: Wire the touch sensor
+Connect the 3 wires from the red capacitive touch module to VCC, GND, and D0 on the XIAO.
 
-Consider ordering a small custom PCB from JLCPCB or PCBWay once the design is finalized — 5 boards cost under ₹500.
+### Step 3: Test before enclosing
+Flash the firmware and verify:
+- Splash screen shows on the display
+- Short tap triggers pet happy face
+- Long press switches modes
+
+### Step 4: Mount in enclosure
+- Slide the XIAO into the enclosure with USB-C port accessible
+- Press-fit or hot-glue the display into the front window
+- Mount the touch sensor under the top shell
+- Connect the battery and switch
 
 ---
 
@@ -198,8 +124,11 @@ Consider ordering a small custom PCB from JLCPCB or PCBWay once the design is fi
 
 | Mistake | Symptom | Fix |
 |---------|---------|-----|
-| INMP441 L/R left floating | Microphone outputs garbage or nothing | Tie L/R to GND |
-| FSR without pull-down resistor | ADC always reads 4095 | Add 10kΩ from GPIO3 to GND |
-| MPU-6050 AD0 floating | I2C scanner finds nothing or wrong address | Tie AD0 to GND |
-| TFT BL pin not connected | Display shows but is very dim or off | Wire BL to GPIO 15 |
-| SPI device sharing | Display flickers | Each SPI device needs its own CS pin |
+| SPI pins swapped | White screen, no display | Double-check MOSI vs SCK — they're on D10 and D8 |
+| Touch sensor SIG not connected | No reaction to taps or mode switching | Verify D0 (GPIO 1) is wired to SIG/OUT |
+| Wrong board selected in Arduino IDE | Upload fails or boot loop | Select "XIAO_ESP32S3" and enable "USB CDC On Boot" |
+| Display upside down | Image is flipped | Change `tft.setRotation(0)` to `tft.setRotation(2)` in `AeroSniffer.ino` |
+
+---
+
+Built with ❤️ on XIAO ESP32S3 | Bhubaneswar, Odisha, India
