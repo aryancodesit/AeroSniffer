@@ -149,22 +149,26 @@
 #define TOTAL_MODES       3      // Pet | Security | Aviation
 
 // ── Wi-Fi Credentials  (Mode 2 scan base / Mode 3 API client) ───
-#define WIFI_SSID         "YOUR_WIFI_SSID"
-#define WIFI_PASSWORD     "YOUR_WIFI_PASSWORD"
+// These are now loaded from Preferences. Fallback defaults below.
+#define DEFAULT_WIFI_SSID         "YOUR_WIFI_SSID"
+#define DEFAULT_WIFI_PASSWORD     "YOUR_WIFI_PASSWORD"
+
+extern String sys_wifi_ssid;
+extern String sys_wifi_pass;
 
 // ── OpenSky Network REST API bounding box ────────────────────────
 //    Default: ~60 km radius over Bhubaneswar, Odisha, India
 //    Adjust lat/lon bounds to your location (1 degree ≈ 111 km)
-#define SKY_LAMIN        19.8f
-#define SKY_LOMIN        85.0f
-#define SKY_LAMAX        21.0f
-#define SKY_LOMAX        86.8f
-#define OPENSKY_URL  "http://opensky-network.org/api/states/all" \
-                     "?lamin=" STR(SKY_LAMIN) "&lomin=" STR(SKY_LOMIN) \
-                     "&lamax=" STR(SKY_LAMAX) "&lomax=" STR(SKY_LOMAX)
-// Helper to stringify float macros
-#define STR2(x) #x
-#define STR(x)  STR2(x)
+#define DEFAULT_SKY_LAMIN        19.8f
+#define DEFAULT_SKY_LOMIN        85.0f
+#define DEFAULT_SKY_LAMAX        21.0f
+#define DEFAULT_SKY_LOMAX        86.8f
+
+extern float sys_sky_lamin;
+extern float sys_sky_lomin;
+extern float sys_sky_lamax;
+extern float sys_sky_lomax;
+
 
 // ── FFT Parameters (Mode 1 — Music Reactive) ────────────────────
 #define FFT_SAMPLES       512     // Must be power of 2

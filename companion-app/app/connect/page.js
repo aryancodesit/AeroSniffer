@@ -21,6 +21,16 @@ export default function Dashboard() {
   const [apList, setApList] = useState([]);
   const [errorMsg, setErrorMsg] = useState("");
   
+  const [settings, setSettings] = useState({
+    ssid: "",
+    pass: "",
+    lamin: 19.8,
+    lomin: 85.0,
+    lamax: 21.0,
+    lomax: 86.8
+  });
+  const [settingsStatus, setSettingsStatus] = useState("");
+  
   const eventsEndRef = useRef(null);
 
   // Auto-scroll event log
@@ -42,6 +52,20 @@ export default function Dashboard() {
         }
         if (data.aps && Array.isArray(data.aps)) {
           setApList(data.aps);
+        }
+        if (data.ssid !== undefined) {
+          setSettings(s => ({
+            ...s,
+            ssid: data.ssid,
+            lamin: data.lamin,
+            lomin: data.lomin,
+            lamax: data.lamax,
+            lomax: data.lomax
+          }));
+        }
+        if (data.action === 'set_wifi' || data.action === 'set_bbox') {
+          setSettingsStatus("Settings saved to device!");
+          setTimeout(() => setSettingsStatus(""), 3000);
         }
       } else if (type === 'EVT') {
         setEvents(prev => [...prev.slice(-49), { time: new Date().toLocaleTimeString(), ...data }]);
@@ -81,6 +105,7 @@ export default function Dashboard() {
       setConnected(true);
       await serialAPI.sendCommand("PING");
       setTimeout(() => serialAPI.sendCommand("STATUS"), 500);
+      setTimeout(() => serialAPI.sendCommand("GET_CFG"), 1000);
     } catch (e) {
       setErrorMsg(e.message || "Failed to connect.");
     }
@@ -99,6 +124,18 @@ export default function Dashboard() {
     serialAPI.sendCommand("RESET_STATS");
     setEvents([]);
     setApList([]);
+  };
+
+  const saveSettings = () => {
+    serialAPI.sendCommand(`SET_WIFI:${settings.ssid}:${settings.pass}`);
+    setTimeout(() => {
+      serialAPI.sendCommand(`SET_BBOX:${settings.lamin}:${settings.lomin}:${settings.lamax}:${settings.lomax}`);
+    }, 200);
+  };
+
+  const handleSettingChange = (e) => {
+    const { name, value } = e.target;
+    setSettings(s => ({ ...s, [name]: value }));
   };
 
   if (!connected) {
@@ -179,6 +216,36 @@ export default function Dashboard() {
                 className={status.deauths > 0 ? 'alert-pulse' : ''}
               />
               <StatRow label="AP Count" value={status.aps} />
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 style={{marginBottom: '15px'}}>Device Settings</h3>
+            <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+              <div>
+                <label style={styles.label}>WiFi SSID</label>
+                <input type="text" name="ssid" value={settings.ssid} onChange={handleSettingChange} style={styles.input} />
+              </div>
+              <div>
+                <label style={styles.label}>WiFi Password</label>
+                <input type="password" name="pass" value={settings.pass} onChange={handleSettingChange} placeholder="(unchanged)" style={styles.input} />
+              </div>
+              <div>
+                <label style={styles.label}>Radar Box (Lat Min/Max)</label>
+                <div style={{display: 'flex', gap: '5px'}}>
+                  <input type="number" step="0.1" name="lamin" value={settings.lamin} onChange={handleSettingChange} style={styles.input} />
+                  <input type="number" step="0.1" name="lamax" value={settings.lamax} onChange={handleSettingChange} style={styles.input} />
+                </div>
+              </div>
+              <div>
+                <label style={styles.label}>Radar Box (Lon Min/Max)</label>
+                <div style={{display: 'flex', gap: '5px'}}>
+                  <input type="number" step="0.1" name="lomin" value={settings.lomin} onChange={handleSettingChange} style={styles.input} />
+                  <input type="number" step="0.1" name="lomax" value={settings.lomax} onChange={handleSettingChange} style={styles.input} />
+                </div>
+              </div>
+              <button className="btn btn-primary" onClick={saveSettings} style={{marginTop: '10px'}}>Save to ESP32</button>
+              {settingsStatus && <p style={{color: 'var(--accent-green)', fontSize: '0.8rem', textAlign: 'center'}}>{settingsStatus}</p>}
             </div>
           </div>
         </div>
@@ -297,6 +364,21 @@ const styles = {
     width: '100%',
     borderCollapse: 'collapse',
     textAlign: 'left',
+  },
+  label: {
+    display: 'block',
+    fontSize: '0.8rem',
+    color: 'var(--text-muted)',
+    marginBottom: '2px',
+  },
+  input: {
+    width: '100%',
+    backgroundColor: 'var(--bg-elevated)',
+    color: 'var(--text-primary)',
+    border: '1px solid var(--border)',
+    padding: '8px',
+    borderRadius: '4px',
+    fontFamily: 'var(--font-body)',
   },
   eventLog: {
     flex: 1,

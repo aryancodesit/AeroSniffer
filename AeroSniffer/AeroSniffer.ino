@@ -33,6 +33,14 @@
 TFT_eSPI tft = TFT_eSPI();
 Preferences prefs;
 
+// ── Global Settings (loaded from Preferences) ────────────────────
+String sys_wifi_ssid;
+String sys_wifi_pass;
+float sys_sky_lamin;
+float sys_sky_lomin;
+float sys_sky_lamax;
+float sys_sky_lomax;
+
 // ── State machine ────────────────────────────────────────────────
 volatile uint8_t  g_mode       = 0;      // 0=Pet  1=Security  2=Aviation
 volatile bool     g_mode_dirty = false;  // Set by ISR/touch, consumed by Core 1
@@ -250,10 +258,17 @@ void setup() {
   tft.setRotation(0);        // Portrait — adjust 0-3 for your mount
   tft.fillScreen(TFT_BLACK);
 
-  // ── Load Mode State ───────────────────────────────────────────
+  // ── Load Mode & Settings ───────────────────────────────────────────
   prefs.begin("aerosniffer", false);
   g_mode = prefs.getUInt("mode", 0);
   if (g_mode >= TOTAL_MODES) g_mode = 0;
+
+  sys_wifi_ssid = prefs.getString("ssid", DEFAULT_WIFI_SSID);
+  sys_wifi_pass = prefs.getString("pass", DEFAULT_WIFI_PASSWORD);
+  sys_sky_lamin = prefs.getFloat("lamin", DEFAULT_SKY_LAMIN);
+  sys_sky_lomin = prefs.getFloat("lomin", DEFAULT_SKY_LOMIN);
+  sys_sky_lamax = prefs.getFloat("lamax", DEFAULT_SKY_LAMAX);
+  sys_sky_lomax = prefs.getFloat("lomax", DEFAULT_SKY_LOMAX);
 
   // ── Backlight (DevKitC only — DeskBuddy BL is always-on) ─────
   #if defined(TFT_BL) && TFT_BL >= 0

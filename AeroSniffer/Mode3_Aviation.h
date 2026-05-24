@@ -97,9 +97,9 @@ static void avi_draw_radar(int x, int y, int r) {
   _atft->drawFastHLine(x - r, y, r * 2, 0x0220);
   _atft->drawFastVLine(x, y - r, r * 2, 0x0220);
 
-  float c_lat = (SKY_LAMIN + SKY_LAMAX) / 2.0f;
-  float c_lon = (SKY_LOMIN + SKY_LOMAX) / 2.0f;
-  float span  = max(SKY_LAMAX - SKY_LAMIN, SKY_LOMAX - SKY_LOMIN);
+  float c_lat = (sys_sky_lamin + sys_sky_lamax) / 2.0f;
+  float c_lon = (sys_sky_lomin + sys_sky_lomax) / 2.0f;
+  float span  = max(sys_sky_lamax - sys_sky_lamin, sys_sky_lomax - sys_sky_lomin);
 
   for (int i = 0; i < flight_count; i++) {
     if (!flights[i].valid) continue;
@@ -165,7 +165,7 @@ static void avi_draw_card(int idx) {
     _atft->setTextColor(0x4208);
     _atft->setCursor(20, TFT_H / 2 + 10);
     _atft->printf("Box: %.1f-%.1f N  %.1f-%.1f E",
-                  SKY_LAMIN, SKY_LAMAX, SKY_LOMIN, SKY_LOMAX);
+                  sys_sky_lamin, sys_sky_lamax, sys_sky_lomin, sys_sky_lomax);
     return;
   }
 
@@ -252,8 +252,8 @@ static void avi_draw_card(int idx) {
 
 static void avi_connect_wifi() {
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  snprintf(status_msg, sizeof(status_msg), "Connecting to %s ...", WIFI_SSID);
+  WiFi.begin(sys_wifi_ssid.c_str(), sys_wifi_pass.c_str());
+  snprintf(status_msg, sizeof(status_msg), "Connecting to %s ...", sys_wifi_ssid.c_str());
 
   int tries = 0;
   while (WiFi.status() != WL_CONNECTED && tries < 24) {
@@ -262,7 +262,7 @@ static void avi_connect_wifi() {
   }
   wifi_ok = (WiFi.status() == WL_CONNECTED);
   snprintf(status_msg, sizeof(status_msg),
-           wifi_ok ? "WiFi OK — %s" : "WiFi FAILED", WIFI_SSID);
+           wifi_ok ? "WiFi OK — %s" : "WiFi FAILED", sys_wifi_ssid.c_str());
 }
 
 static void avi_fetch_flights() {
@@ -278,8 +278,8 @@ static void avi_fetch_flights() {
   snprintf(url, sizeof(url),
     "http://opensky-network.org/api/states/all"
     "?lamin=%.2f&lomin=%.2f&lamax=%.2f&lomax=%.2f",
-    (double)SKY_LAMIN, (double)SKY_LOMIN,
-    (double)SKY_LAMAX, (double)SKY_LOMAX);
+    (double)sys_sky_lamin, (double)sys_sky_lomin,
+    (double)sys_sky_lamax, (double)sys_sky_lomax);
 
   HTTPClient http;
   http.begin(url);

@@ -23,6 +23,7 @@
 #include "freertos/task.h"
 #include "esp_wifi.h"
 #include "Config.h"
+#include <Preferences.h>
 
 static TFT_eSPI* _stft = nullptr;
 
@@ -215,6 +216,49 @@ static void sec_handle_serial() {
     _pps_count = 0;
     ap_count = 0;
     Serial.println("RES:{\"ok\":true}");
+  }
+  else if (cmd == "GET_CFG") {
+    Serial.printf("RES:{\"ssid\":\"%s\",\"lamin\":%.2f,\"lomin\":%.2f,\"lamax\":%.2f,\"lomax\":%.2f}\n",
+                  sys_wifi_ssid.c_str(), sys_sky_lamin, sys_sky_lomin, sys_sky_lamax, sys_sky_lomax);
+  }
+  else if (cmd.startsWith("SET_WIFI:")) {
+    int split = cmd.indexOf(':', 9);
+    if (split > 0) {
+      String ssid = cmd.substring(9, split);
+      String pass = cmd.substring(split + 1);
+      sys_wifi_ssid = ssid;
+      sys_wifi_pass = pass;
+      Preferences p;
+      p.begin("aerosniffer", false);
+      p.putString("ssid", ssid);
+      p.putString("pass", pass);
+      p.end();
+      Serial.println("RES:{\"ok\":true,\"action\":\"set_wifi\"}");
+    } else {
+      Serial.println("RES:{\"ok\":false,\"error\":\"invalid format\"}");
+    }
+  }
+  else if (cmd.startsWith("SET_BBOX:")) {
+    float box[4];
+    int start = 9;
+    for (int i=0; i<4; i++) {
+      int end = (i==3) ? -1 : cmd.indexOf(':', start);
+      String part = (end == -1) ? cmd.substring(start) : cmd.substring(start, end);
+      box[i] = part.toFloat();
+      start = end + 1;
+    }
+    sys_sky_lamin = box[0];
+    sys_sky_lomin = box[1];
+    sys_sky_lamax = box[2];
+    sys_sky_lomax = box[3];
+    Preferences p;
+    p.begin("aerosniffer", false);
+    p.putFloat("lamin", box[0]);
+    p.putFloat("lomin", box[1]);
+    p.putFloat("lamax", box[2]);
+    p.putFloat("lomax", box[3]);
+    p.end();
+    Serial.println("RES:{\"ok\":true,\"action\":\"set_bbox\"}");
   }
   else {
     Serial.printf("RES:{\"ok\":false,\"error\":\"unknown command: %s\"}\n", cmd.c_str());
