@@ -150,20 +150,20 @@ The hardware variant is pre-set to `HW_DESKBUDDY_2`. Everything else is pre-conf
 
 ```
                      ┌───────────────────────────────────┐
-                     │  Capacitive Touch (GPIO 1)         │
-                     │  short tap = interact               │
-                     │  long press (1.5s) = mode switch    │
+                     │  Capacitive Touch (GPIO 1)        │
+                     │  short tap = interact             │
+                     │  long press (1.5s) = mode switch  │
                      └────────────────┬──────────────────┘
                                       │ g_mode_dirty flag
                    ┌──────────────────▼──────────────────┐
-                   │        FreeRTOS Task Router           │
+                   │        FreeRTOS Task Router         │
                    ├──────────────────┬──────────────────┤
-                   │    CORE 0        │     CORE 1        │
-                   │  (Background)    │   (UI Engine)     │
+                   │    CORE 0        │     CORE 1       │
+                   │  (Background)    │   (UI Engine)    │
                    ├──────────────────┼──────────────────┤
-                   │ WiFi promiscu.   │ TFT rendering     │
-                   │ HTTP API calls   │ Touch polling      │
-                   │ Channel hopping  │ State machine      │
+                   │ WiFi promiscu.   │ TFT rendering    │
+                   │ HTTP API calls   │ Touch polling    │
+                   │ Channel hopping  │ State machine    │
                    └──────────────────┴──────────────────┘
 ```
 
@@ -221,4 +221,4 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 Issues and PRs welcome. See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
-Built with ❤️ on XIAO ESP32S3 | Bhubaneswar, Odisha, India
+Built with ❤️ on XIAO ESP32S3 | India
