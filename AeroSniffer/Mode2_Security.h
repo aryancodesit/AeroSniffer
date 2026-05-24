@@ -40,6 +40,7 @@ static volatile uint32_t pkt_per_sec   = 0;
 static volatile uint8_t  current_ch    = 1;
 static volatile uint32_t device_count  = 0;
 static volatile bool     sec_scanning  = false;
+static volatile bool     ch_hopping    = true;   // Channel hopping toggle
 
 // Rolling PPS counter
 static uint32_t _pps_last_ms    = 0;
@@ -52,7 +53,52 @@ static uint32_t _sweep_last_ms  = 0;
 // Web server
 static WebServer* _webserver    = nullptr;
 
+// ── AP tracking table ───────────────────────────────────────────
+struct APRecord {
+  char     ssid[33];
+  uint8_t  bssid[6];
+  int8_t   rssi;
+  uint8_t  channel;
+  bool     active;
+};
+static APRecord ap_table[MAX_AP_TABLE];
+static int      ap_count = 0;
+
+static void sec_track_ap(const uint8_t* payload, int16_t rssi, uint8_t ch) {
+  // Extract BSSID from beacon/probe response (addr3 = bytes 16-21)
+  const uint8_t* bssid = &payload[16];
+
+  // Check if already tracked
+  for (int i = 0; i < ap_count; i++) {
+    if (memcmp(ap_table[i].bssid, bssid, 6) == 0) {
+      ap_table[i].rssi = rssi;
+      ap_table[i].channel = ch;
+      return;
+    }
+  }
+
+  // Add new AP if space
+  if (ap_count >= MAX_AP_TABLE) return;
+  APRecord& ap = ap_table[ap_count];
+  memcpy(ap.bssid, bssid, 6);
+  ap.rssi = rssi;
+  ap.channel = ch;
+  ap.active = true;
+
+  // Extract SSID from tagged parameters (byte 36+ in beacon frame)
+  // Tag 0 = SSID, length at byte 37, SSID string at byte 38+
+  int ssid_len = 0;
+  if (payload[36] == 0x00) { // SSID tag
+    ssid_len = min((int)payload[37], 32);
+    memcpy(ap.ssid, &payload[38], ssid_len);
+  }
+  ap.ssid[ssid_len] = '\0';
+  ap_count++;
+}
+
 // ── Promiscuous mode packet sniffer callback ────────────────────
+static volatile bool _deauth_evt_pending = false;
+
 static void IRAM_ATTR sec_sniffer_cb(void* buf, wifi_promiscuous_pkt_type_t type) {
   pkt_total++;
   _pps_count++;
@@ -66,16 +112,122 @@ static void IRAM_ATTR sec_sniffer_cb(void* buf, wifi_promiscuous_pkt_type_t type
   if (frame_type == 0) {  // Management frame
     switch (frame_subtype) {
       case 0x04: pkt_probe++;   break;  // Probe request
-      case 0x08: pkt_beacon++;  break;  // Beacon
-      case 0x0C: pkt_deauth++;  break;  // Deauthentication
+      case 0x08:                        // Beacon
+        pkt_beacon++;
+        sec_track_ap(pkt->payload, pkt->rx_ctrl.rssi, current_ch);
+        break;
+      case 0x0C:                        // Deauthentication
+        pkt_deauth++;
+        if (pkt_deauth >= DEAUTH_SPIKE_COUNT) _deauth_evt_pending = true;
+        break;
     }
   }
 }
 
 // ── Channel hopping (Core 0) ────────────────────────────────────
 static void sec_hop_channel() {
+  if (!ch_hopping) return;
   current_ch = (current_ch % 13) + 1;
   esp_wifi_set_channel(current_ch, WIFI_SECOND_CHAN_NONE);
+}
+
+// ================================================================
+//  SERIAL COMMAND PROTOCOL  (CMD → RES / EVT)
+//  Used by the companion web app over USB Serial
+// ================================================================
+static void sec_handle_serial() {
+  if (!Serial.available()) return;
+
+  String line = Serial.readStringUntil('\n');
+  line.trim();
+  if (!line.startsWith("CMD:")) return;
+  String cmd = line.substring(4);
+
+  if (cmd == "PING") {
+    Serial.println("RES:{\"ok\":true,\"fw\":\"2.0\",\"mode\":2,\"hw\":\"deskbuddy2\"}");
+  }
+  else if (cmd == "STATUS") {
+    Serial.printf("RES:{\"scanning\":%s,\"ch\":%d,\"pps\":%lu,\"total\":%lu,"
+                  "\"beacons\":%lu,\"probes\":%lu,\"deauths\":%lu,"
+                  "\"hopping\":%s,\"aps\":%d}\n",
+                  sec_scanning ? "true" : "false", current_ch,
+                  pkt_per_sec, pkt_total, pkt_beacon, pkt_probe, pkt_deauth,
+                  ch_hopping ? "true" : "false", ap_count);
+  }
+  else if (cmd == "SCAN_START") {
+    if (!sec_scanning) {
+      sec_scanning = true;
+      esp_wifi_set_promiscuous(true);
+    }
+    Serial.println("RES:{\"ok\":true,\"action\":\"scan_start\"}");
+  }
+  else if (cmd == "SCAN_STOP") {
+    if (sec_scanning) {
+      sec_scanning = false;
+      esp_wifi_set_promiscuous(false);
+    }
+    Serial.println("RES:{\"ok\":true,\"action\":\"scan_stop\"}");
+  }
+  else if (cmd.startsWith("SET_CH:")) {
+    int ch = cmd.substring(7).toInt();
+    if (ch >= 1 && ch <= 13) {
+      current_ch = ch;
+      ch_hopping = false;
+      esp_wifi_set_channel(current_ch, WIFI_SECOND_CHAN_NONE);
+      Serial.printf("RES:{\"ok\":true,\"ch\":%d,\"hopping\":false}\n", ch);
+    } else {
+      Serial.println("RES:{\"ok\":false,\"error\":\"invalid channel\"}");
+    }
+  }
+  else if (cmd == "HOP_ON") {
+    ch_hopping = true;
+    Serial.println("RES:{\"ok\":true,\"hopping\":true}");
+  }
+  else if (cmd == "HOP_OFF") {
+    ch_hopping = false;
+    Serial.println("RES:{\"ok\":true,\"hopping\":false}");
+  }
+  else if (cmd == "GET_APS") {
+    Serial.print("RES:{\"aps\":[");
+    for (int i = 0; i < ap_count; i++) {
+      if (i > 0) Serial.print(',');
+      Serial.printf("{\"ssid\":\"%s\",\"bssid\":\"%02X:%02X:%02X:%02X:%02X:%02X\","
+                    "\"rssi\":%d,\"ch\":%d}",
+                    ap_table[i].ssid,
+                    ap_table[i].bssid[0], ap_table[i].bssid[1],
+                    ap_table[i].bssid[2], ap_table[i].bssid[3],
+                    ap_table[i].bssid[4], ap_table[i].bssid[5],
+                    ap_table[i].rssi, ap_table[i].channel);
+    }
+    Serial.println("]}");
+  }
+  else if (cmd == "FW_VERSION") {
+    Serial.println("RES:{\"version\":\"2.0\",\"build\":\"2026-05-24\",\"board\":\"xiao_s3\"}");
+  }
+  else if (cmd == "DEAUTH_COUNT") {
+    Serial.printf("RES:{\"deauths\":%lu,\"threshold\":%d,\"alert\":%s}\n",
+                  pkt_deauth, DEAUTH_SPIKE_COUNT,
+                  pkt_deauth >= DEAUTH_SPIKE_COUNT ? "true" : "false");
+  }
+  else if (cmd == "RESET_STATS") {
+    pkt_total = pkt_deauth = pkt_beacon = pkt_probe = 0;
+    pkt_per_sec = 0;
+    _pps_count = 0;
+    ap_count = 0;
+    Serial.println("RES:{\"ok\":true}");
+  }
+  else {
+    Serial.printf("RES:{\"ok\":false,\"error\":\"unknown command: %s\"}\n", cmd.c_str());
+  }
+}
+
+// ── Async event streaming (called from Core 1) ──────────────────
+static void sec_stream_events() {
+  if (_deauth_evt_pending) {
+    _deauth_evt_pending = false;
+    Serial.printf("EVT:{\"type\":\"deauth_alert\",\"count\":%lu,\"threshold\":%d}\n",
+                  pkt_deauth, DEAUTH_SPIKE_COUNT);
+  }
 }
 
 // ── Web server routes ───────────────────────────────────────────
@@ -295,6 +447,12 @@ void security_core1_task() {
 
   // Handle web clients
   if (_webserver) _webserver->handleClient();
+
+  // Handle serial commands from companion app
+  sec_handle_serial();
+
+  // Stream async events
+  sec_stream_events();
 
   // Animate radar sweep
   uint32_t now = millis();
