@@ -22,6 +22,10 @@
 #if HAS_IMU
   #include <Wire.h>
 #endif
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <time.h>
 #include "Config.h"
 
 // ── Internal display pointer ─────────────────────────────────────
@@ -36,7 +40,8 @@ enum PetEmotion : uint8_t {
   EMO_SURPRISED,
   EMO_BLINK,
   EMO_SLEEPING,
-  EMO_BOBBING
+  EMO_BOBBING,
+  EMO_SCREENSAVER
 };
 
 static PetEmotion emo_current   = EMO_IDLE;
@@ -56,6 +61,18 @@ static double fft_real[FFT_SAMPLES];
 static double fft_imag[FFT_SAMPLES];
 static ArduinoFFT<double> PetFFT(fft_real, fft_imag, FFT_SAMPLES, FFT_SAMPLE_RATE);
 #endif
+
+// ── Screensaver state ────────────────────────────────────────────
+static uint32_t last_interact_ms = 0;
+static uint32_t ss_cycle_ms      = 0;
+static int      ss_page          = 0;
+
+static char     pet_time_str[16] = "--:--";
+static char     pet_date_str[16] = "---";
+static char     pet_weather_temp[8] = "--C";
+static char     pet_weather_desc[32] = "Fetching...";
+static bool     pet_wifi_ok      = false;
+static uint32_t last_weather_ms  = 0;
 
 // ================================================================
 //  SOUND SYNTHESIS (only if DAC is wired)
@@ -197,6 +214,10 @@ static void _draw_eyes(PetEmotion emo, int yoff) {
       _ptft->setCursor(FACE_CX + 58, FACE_CY - 72 + yoff); _ptft->print("Z");
       break;
 
+    case EMO_SCREENSAVER:
+      // Time and weather are drawn in pet_draw_face directly.
+      break;
+
     default: break;
   }
 }
@@ -210,6 +231,40 @@ static void pet_draw_face(PetEmotion emo, int yoff) {
   // Clear previous face bounding box
   _ptft->fillRect(FACE_CX - FACE_R - 12, FACE_CY - FACE_R - 15,
                   (FACE_R + 12) * 2, (FACE_R + 15) * 2, TFT_BLACK);
+
+  if (emo == EMO_SCREENSAVER) {
+    if (ss_page == 0) {
+      // Clock View (Green 7-segment style)
+      _ptft->setTextColor(sys_clock_color);
+      _ptft->setTextSize(3);
+      int tx = FACE_CX - (strlen(pet_time_str) * 18) / 2;
+      _ptft->setCursor(tx, FACE_CY - 10);
+      _ptft->print(pet_time_str);
+
+      _ptft->setTextColor(TFT_YELLOW);
+      _ptft->setTextSize(1);
+      int dx = FACE_CX - (strlen(pet_date_str) * 6) / 2;
+      _ptft->setCursor(dx, FACE_CY + 20);
+      _ptft->print(pet_date_str);
+    } else {
+      // Weather View (Red text)
+      _ptft->setTextColor(sys_weather_color);
+      _ptft->setTextSize(1);
+      _ptft->setCursor(FACE_CX - 24, FACE_CY - 20);
+      _ptft->print("WEATHER");
+      
+      _ptft->setTextSize(3);
+      int tx = FACE_CX - (strlen(pet_weather_temp) * 18) / 2;
+      _ptft->setCursor(tx, FACE_CY - 8);
+      _ptft->print(pet_weather_temp);
+
+      _ptft->setTextSize(1);
+      int dx = FACE_CX - (strlen(pet_weather_desc) * 6) / 2;
+      _ptft->setCursor(dx, FACE_CY + 24);
+      _ptft->print(pet_weather_desc);
+    }
+    return;
+  }
 
   // Face base — dark slate with soft rim
   _ptft->fillCircle(FACE_CX, cy, FACE_R, 0x2124);
@@ -330,6 +385,9 @@ void pet_setup(TFT_eSPI* tft) {
   bob_dir        = 1;
   blink_next     = millis() + random(3000, 7000);
   emo_timer      = millis();
+  last_interact_ms = millis();
+  ss_cycle_ms    = millis();
+  ss_page        = 0;
 
   _ptft->fillScreen(TFT_BLACK);
 
@@ -370,8 +428,50 @@ void pet_teardown() {
   _ptft = nullptr;
 }
 
-// ── Core 0 — FFT / Audio analysis (background) ─────────────────
+// ── Core 0 — FFT / Audio analysis / Background WiFi ───────────────
 void pet_core0_task() {
+  // Wi-Fi and Time sync
+  if (!pet_wifi_ok) {
+    if (WiFi.status() != WL_CONNECTED) {
+      WiFi.mode(WIFI_STA);
+      WiFi.begin(sys_wifi_ssid.c_str(), sys_wifi_pass.c_str());
+      vTaskDelay(pdMS_TO_TICKS(3000));
+    } else {
+      pet_wifi_ok = true;
+      // Configure NTP (IST = UTC + 5:30)
+      configTime(5.5 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+    }
+  }
+
+  // Weather fetch (every 15 mins)
+  if (pet_wifi_ok && (millis() - last_weather_ms > 900000 || last_weather_ms == 0)) {
+    last_weather_ms = millis();
+    HTTPClient http;
+    char url[150];
+    snprintf(url, sizeof(url), "http://api.open-meteo.com/v1/forecast?latitude=%.2f&longitude=%.2f&current_weather=true", sys_sky_lamin, sys_sky_lomin);
+    http.begin(url);
+    int code = http.GET();
+    if (code == 200) {
+      DynamicJsonDocument doc(2048);
+      deserializeJson(doc, http.getStream());
+      float t = doc["current_weather"]["temperature"];
+      int wc = doc["current_weather"]["weathercode"];
+      snprintf(pet_weather_temp, sizeof(pet_weather_temp), "%.1fC", t);
+      
+      const char* w_desc = "Clear";
+      if (wc >= 1 && wc <= 3) w_desc = "Partly Cloudy";
+      else if (wc >= 45 && wc <= 48) w_desc = "Fog";
+      else if (wc >= 51 && wc <= 57) w_desc = "Drizzle";
+      else if (wc >= 61 && wc <= 67) w_desc = "Rain";
+      else if (wc >= 71 && wc <= 77) w_desc = "Snow";
+      else if (wc >= 80 && wc <= 82) w_desc = "Showers";
+      else if (wc >= 95) w_desc = "Thunderstorm";
+      
+      snprintf(pet_weather_desc, sizeof(pet_weather_desc), "%s", w_desc);
+    }
+    http.end();
+  }
+
   #if HAS_MIC
     int32_t raw[FFT_SAMPLES];
     size_t bytes = 0;
@@ -419,6 +519,7 @@ void pet_core1_task() {
     extern volatile bool g_touch_tap;
     if (g_touch_tap) {
       g_touch_tap = false;
+      last_interact_ms = now;
       if (emo_current != EMO_HAPPY) {
         emo_current = EMO_HAPPY;
         emo_timer   = now;
@@ -472,7 +573,34 @@ void pet_core1_task() {
     emo_dirty   = true;
   }
 
-  // ─ Scheduled blink ─────────────────────────────────────────
+  // ─ Screensaver Timeout (1 min idle) ─────────────────────────
+  if (now - last_interact_ms > 60000) {
+    if (emo_current != EMO_SCREENSAVER) {
+      emo_current = EMO_SCREENSAVER;
+      emo_dirty = true;
+      ss_cycle_ms = now;
+      _ptft->fillScreen(TFT_BLACK); // Full clear for screensaver
+    }
+  }
+
+  // ─ Screensaver Logic & Clock Sync ──────────────────────────
+  if (emo_current == EMO_SCREENSAVER) {
+    // Sync time string
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo, 10)) {
+      strftime(pet_time_str, sizeof(pet_time_str), "%H:%M", &timeinfo);
+      strftime(pet_date_str, sizeof(pet_date_str), "%a %d %b", &timeinfo);
+    }
+    // Flip page every 5 seconds
+    if (now - ss_cycle_ms > 5000) {
+      ss_cycle_ms = now;
+      ss_page = (ss_page + 1) % 2;
+      emo_dirty = true;
+      _ptft->fillRect(0, 40, TFT_W, TFT_H - 80, TFT_BLACK); // Clear middle
+    }
+  }
+
+  // ─ Scheduled blink (only when not in screensaver) ─────────
   if (emo_current == EMO_IDLE && now > blink_next) {
     emo_current = EMO_BLINK;
     emo_dirty   = true;

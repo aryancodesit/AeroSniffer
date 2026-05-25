@@ -169,6 +169,12 @@ extern float sys_sky_lomin;
 extern float sys_sky_lamax;
 extern float sys_sky_lomax;
 
+// ── UI Colors ───────────────────────────────────────────────────
+#define DEFAULT_CLOCK_COLOR      0x07E0  // Green
+#define DEFAULT_WEATHER_COLOR    0xF800  // Red
+
+extern uint16_t sys_clock_color;
+extern uint16_t sys_weather_color;
 
 // ── FFT Parameters (Mode 1 — Music Reactive) ────────────────────
 #define FFT_SAMPLES       512     // Must be power of 2

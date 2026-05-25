@@ -218,8 +218,17 @@ static void sec_handle_serial() {
     Serial.println("RES:{\"ok\":true}");
   }
   else if (cmd == "GET_CFG") {
-    Serial.printf("RES:{\"ssid\":\"%s\",\"lamin\":%.2f,\"lomin\":%.2f,\"lamax\":%.2f,\"lomax\":%.2f}\n",
-                  sys_wifi_ssid.c_str(), sys_sky_lamin, sys_sky_lomin, sys_sky_lamax, sys_sky_lomax);
+    auto rgb565toHex = [](uint16_t color) -> String {
+      uint8_t r = (color >> 11) << 3;
+      uint8_t g = ((color >> 5) & 0x3F) << 2;
+      uint8_t b = (color & 0x1F) << 3;
+      char hex[8];
+      snprintf(hex, sizeof(hex), "#%02X%02X%02X", r, g, b);
+      return String(hex);
+    };
+    Serial.printf("RES:{\"ssid\":\"%s\",\"lamin\":%.2f,\"lomin\":%.2f,\"lamax\":%.2f,\"lomax\":%.2f,\"c_col\":\"%s\",\"w_col\":\"%s\"}\n",
+                  sys_wifi_ssid.c_str(), sys_sky_lamin, sys_sky_lomin, sys_sky_lamax, sys_sky_lomax,
+                  rgb565toHex(sys_clock_color).c_str(), rgb565toHex(sys_weather_color).c_str());
   }
   else if (cmd.startsWith("SET_WIFI:")) {
     int split = cmd.indexOf(':', 9);
@@ -259,6 +268,32 @@ static void sec_handle_serial() {
     p.putFloat("lomax", box[3]);
     p.end();
     Serial.println("RES:{\"ok\":true,\"action\":\"set_bbox\"}");
+  }
+  else if (cmd.startsWith("SET_COLOR:")) {
+    if (cmd.length() >= 25) {
+      String c1 = cmd.substring(10, 17);
+      String c2 = cmd.substring(18, 25);
+      
+      auto hex2rgb565 = [](String hex) -> uint16_t {
+        long num = strtol(hex.substring(1).c_str(), NULL, 16);
+        uint8_t r = (num >> 16) & 0xFF;
+        uint8_t g = (num >> 8) & 0xFF;
+        uint8_t b = num & 0xFF;
+        return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+      };
+      
+      sys_clock_color = hex2rgb565(c1);
+      sys_weather_color = hex2rgb565(c2);
+      
+      Preferences p;
+      p.begin("aerosniffer", false);
+      p.putUShort("c_col", sys_clock_color);
+      p.putUShort("w_col", sys_weather_color);
+      p.end();
+      Serial.println("RES:{\"ok\":true,\"action\":\"set_color\"}");
+    } else {
+      Serial.println("RES:{\"ok\":false,\"error\":\"invalid format\"}");
+    }
   }
   else {
     Serial.printf("RES:{\"ok\":false,\"error\":\"unknown command: %s\"}\n", cmd.c_str());

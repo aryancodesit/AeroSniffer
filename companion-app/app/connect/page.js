@@ -27,7 +27,9 @@ export default function Dashboard() {
     lamin: 19.8,
     lomin: 85.0,
     lamax: 21.0,
-    lomax: 86.8
+    lomax: 86.8,
+    c_col: "#00FF00",
+    w_col: "#FF0000"
   });
   const [settingsStatus, setSettingsStatus] = useState("");
   
@@ -60,10 +62,12 @@ export default function Dashboard() {
             lamin: data.lamin,
             lomin: data.lomin,
             lamax: data.lamax,
-            lomax: data.lomax
+            lomax: data.lomax,
+            c_col: data.c_col || "#00FF00",
+            w_col: data.w_col || "#FF0000"
           }));
         }
-        if (data.action === 'set_wifi' || data.action === 'set_bbox') {
+        if (data.action === 'set_wifi' || data.action === 'set_bbox' || data.action === 'set_color') {
           setSettingsStatus("Settings saved to device!");
           setTimeout(() => setSettingsStatus(""), 3000);
         }
@@ -131,6 +135,9 @@ export default function Dashboard() {
     setTimeout(() => {
       serialAPI.sendCommand(`SET_BBOX:${settings.lamin}:${settings.lomin}:${settings.lamax}:${settings.lomax}`);
     }, 200);
+    setTimeout(() => {
+      serialAPI.sendCommand(`SET_COLOR:${settings.c_col}:${settings.w_col}`);
+    }, 400);
   };
 
   const handleSettingChange = (e) => {
@@ -242,6 +249,16 @@ export default function Dashboard() {
                 <div style={{display: 'flex', gap: '5px'}}>
                   <input type="number" step="0.1" name="lomin" value={settings.lomin} onChange={handleSettingChange} style={styles.input} />
                   <input type="number" step="0.1" name="lomax" value={settings.lomax} onChange={handleSettingChange} style={styles.input} />
+                </div>
+              </div>
+              <div style={{display: 'flex', gap: '10px'}}>
+                <div style={{flex: 1}}>
+                  <label style={styles.label}>Clock Color</label>
+                  <input type="color" name="c_col" value={settings.c_col} onChange={handleSettingChange} style={styles.colorInput} />
+                </div>
+                <div style={{flex: 1}}>
+                  <label style={styles.label}>Weather Color</label>
+                  <input type="color" name="w_col" value={settings.w_col} onChange={handleSettingChange} style={styles.colorInput} />
                 </div>
               </div>
               <button className="btn btn-primary" onClick={saveSettings} style={{marginTop: '10px'}}>Save to ESP32</button>
@@ -379,6 +396,15 @@ const styles = {
     padding: '8px',
     borderRadius: '4px',
     fontFamily: 'var(--font-body)',
+  },
+  colorInput: {
+    width: '100%',
+    height: '36px',
+    padding: '0',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    backgroundColor: 'transparent'
   },
   eventLog: {
     flex: 1,

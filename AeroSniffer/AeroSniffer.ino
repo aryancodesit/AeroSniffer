@@ -40,6 +40,8 @@ float sys_sky_lamin;
 float sys_sky_lomin;
 float sys_sky_lamax;
 float sys_sky_lomax;
+uint16_t sys_clock_color;
+uint16_t sys_weather_color;
 
 // ── State machine ────────────────────────────────────────────────
 volatile uint8_t  g_mode       = 0;      // 0=Pet  1=Security  2=Aviation
@@ -269,6 +271,8 @@ void setup() {
   sys_sky_lomin = prefs.getFloat("lomin", DEFAULT_SKY_LOMIN);
   sys_sky_lamax = prefs.getFloat("lamax", DEFAULT_SKY_LAMAX);
   sys_sky_lomax = prefs.getFloat("lomax", DEFAULT_SKY_LOMAX);
+  sys_clock_color = prefs.getUShort("c_col", DEFAULT_CLOCK_COLOR);
+  sys_weather_color = prefs.getUShort("w_col", DEFAULT_WEATHER_COLOR);
 
   // ── Backlight (DevKitC only — DeskBuddy BL is always-on) ─────
   #if defined(TFT_BL) && TFT_BL >= 0

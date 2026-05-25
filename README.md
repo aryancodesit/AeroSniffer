@@ -49,18 +49,20 @@ cd AeroSniffer
 # 2. Install Arduino libraries (run once)
 bash tools/install_libraries.sh
 
-# 3. Configure your settings (WiFi + GPS bounding box)
-nano AeroSniffer/Config.h
-
-# 4. Configure TFT_eSPI for your display
+# 3. Configure TFT_eSPI for your display
 #    Copy the contents of AeroSniffer/TFT_eSPI_UserSetup.h
 #    into: ~/Arduino/libraries/TFT_eSPI/User_Setup.h
 
-# 5. Open in Arduino IDE
+# 4. Open in Arduino IDE
 #    File → Open → AeroSniffer/AeroSniffer.ino
 #    Board: XIAO_ESP32S3
 #    USB CDC On Boot: Enabled
 #    Flash → Upload
+
+# 5. Configure via Web App
+#    Go to https://aero-sniffer.vercel.app/
+#    Plug in your device, connect via USB, and use the dashboard
+#    to save your Wi-Fi, GPS coordinates, and screensaver colors!
 ```
 
 See [docs/INSTALL.md](docs/INSTALL.md) for the full step-by-step with screenshots.
@@ -125,47 +127,23 @@ AeroSniffer/
 
 ---
 
-## ⚙️ The Only File You Need to Edit
+## ⚙️ Configuration is Now Browser-Based!
 
-Open **`AeroSniffer/Config.h`** and change these 2 sections:
+No need to hardcode passwords in C++! Once you flash the firmware, simply plug the device into your computer via USB-C and open the Companion Web App:
+**[https://aero-sniffer.vercel.app/](https://aero-sniffer.vercel.app/)**
 
-```cpp
-// ── Your WiFi credentials ──────────────────────────────
-#define WIFI_SSID        "YOUR_WIFI_SSID"
-#define WIFI_PASSWORD    "YOUR_WIFI_PASSWORD"
+Using the **Web Serial API**, you can instantly configure:
+- **Wi-Fi Credentials** (for Mode 1 and Mode 3)
+- **GPS Bounding Box** (for Mode 3 Flight Radar)
+- **Screensaver Colors** (for Mode 1 Clock/Weather UI)
 
-// ── Your location bounding box for flight radar ────────
-// Find yours at: boundingbox.klokantech.com
-#define SKY_LAMIN   19.8f   // South latitude
-#define SKY_LOMIN   85.0f   // West longitude
-#define SKY_LAMAX   21.0f   // North latitude
-#define SKY_LOMAX   86.8f   // East longitude
-```
-
-The hardware variant is pre-set to `HW_DESKBUDDY_2`. Everything else is pre-configured.
+Settings are permanently saved to the ESP32's Non-Volatile Flash memory.
 
 ---
 
-## 🧩 Software Architecture
+## 🧩 Hardware Architecture
 
-```
-                     ┌───────────────────────────────────┐
-                     │  Capacitive Touch (GPIO 1)         │
-                     │  short tap = interact               │
-                     │  long press (1.5s) = mode switch    │
-                     └────────────────┬──────────────────┘
-                                      │ g_mode_dirty flag
-                   ┌──────────────────▼──────────────────┐
-                   │        FreeRTOS Task Router           │
-                   ├──────────────────┬──────────────────┤
-                   │    CORE 0        │     CORE 1        │
-                   │  (Background)    │   (UI Engine)     │
-                   ├──────────────────┼──────────────────┤
-                   │ WiFi promiscu.   │ TFT rendering     │
-                   │ HTTP API calls   │ Touch polling      │
-                   │ Channel hopping  │ State machine      │
-                   └──────────────────┴──────────────────┘
-```
+![Hardware Architecture](docs/ESP32%20Hardware%20Control-Workflow.png)
 
 ---
 
@@ -179,13 +157,13 @@ Mode 2 uses a split architecture optimized for the tiny 1.3" display:
 - Packet type counters (beacons, probes, deauths)
 - Deauth spike alert indicator
 
-**On your phone/laptop (companion app):**
-- Connect via USB Serial or WiFi AP (`AeroSniffer-SEC`)
-- Full Marauder-style scan controls
-- Firmware update checker
-- How-to tutorial built in
+**On your phone/laptop (Companion Web App):**
+- Connect via **Web Serial API** over USB-C
+- Full Marauder-style scan controls & AP telemetry
+- Device configuration (Wi-Fi, Bounding Box, Colors)
+- Live Event Log for Deauth attacks
 
-> 🚧 The companion web app (Vercel deployment) / desktop .exe is planned as a separate project.
+![Web App Architecture](docs/Webapp-workflow.png)
 
 ---
 
