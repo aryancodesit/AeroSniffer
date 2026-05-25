@@ -143,7 +143,28 @@ Settings are permanently saved to the ESP32's Non-Volatile Flash memory.
 
 ## 🧩 Hardware Architecture
 
+<<<<<<< HEAD
 ![Hardware Architecture](docs/ESP32%20Hardware%20Control-Workflow.png)
+=======
+```
+                     ┌───────────────────────────────────┐
+                     │  Capacitive Touch (GPIO 1)        │
+                     │  short tap = interact             │
+                     │  long press (1.5s) = mode switch  │
+                     └────────────────┬──────────────────┘
+                                      │ g_mode_dirty flag
+                   ┌──────────────────▼──────────────────┐
+                   │        FreeRTOS Task Router         │
+                   ├──────────────────┬──────────────────┤
+                   │    CORE 0        │     CORE 1       │
+                   │  (Background)    │   (UI Engine)    │
+                   ├──────────────────┼──────────────────┤
+                   │ WiFi promiscu.   │ TFT rendering    │
+                   │ HTTP API calls   │ Touch polling    │
+                   │ Channel hopping  │ State machine    │
+                   └──────────────────┴──────────────────┘
+```
+>>>>>>> fbcee63e9e64daf01aeb9ba882a350e6faee4fd2
 
 ---
 
@@ -199,4 +220,4 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 Issues and PRs welcome. See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
-Built with ❤️ on XIAO ESP32S3 | Bhubaneswar, Odisha, India
+Built with ❤️ on XIAO ESP32S3 | India
