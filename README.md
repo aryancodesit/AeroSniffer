@@ -143,7 +143,7 @@ Settings are permanently saved to the ESP32's Non-Volatile Flash memory.
 
 ## 🧩 Hardware Architecture
 
-![Hardware Architecture](docs/ESP32%20Hardware%20Control-Workflow.png)
+![Hardware Architecture](assets/ESP32%20Hardware%20Control-Workflow.png)
 
 ---
 
@@ -177,7 +177,7 @@ Mode 2 uses a split architecture optimized for the tiny 1.3" display:
 - Device configuration (Wi-Fi, Bounding Box, Colors)
 - Live Event Log for Deauth attacks
 
-![Web App Architecture](docs/Webapp-workflow.png)
+![Web App Architecture](assets/Webapp-workflow.png)
 
 ---
 
