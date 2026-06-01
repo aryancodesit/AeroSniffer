@@ -1,632 +1,482 @@
 // ================================================================
-//  Mode1_Pet.h  —  The Interactive Desk Companion
-//  AeroSniffer | ESP32-S3 Multi-Boot Desk Gadget
+//  Mode1_Pet.h  —  Vector-style Robot Desk Companion
+//  AeroSniffer v2 | XIAO ESP32S3 + ST7789 240×240
 //
-//  Features:
-//    • Animated OLED-style eye expressions on TFT
-//    • Capacitive touch input (DeskBuddy) or FSR-402 (DevKitC)
-//    • I2S mic + arduinoFFT  → music-reactive bobbing (if HAS_MIC)
-//    • MPU-6050 shake detect → startle reaction (if HAS_IMU)
-//    • MAX98357A I2S DAC     → purr and alert sounds (if HAS_DAC)
+//  Programmatic geometric rendering using TFT_eSPI.
+//  No BMPs required! Features smooth blinking and dynamic eyes.
 // ================================================================
 #pragma once
 
 #include <TFT_eSPI.h>
-#if HAS_MIC
-  #include <arduinoFFT.h>
-  #include <driver/i2s.h>
-#endif
-#if HAS_DAC
-  #include <driver/i2s.h>
-#endif
-#if HAS_IMU
-  #include <Wire.h>
-#endif
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <ArduinoJson.h>
-#include <time.h>
 #include "Config.h"
+#include <math.h>
 
-// ── Internal display pointer ─────────────────────────────────────
-static TFT_eSPI* _ptft = nullptr;
+static TFT_eSPI* _rtft = nullptr;
 
-// ── Emotion State Machine ────────────────────────────────────────
-enum PetEmotion : uint8_t {
-  EMO_IDLE = 0,
-  EMO_HAPPY,
-  EMO_ANGRY,
-  EMO_SAD,
-  EMO_SURPRISED,
-  EMO_BLINK,
-  EMO_SLEEPING,
-  EMO_BOBBING,
-  EMO_SCREENSAVER
+// ================================================================
+//  COLOUR PALETTE  (RGB565)
+// ================================================================
+#define C_BG          0x10A2   // Very dark charcoal background
+#define C_BLACK       0x0000
+
+#define C_IDLE        0x05FF   // Blue
+#define C_HAPPY       0x07E0   // Green
+#define C_EXCITED     0xFFE0   // Yellow
+#define C_SLEEPY      0x421F   // Indigo/Blue
+#define C_THINKING    0xB31F   // Violet
+#define C_SAD         0xF800   // Red
+#define C_ALERT       0xFC00   // Orange
+#define C_LOVE        0xF81F   // Pink
+#define C_STARTUP     0x07FF   // Cyan
+#define C_SURPRISED   0xFFFF   // White (eyes)
+
+// ================================================================
+//  FACE STATE
+// ================================================================
+enum RobotFace : uint8_t {
+  FACE_IDLE = 0,
+  FACE_HAPPY,
+  FACE_EXCITED,
+  FACE_SLEEPY,
+  FACE_THINKING,
+  FACE_SAD,
+  FACE_ALERT,
+  FACE_LOVE,
+  FACE_STARTUP,
+  FACE_SURPRISED,
+  FACE_COUNT
 };
 
-static PetEmotion emo_current   = EMO_IDLE;
-static PetEmotion emo_last      = EMO_IDLE;
-static bool       emo_dirty     = true;
-static uint32_t   emo_timer     = 0;
-static uint32_t   blink_next    = 0;
+static RobotFace face_current    = FACE_IDLE;
+static RobotFace face_last       = FACE_COUNT; 
+static uint32_t  last_active_ms  = 0;
+static bool      face_dirty      = true;
 
-// ── Bobbing animation state ──────────────────────────────────────
-static int   bob_offset  = 0;
-static int   bob_dir     = 1;
-static float bass_energy = 0.0f;
+// ── Animation state ───────────────────────────────────────────────
+static float     anim_blink_scale = 1.0f; // 1.0 = open, 0.0 = closed
+static bool      anim_is_blinking = false;
+static uint32_t  anim_blink_next  = 0;
+static int       anim_look_x      = 0;
+static int       anim_look_y      = 0;
+static uint32_t  anim_look_next   = 0;
 
-// ── FFT buffers (Core 0 owns these) ─────────────────────────────
-#if HAS_MIC
-static double fft_real[FFT_SAMPLES];
-static double fft_imag[FFT_SAMPLES];
-static ArduinoFFT<double> PetFFT(fft_real, fft_imag, FFT_SAMPLES, FFT_SAMPLE_RATE);
-#endif
-
-// ── Screensaver state ────────────────────────────────────────────
-static uint32_t last_interact_ms = 0;
-static uint32_t ss_cycle_ms      = 0;
-static int      ss_page          = 0;
-
-static char     pet_time_str[16] = "--:--";
-static char     pet_date_str[16] = "---";
-static char     pet_weather_temp[8] = "--C";
-static char     pet_weather_desc[32] = "Fetching...";
-static bool     pet_wifi_ok      = false;
-static uint32_t last_weather_ms  = 0;
+static char      pc_status[40]    = "";
+static char      pc_app[32]       = "";
 
 // ================================================================
-//  SOUND SYNTHESIS (only if DAC is wired)
+//  GEOMETRY HELPERS
 // ================================================================
-#if HAS_DAC
-static void pet_play_purr() {
-  const int RATE = 8000, FRAMES = 512;
-  int16_t buf[FRAMES];
-  float freq = 90.0f;
-  for (int rep = 0; rep < 12; rep++) {
-    for (int i = 0; i < FRAMES; i++) {
-      buf[i] = (int16_t)(9000.0f * sinf(2.0f * M_PI * freq * i / RATE));
-      freq   = 90.0f + 30.0f * sinf(2.0f * M_PI * 4.0f * (rep * FRAMES + i) / RATE);
+static void draw_heart(int cx, int cy, int size, uint16_t color) {
+  int r = size / 2;
+  _rtft->fillCircle(cx - r/2 + 2, cy - r/4, r, color);
+  _rtft->fillCircle(cx + r/2 - 2, cy - r/4, r, color);
+  _rtft->fillTriangle(cx - r - 7, cy - 2, 
+                      cx + r + 7, cy - 2, 
+                      cx, cy + size - 2, color);
+}
+
+static void draw_dotted_smile(int cx, int cy, int width, int drop, uint16_t color) {
+  _rtft->fillRect(cx - width/2, cy - drop, 4, 4, color);
+  _rtft->fillRect(cx - width/4, cy, 4, 4, color);
+  _rtft->fillRect(cx + width/4, cy, 4, 4, color);
+  _rtft->fillRect(cx + width/2, cy - drop, 4, 4, color);
+}
+
+static void draw_dotted_frown(int cx, int cy, int width, int drop, uint16_t color) {
+  _rtft->fillRect(cx - width/2, cy + drop, 4, 4, color);
+  _rtft->fillRect(cx - width/4, cy, 4, 4, color);
+  _rtft->fillRect(cx + width/4, cy, 4, 4, color);
+  _rtft->fillRect(cx + width/2, cy + drop, 4, 4, color);
+}
+
+// ================================================================
+//  FACE RENDERERS
+// ================================================================
+static void draw_face_idle(int frame) {
+  int h = (int)(32 * anim_blink_scale);
+  int y = 90 + (32 - h)/2;
+  
+  // Left Eye
+  _rtft->fillRoundRect(60, y, 40, h, 6, C_IDLE);
+  if(h > 10) _rtft->fillRect(76 + anim_look_x, y + h/2 - 4 + anim_look_y, 8, 8, C_BLACK);
+  
+  // Right Eye
+  _rtft->fillRoundRect(140, y, 40, h, 6, C_IDLE);
+  if(h > 10) _rtft->fillRect(156 + anim_look_x, y + h/2 - 4 + anim_look_y, 8, 8, C_BLACK);
+  
+  // Mouth
+  _rtft->fillRect(95, 160, 50, 6, C_IDLE);
+}
+
+static void draw_face_happy(int frame) {
+  int h = (int)(24 * anim_blink_scale);
+  int y = 90 + (24 - h)/2;
+  
+  if (h > 10) {
+    // Happy eyes (perfect half-circle arches)
+    _rtft->fillCircle(80, y+10, 22, C_HAPPY);
+    _rtft->fillCircle(80, y+16, 22, C_BG); 
+    
+    _rtft->fillCircle(160, y+10, 22, C_HAPPY);
+    _rtft->fillCircle(160, y+16, 22, C_BG); 
+  } else {
+    // Blinking state
+    _rtft->fillRoundRect(60, y, 40, h, 2, C_HAPPY);
+    _rtft->fillRoundRect(140, y, 40, h, 2, C_HAPPY);
+  }
+
+  // Solid crescent smile
+  _rtft->fillCircle(120, 155, 16, C_HAPPY);
+  _rtft->fillCircle(120, 149, 16, C_BG);
+}
+
+static void draw_face_excited(int frame) {
+  int h = (int)(44 * anim_blink_scale);
+  int y = 84 + (44 - h)/2;
+  
+  // Big square eyes
+  _rtft->fillRoundRect(56, y, 44, h, 8, C_EXCITED);
+  if(h > 12) _rtft->fillRoundRect(64, y + h - 16, 12, 12, 2, C_BLACK); // Pupil
+  
+  _rtft->fillRoundRect(140, y, 44, h, 8, C_EXCITED);
+  if(h > 12) _rtft->fillRoundRect(148, y + h - 16, 12, 12, 2, C_BLACK);
+  
+  // O mouth
+  _rtft->fillCircle(120, 160, 10, C_EXCITED);
+  _rtft->fillCircle(120, 160, 4, C_BG);
+  
+  // Sparks
+  if(frame % 8 < 4) {
+    _rtft->fillRect(40, 50, 4, 4, C_EXCITED);
+    _rtft->fillRect(196, 50, 4, 4, C_EXCITED);
+  }
+}
+
+static void draw_face_sleepy(int frame) {
+  int h = (int)(10 * anim_blink_scale);
+  int y = 100 + (10 - h)/2;
+  
+  _rtft->fillRoundRect(60, y, 40, h, 4, C_SLEEPY);
+  _rtft->fillRoundRect(140, y, 40, h, 4, C_SLEEPY);
+  
+  _rtft->fillRect(105, 160, 30, 4, C_SLEEPY);
+  
+  // Animated Zzz
+  int z = (frame / 10) % 3;
+  if(z >= 0) _rtft->fillRect(150, 50, 6, 2, C_SLEEPY); // Tiny z
+  if(z >= 1) _rtft->fillRect(165, 35, 10, 2, C_SLEEPY); // Med z
+  if(z >= 2) _rtft->fillRect(185, 15, 14, 3, C_SLEEPY); // Big Z
+}
+
+static void draw_face_thinking(int frame) {
+  // Left eye squint
+  int hL = (int)(14 * anim_blink_scale);
+  int yL = 100 + (14 - hL)/2;
+  _rtft->fillRoundRect(60, yL, 40, hL, 4, C_THINKING);
+  if(hL > 6) _rtft->fillRect(76 + anim_look_x, yL + hL/2 - 3, 6, 6, C_BLACK);
+  
+  // Right eye open
+  int hR = (int)(32 * anim_blink_scale);
+  int yR = 90 + (32 - hR)/2;
+  _rtft->fillRoundRect(140, yR, 40, hR, 6, C_THINKING);
+  if(hR > 10) _rtft->fillRect(156 + anim_look_x, yR + hR/2 - 4, 8, 8, C_BLACK);
+  
+  // Offset mouth
+  _rtft->fillRect(130, 160, 20, 6, C_THINKING);
+  
+  // Thinking dots
+  if(frame % 12 < 6) _rtft->fillRect(40, 50, 6, 6, C_THINKING);
+}
+
+static void draw_face_sad(int frame) {
+  int h = (int)(36 * anim_blink_scale);
+  int y = 90 + (36 - h)/2;
+  
+  _rtft->fillRoundRect(60, y, 36, h, 4, C_SAD);
+  if(h > 10) _rtft->fillRect(74, y + 8, 8, 8, C_BLACK);
+  
+  _rtft->fillRoundRect(144, y, 36, h, 4, C_SAD);
+  if(h > 10) _rtft->fillRect(158, y + 8, 8, 8, C_BLACK);
+  
+  // Tears
+  if((frame / 5) % 2 == 0) {
+    _rtft->fillRect(76, y + h + 10, 4, 12, C_SAD);
+    _rtft->fillRect(160, y + h + 10, 4, 12, C_SAD);
+  }
+  
+  draw_dotted_frown(120, 160, 40, 10, C_SAD);
+}
+
+static void draw_face_alert(int frame) {
+  int h = (int)(32 * anim_blink_scale);
+  int y = 94 + (32 - h)/2;
+  
+  _rtft->fillRoundRect(60, y, 40, h, 4, C_ALERT);
+  if(h > 10) _rtft->fillRect(76, y + 10, 8, 8, C_BLACK);
+  // Left eyebrow
+  _rtft->fillTriangle(50, 74, 100, 84, 100, 78, C_ALERT);
+  
+  _rtft->fillRoundRect(140, y, 40, h, 4, C_ALERT);
+  if(h > 10) _rtft->fillRect(156, y + 10, 8, 8, C_BLACK);
+  // Right eyebrow
+  _rtft->fillTriangle(190, 74, 140, 84, 140, 78, C_ALERT);
+  
+  _rtft->fillRect(100, 160, 40, 6, C_ALERT);
+}
+
+static void draw_face_love(int frame) {
+  int h = (int)(32 * anim_blink_scale);
+  int y = 90 + (32 - h)/2;
+  
+  // Pink rounded rect eyes
+  _rtft->fillRoundRect(60, y, 40, h, 6, C_LOVE);
+  _rtft->fillRoundRect(140, y, 40, h, 6, C_LOVE);
+  
+  if(h > 15) {
+    if ((frame / 15) % 2 == 0) {
+      uint16_t c_dark = 0xA004; // Dark red/pink
+      _rtft->fillRect(80 - 10, y + h/2 - 10, 20, 20, c_dark);
+      _rtft->fillRect(160 - 10, y + h/2 - 10, 20, 20, c_dark);
     }
-    size_t written = 0;
-    i2s_write(I2S_NUM_1, buf, sizeof(buf), &written, pdMS_TO_TICKS(100));
+  }
+  
+  // Solid crescent smile
+  _rtft->fillCircle(120, 155, 12, C_LOVE);
+  _rtft->fillCircle(120, 151, 12, C_BG);
+  
+  if(frame % 10 < 5) {
+    _rtft->fillRect(40, 60, 4, 4, C_LOVE);
+    _rtft->fillRect(196, 60, 4, 4, C_LOVE);
   }
 }
 
-static void pet_play_alert() {
-  const int RATE = 8000, FRAMES = 512;
-  int16_t buf[FRAMES];
-  float freqs[2] = {660.0f, 880.0f};
-  for (int rep = 0; rep < 8; rep++) {
-    float f = freqs[rep % 2];
-    for (int i = 0; i < FRAMES; i++)
-      buf[i] = (int16_t)(22000.0f * sinf(2.0f * M_PI * f * i / RATE));
-    size_t written = 0;
-    i2s_write(I2S_NUM_1, buf, sizeof(buf), &written, pdMS_TO_TICKS(100));
+static void draw_face_startup(int frame) {
+  int h = (int)(36 * anim_blink_scale);
+  int y = 90 + (36 - h)/2;
+  
+  if(h > 20) {
+    _rtft->fillRect(60, y, 40, 8, C_STARTUP);
+    _rtft->fillRect(60, y+14, 40, 8, C_STARTUP);
+    _rtft->fillRect(60, y+28, 40, 8, C_STARTUP);
+    
+    _rtft->fillRect(140, y, 40, 8, C_STARTUP);
+    _rtft->fillRect(140, y+14, 40, 8, C_STARTUP);
+    _rtft->fillRect(140, y+28, 40, 8, C_STARTUP);
+  } else {
+    _rtft->fillRect(60, y, 40, h, C_STARTUP);
+    _rtft->fillRect(140, y, 40, h, C_STARTUP);
   }
+  
+  // Progress bar mouth
+  _rtft->fillRect(80, 160, 80, 8, 0x0328); // Dark cyan
+  int prog = (frame % 20) * 4;
+  _rtft->fillRect(80, 160, prog, 8, C_STARTUP);
 }
 
-static void pet_play_surprised() {
-  const int RATE = 8000, FRAMES = 1024;
-  int16_t buf[FRAMES];
-  for (int i = 0; i < FRAMES; i++) {
-    float t = (float)i / FRAMES;
-    float freq = 220.0f + 660.0f * t;
-    buf[i] = (int16_t)(16000.0f * sinf(2.0f * M_PI * freq * i / RATE));
+static void draw_face_surprised(int frame) {
+  int h = (int)(50 * anim_blink_scale);
+  int y = 84 + (50 - h)/2;
+  
+  if(h > 30) {
+    _rtft->fillCircle(80, y + h/2, h/2, C_SURPRISED);
+    _rtft->fillCircle(160, y + h/2, h/2, C_SURPRISED);
+    
+    _rtft->fillCircle(80, y + h/2, 8, C_BLACK);
+    _rtft->fillCircle(160, y + h/2, 8, C_BLACK);
+  } else {
+    _rtft->fillRoundRect(55, y, 50, h, 8, C_SURPRISED);
+    _rtft->fillRoundRect(135, y, 50, h, 8, C_SURPRISED);
   }
-  size_t written = 0;
-  i2s_write(I2S_NUM_1, buf, sizeof(buf), &written, pdMS_TO_TICKS(200));
+  
+  _rtft->fillCircle(120, 164, 12, C_EXCITED);
+  _rtft->fillCircle(120, 164, 6, C_BG);
 }
-#endif // HAS_DAC
 
 // ================================================================
-//  DRAWING HELPERS — adaptive to display resolution
+//  DISPATCH
 // ================================================================
+typedef void (*FaceDrawFn)(int);
+static FaceDrawFn face_fns[FACE_COUNT] = {
+  draw_face_idle,
+  draw_face_happy,
+  draw_face_excited,
+  draw_face_sleepy,
+  draw_face_thinking,
+  draw_face_sad,
+  draw_face_alert,
+  draw_face_love,
+  draw_face_startup,
+  draw_face_surprised
+};
 
-// Face geometry — adapts to 240×240 or 240×320
-#define FACE_CX    (TFT_W / 2)
-#if TFT_H >= 300
-  // Tall display (ILI9341 240×320) — push face down
-  #define FACE_CY  (TFT_H / 2 + 8)
-  #define FACE_R   78
-  #define EYE_LX   (FACE_CX - 26)
-  #define EYE_RX   (FACE_CX + 26)
-  #define EYE_BASE_Y (FACE_CY - 12)
-  #define EYE_R    18
-#else
-  // Square display (ST7789 240×240) — centered
-  #define FACE_CY  (TFT_H / 2)
-  #define FACE_R   72
-  #define EYE_LX   (FACE_CX - 24)
-  #define EYE_RX   (FACE_CX + 24)
-  #define EYE_BASE_Y (FACE_CY - 10)
-  #define EYE_R    16
-#endif
-
-// Draw both eyes using the active emotion, shifted by bob_offset
-static void _draw_eyes(PetEmotion emo, int yoff) {
-  int lx = EYE_LX, rx = EYE_RX;
-  int ey = EYE_BASE_Y + yoff;
-
-  switch (emo) {
-    case EMO_IDLE:
-    case EMO_HAPPY:
-    case EMO_BOBBING:
-      _ptft->fillEllipse(lx, ey, EYE_R, EYE_R - 2, TFT_WHITE);
-      _ptft->fillEllipse(rx, ey, EYE_R, EYE_R - 2, TFT_WHITE);
-      _ptft->fillRect(lx - EYE_R, ey + 2, EYE_R * 2, EYE_R, TFT_BLACK);
-      _ptft->fillRect(rx - EYE_R, ey + 2, EYE_R * 2, EYE_R, TFT_BLACK);
-      _ptft->fillCircle(lx, ey - 2, EYE_R - 6, 0x1967);
-      _ptft->fillCircle(rx, ey - 2, EYE_R - 6, 0x1967);
-      _ptft->fillCircle(lx - 5, ey - 8, 4, TFT_WHITE);
-      _ptft->fillCircle(rx - 5, ey - 8, 4, TFT_WHITE);
-      _ptft->fillCircle(lx - 24, ey + 18, 10, 0xF810);
-      _ptft->fillCircle(rx + 24, ey + 18, 10, 0xF810);
-      _ptft->drawArc(FACE_CX, FACE_CY + 28 + yoff, 34, 27, 210, 330, TFT_WHITE, TFT_BLACK);
-      break;
-
-    case EMO_ANGRY:
-      _ptft->fillTriangle(lx - EYE_R, ey - 4, lx + EYE_R, ey - EYE_R, lx + EYE_R, ey + EYE_R - 4, TFT_RED);
-      _ptft->fillTriangle(rx - EYE_R, ey - EYE_R, rx + EYE_R, ey - 4, rx - EYE_R, ey + EYE_R - 4, TFT_RED);
-      _ptft->drawWideLine(lx - EYE_R, ey - EYE_R - 6, lx + EYE_R, ey - 6, 3, TFT_RED, TFT_BLACK);
-      _ptft->drawWideLine(rx - EYE_R, ey - 6, rx + EYE_R, ey - EYE_R - 6, 3, TFT_RED, TFT_BLACK);
-      _ptft->drawArc(FACE_CX, FACE_CY + 44 + yoff, 28, 21, 30, 150, TFT_WHITE, TFT_BLACK);
-      break;
-
-    case EMO_SAD:
-      _ptft->fillEllipse(lx, ey, EYE_R, EYE_R - 2, TFT_WHITE);
-      _ptft->fillEllipse(rx, ey, EYE_R, EYE_R - 2, TFT_WHITE);
-      _ptft->fillRect(lx - EYE_R, ey - EYE_R, EYE_R * 2, EYE_R / 2, TFT_BLACK);
-      _ptft->fillCircle(lx, ey + 4, EYE_R - 8, 0x001F);
-      _ptft->fillCircle(rx, ey + 4, EYE_R - 8, 0x001F);
-      _ptft->fillEllipse(lx + 8, ey + EYE_R + 6, 4, 8, 0x03FF);
-      _ptft->fillEllipse(rx - 8, ey + EYE_R + 6, 4, 8, 0x03FF);
-      _ptft->drawArc(FACE_CX, FACE_CY + 44 + yoff, 28, 21, 30, 150, TFT_WHITE, TFT_BLACK);
-      break;
-
-    case EMO_SURPRISED:
-      _ptft->fillCircle(lx, ey, EYE_R + 4, TFT_WHITE);
-      _ptft->fillCircle(rx, ey, EYE_R + 4, TFT_WHITE);
-      _ptft->fillCircle(lx, ey, EYE_R - 4, 0x1967);
-      _ptft->fillCircle(rx, ey, EYE_R - 4, 0x1967);
-      _ptft->fillCircle(lx - 4, ey - 4, 5, TFT_WHITE);
-      _ptft->fillCircle(rx - 4, ey - 4, 5, TFT_WHITE);
-      _ptft->fillCircle(FACE_CX, FACE_CY + 32 + yoff, 14, TFT_WHITE);
-      _ptft->fillCircle(FACE_CX, FACE_CY + 32 + yoff, 8, TFT_BLACK);
-      break;
-
-    case EMO_BLINK:
-      _ptft->drawWideLine(lx - EYE_R, ey, lx + EYE_R, ey, 3, TFT_WHITE, TFT_BLACK);
-      _ptft->drawWideLine(rx - EYE_R, ey, rx + EYE_R, ey, 3, TFT_WHITE, TFT_BLACK);
-      _ptft->drawArc(FACE_CX, FACE_CY + 28 + yoff, 34, 27, 210, 330, TFT_WHITE, TFT_BLACK);
-      break;
-
-    case EMO_SLEEPING:
-      _ptft->drawWideLine(lx - EYE_R, ey, lx + EYE_R, ey, 3, TFT_WHITE, TFT_BLACK);
-      _ptft->drawWideLine(rx - EYE_R, ey, rx + EYE_R, ey, 3, TFT_WHITE, TFT_BLACK);
-      _ptft->drawWideLine(FACE_CX - 12, FACE_CY + 28 + yoff,
-                          FACE_CX + 12, FACE_CY + 28 + yoff, 2, TFT_WHITE, TFT_BLACK);
-      _ptft->setTextColor(TFT_CYAN);
-      _ptft->setTextSize(1);
-      _ptft->setCursor(FACE_CX + 40, FACE_CY - 34 + yoff); _ptft->print("z");
-      _ptft->setTextSize(2);
-      _ptft->setCursor(FACE_CX + 48, FACE_CY - 50 + yoff); _ptft->print("Z");
-      _ptft->setTextSize(3);
-      _ptft->setCursor(FACE_CX + 58, FACE_CY - 72 + yoff); _ptft->print("Z");
-      break;
-
-    case EMO_SCREENSAVER:
-      // Time and weather are drawn in pet_draw_face directly.
-      break;
-
-    default: break;
+// ================================================================
+//  STATUS BAR
+// ================================================================
+static void draw_status_bar() {
+  _rtft->fillRect(0, 200, TFT_W, 40, C_BG);
+  
+  if (strlen(pc_status) > 0) {
+    _rtft->setTextColor(0x7BEF); // Light grey
+    _rtft->setTextSize(1);
+    _rtft->setCursor((TFT_W - strlen(pc_status)*6) / 2, 206);
+    _rtft->print(pc_status);
+  }
+  
+  if (strlen(pc_app) > 0) {
+    _rtft->setTextColor(0x4208); // Dark grey
+    _rtft->setCursor(4, 222);
+    _rtft->printf("[%s]", pc_app);
   }
 }
 
-// Render the full face: background, base circle, then eyes
-static void pet_draw_face(PetEmotion emo, int yoff) {
-  if (!_ptft) return;
+// ================================================================
+//  SERIAL PARSER
+// ================================================================
+static void pet_parse_serial() {
+  while (Serial.available()) {
+    String line = Serial.readStringUntil('\n');
+    line.trim();
 
-  int cy = FACE_CY + yoff;
-
-  // Clear previous face bounding box
-  _ptft->fillRect(FACE_CX - FACE_R - 12, FACE_CY - FACE_R - 15,
-                  (FACE_R + 12) * 2, (FACE_R + 15) * 2, TFT_BLACK);
-
-  if (emo == EMO_SCREENSAVER) {
-    if (ss_page == 0) {
-      // Clock View (Green 7-segment style)
-      _ptft->setTextColor(sys_clock_color);
-      _ptft->setTextSize(3);
-      int tx = FACE_CX - (strlen(pet_time_str) * 18) / 2;
-      _ptft->setCursor(tx, FACE_CY - 10);
-      _ptft->print(pet_time_str);
-
-      _ptft->setTextColor(TFT_YELLOW);
-      _ptft->setTextSize(1);
-      int dx = FACE_CX - (strlen(pet_date_str) * 6) / 2;
-      _ptft->setCursor(dx, FACE_CY + 20);
-      _ptft->print(pet_date_str);
-    } else {
-      // Weather View (Red text)
-      _ptft->setTextColor(sys_weather_color);
-      _ptft->setTextSize(1);
-      _ptft->setCursor(FACE_CX - 24, FACE_CY - 20);
-      _ptft->print("WEATHER");
-      
-      _ptft->setTextSize(3);
-      int tx = FACE_CX - (strlen(pet_weather_temp) * 18) / 2;
-      _ptft->setCursor(tx, FACE_CY - 8);
-      _ptft->print(pet_weather_temp);
-
-      _ptft->setTextSize(1);
-      int dx = FACE_CX - (strlen(pet_weather_desc) * 6) / 2;
-      _ptft->setCursor(dx, FACE_CY + 24);
-      _ptft->print(pet_weather_desc);
+    if (line.startsWith("FACE:")) {
+      String faceStr = line.substring(5);
+      const char* names[] = {
+        "IDLE","HAPPY","EXCITED","SLEEPY","THINKING",
+        "SAD_ERROR","ALERT_WARNING","LOVE_BONDING",
+        "STARTUP_BOOT","SURPRISED"
+      };
+      for (int i = 0; i < FACE_COUNT; i++) {
+        if (faceStr == names[i]) {
+          if (face_current != (RobotFace)i) {
+            face_current = (RobotFace)i;
+            face_dirty   = true;
+            last_active_ms = millis();
+          }
+          break;
+        }
+      }
+    } else if (line.startsWith("STATUS:")) {
+      strncpy(pc_status, line.substring(7).c_str(), sizeof(pc_status)-1);
+      face_dirty = true;
+    } else if (line.startsWith("APP:")) {
+      strncpy(pc_app, line.substring(4).c_str(), sizeof(pc_app)-1);
+      face_dirty = true;
+    } else if (line.startsWith("PING")) {
+      Serial.println("{\"pong\":1}");
     }
-    return;
-  }
-
-  // Face base — dark slate with soft rim
-  _ptft->fillCircle(FACE_CX, cy, FACE_R, 0x2124);
-  _ptft->drawCircle(FACE_CX, cy, FACE_R, 0x6B4D);
-  _ptft->drawCircle(FACE_CX, cy, FACE_R - 1, 0x4208);
-
-  // Music notes banner during bobbing
-  if (emo == EMO_BOBBING) {
-    _ptft->setTextColor(0x07FF);
-    _ptft->setTextSize(1);
-    _ptft->setCursor(8, 16);
-    _ptft->print("~ AeroSniffer ~");
-  }
-
-  _draw_eyes(emo, yoff);
-}
-
-// ================================================================
-//  I2S INITIALISATION (conditional)
-// ================================================================
-#if HAS_MIC
-static void pet_i2s_mic_init() {
-  i2s_config_t cfg = {
-    .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
-    .sample_rate          = FFT_SAMPLE_RATE,
-    .bits_per_sample      = I2S_BITS_PER_SAMPLE_32BIT,
-    .channel_format       = I2S_CHANNEL_FMT_ONLY_LEFT,
-    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-    .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
-    .dma_buf_count        = 4,
-    .dma_buf_len          = 256,
-    .use_apll             = false,
-    .tx_desc_auto_clear   = false,
-    .fixed_mclk           = 0
-  };
-  i2s_pin_config_t pins = {
-    .bck_io_num   = I2S_MIC_SCK,
-    .ws_io_num    = I2S_MIC_WS,
-    .data_out_num = I2S_PIN_NO_CHANGE,
-    .data_in_num  = I2S_MIC_SD
-  };
-  i2s_driver_install(I2S_NUM_0, &cfg, 0, nullptr);
-  i2s_set_pin(I2S_NUM_0, &pins);
-}
-#endif
-
-#if HAS_DAC
-static void pet_i2s_dac_init() {
-  i2s_config_t cfg = {
-    .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
-    .sample_rate          = 8000,
-    .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
-    .channel_format       = I2S_CHANNEL_FMT_ONLY_LEFT,
-    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-    .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
-    .dma_buf_count        = 4,
-    .dma_buf_len          = 256,
-    .use_apll             = false,
-    .tx_desc_auto_clear   = true,
-    .fixed_mclk           = 0
-  };
-  i2s_pin_config_t pins = {
-    .bck_io_num   = I2S_DAC_BCLK,
-    .ws_io_num    = I2S_DAC_LRC,
-    .data_out_num = I2S_DAC_DIN,
-    .data_in_num  = I2S_PIN_NO_CHANGE
-  };
-  i2s_driver_install(I2S_NUM_1, &cfg, 0, nullptr);
-  i2s_set_pin(I2S_NUM_1, &pins);
-}
-#endif
-
-// ================================================================
-//  MPU-6050 SHAKE DETECTION (conditional)
-// ================================================================
-#if HAS_IMU
-static int16_t mpu_ax = 0, mpu_ay = 0, mpu_az = 0;
-static int16_t mpu_last_ax = 0, mpu_last_ay = 0;
-
-static void mpu_wake() {
-  Wire.beginTransmission(MPU6050_I2C_ADDR);
-  Wire.write(0x6B);
-  Wire.write(0x00);
-  Wire.endTransmission();
-}
-
-static void mpu_read_accel() {
-  Wire.beginTransmission(MPU6050_I2C_ADDR);
-  Wire.write(0x3B);
-  Wire.endTransmission(false);
-  Wire.requestFrom((uint8_t)MPU6050_I2C_ADDR, (uint8_t)6, (uint8_t)true);
-  if (Wire.available() >= 6) {
-    mpu_ax = (Wire.read() << 8) | Wire.read();
-    mpu_ay = (Wire.read() << 8) | Wire.read();
-    mpu_az = (Wire.read() << 8) | Wire.read();
   }
 }
 
-static bool mpu_shake_detected() {
-  int16_t dx = abs(mpu_ax - mpu_last_ax);
-  int16_t dy = abs(mpu_ay - mpu_last_ay);
-  mpu_last_ax = mpu_ax;
-  mpu_last_ay = mpu_ay;
-  return (dx > 8000 || dy > 8000);
-}
-#endif // HAS_IMU
-
 // ================================================================
-//  PUBLIC API — called from AeroSniffer.ino
+//  PUBLIC API
 // ================================================================
-
 void pet_setup(TFT_eSPI* tft) {
-  _ptft          = tft;
-  emo_current    = EMO_IDLE;
-  emo_last       = EMO_IDLE;
-  emo_dirty      = true;
-  bob_offset     = 0;
-  bob_dir        = 1;
-  blink_next     = millis() + random(3000, 7000);
-  emo_timer      = millis();
-  last_interact_ms = millis();
-  ss_cycle_ms    = millis();
-  ss_page        = 0;
+  _rtft = tft;
+  face_current = FACE_STARTUP;
+  face_last    = FACE_COUNT;
+  face_dirty   = true;
+  last_active_ms = millis();
+  anim_blink_scale = 1.0f;
+  anim_is_blinking = false;
+  anim_blink_next  = millis() + 3000;
+  anim_look_next   = millis() + 2000;
+  
+  memset(pc_status, 0, sizeof(pc_status));
+  memset(pc_app,    0, sizeof(pc_app));
 
-  _ptft->fillScreen(TFT_BLACK);
-
-  // Header bar
-  _ptft->setTextColor(0x07FF);
-  _ptft->setTextSize(1);
-  _ptft->setCursor(2, 2);
-  _ptft->print("MODE 1: COMPANION");
-  _ptft->setTextColor(0x4208);
-  #if HAS_TOUCH
-    _ptft->setCursor(TFT_W - 90, 2);
-    _ptft->print("[HOLD]=next mode");
-  #else
-    _ptft->setCursor(TFT_W - 96, 2);
-    _ptft->print("[BOOT]=next mode");
-  #endif
-
-  #if HAS_MIC
-    pet_i2s_mic_init();
-  #endif
-  #if HAS_DAC
-    pet_i2s_dac_init();
-  #endif
-  #if HAS_IMU
-    mpu_wake();
-  #endif
-
-  pet_draw_face(EMO_IDLE, 0);
+  _rtft->fillScreen(C_BG);
+  
+  Serial.begin(115200);
+  Serial.println("{\"ready\":1,\"mode\":\"pet\"}");
 }
 
 void pet_teardown() {
-  #if HAS_MIC
-    i2s_driver_uninstall(I2S_NUM_0);
-  #endif
-  #if HAS_DAC
-    i2s_driver_uninstall(I2S_NUM_1);
-  #endif
-  _ptft = nullptr;
+  _rtft = nullptr;
 }
 
-// ── Core 0 — FFT / Audio analysis / Background WiFi ───────────────
 void pet_core0_task() {
-  // Wi-Fi and Time sync
-  if (!pet_wifi_ok) {
-    if (WiFi.status() != WL_CONNECTED) {
-      WiFi.mode(WIFI_STA);
-      WiFi.begin(sys_wifi_ssid.c_str(), sys_wifi_pass.c_str());
-      vTaskDelay(pdMS_TO_TICKS(3000));
-    } else {
-      pet_wifi_ok = true;
-      // Configure NTP (IST = UTC + 5:30)
-      configTime(5.5 * 3600, 0, "pool.ntp.org", "time.nist.gov");
-    }
-  }
-
-  // Weather fetch (every 15 mins)
-  if (pet_wifi_ok && (millis() - last_weather_ms > 900000 || last_weather_ms == 0)) {
-    last_weather_ms = millis();
-    HTTPClient http;
-    char url[150];
-    snprintf(url, sizeof(url), "http://api.open-meteo.com/v1/forecast?latitude=%.2f&longitude=%.2f&current_weather=true", sys_sky_lamin, sys_sky_lomin);
-    http.begin(url);
-    int code = http.GET();
-    if (code == 200) {
-      DynamicJsonDocument doc(2048);
-      deserializeJson(doc, http.getStream());
-      float t = doc["current_weather"]["temperature"];
-      int wc = doc["current_weather"]["weathercode"];
-      snprintf(pet_weather_temp, sizeof(pet_weather_temp), "%.1fC", t);
-      
-      const char* w_desc = "Clear";
-      if (wc >= 1 && wc <= 3) w_desc = "Partly Cloudy";
-      else if (wc >= 45 && wc <= 48) w_desc = "Fog";
-      else if (wc >= 51 && wc <= 57) w_desc = "Drizzle";
-      else if (wc >= 61 && wc <= 67) w_desc = "Rain";
-      else if (wc >= 71 && wc <= 77) w_desc = "Snow";
-      else if (wc >= 80 && wc <= 82) w_desc = "Showers";
-      else if (wc >= 95) w_desc = "Thunderstorm";
-      
-      snprintf(pet_weather_desc, sizeof(pet_weather_desc), "%s", w_desc);
-    }
-    http.end();
-  }
-
-  #if HAS_MIC
-    int32_t raw[FFT_SAMPLES];
-    size_t bytes = 0;
-    i2s_read(I2S_NUM_0, raw, sizeof(raw), &bytes, pdMS_TO_TICKS(40));
-    int got = bytes / 4;
-    for (int i = 0; i < FFT_SAMPLES; i++) {
-      fft_real[i] = (i < got) ? (double)(raw[i] >> 14) : 0.0;
-      fft_imag[i] = 0.0;
-    }
-    PetFFT.windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
-    PetFFT.compute(FFT_FORWARD);
-    PetFFT.complexToMagnitude();
-    int bassEndBin = (int)((BASS_HZ_MAX * FFT_SAMPLES) / (double)FFT_SAMPLE_RATE);
-    bassEndBin = min(bassEndBin, FFT_SAMPLES / 2);
-    double sum = 0;
-    for (int i = 2; i < bassEndBin; i++) sum += fft_real[i];
-    bass_energy = (float)(sum / max(bassEndBin - 2, 1));
-  #else
-    // No mic — yield CPU
-    vTaskDelay(pdMS_TO_TICKS(100));
-  #endif
+  vTaskDelay(pdMS_TO_TICKS(50));
 }
 
-// ── Core 1 — UI rendering, touch/FSR, MPU (display thread) ─────
 void pet_core1_task() {
-  if (!_ptft) return;
+  if (!_rtft) return;
+  static int frame = 0;
   uint32_t now = millis();
+  frame++;
 
-  // ─ MPU-6050 shake ──────────────────────────────────────────
-  #if HAS_IMU
-    mpu_read_accel();
-    if (mpu_shake_detected() && emo_current == EMO_IDLE) {
-      emo_current = EMO_SURPRISED;
-      emo_timer   = now;
-      emo_dirty   = true;
-      #if HAS_DAC
-        xTaskCreate([](void*) { pet_play_surprised(); vTaskDelete(nullptr); },
-                    "snd_surp", 2048, nullptr, 1, nullptr);
-      #endif
+  pet_parse_serial();
+  
+  // ── Animation Logic ───────────────────────────────────────────
+  bool anim_changed = false;
+  
+  // Blinking physics
+  if (now > anim_blink_next && !anim_is_blinking) {
+    anim_is_blinking = true;
+    anim_blink_scale = 1.0f;
+  }
+  
+  if (anim_is_blinking) {
+    // Snap close, ease open
+    if (anim_blink_scale > 0.1f && frame % 2 == 0) {
+      anim_blink_scale -= 0.4f; // close fast
+    } else if (anim_blink_scale <= 0.1f) {
+      anim_blink_scale = 0.0f;
     }
-  #endif
-
-  // ─ Touch input (DeskBuddy 2.0) ────────────────────────────
-  #if HAS_TOUCH
-    extern volatile bool g_touch_tap;
-    if (g_touch_tap) {
-      g_touch_tap = false;
-      last_interact_ms = now;
-      if (emo_current != EMO_HAPPY) {
-        emo_current = EMO_HAPPY;
-        emo_timer   = now;
-        emo_dirty   = true;
-        #if HAS_DAC
-          xTaskCreate([](void*) { pet_play_purr(); vTaskDelete(nullptr); },
-                      "snd_purr", 2048, nullptr, 1, nullptr);
-        #endif
-      }
+    
+    // If closed, start opening
+    if (anim_blink_scale <= 0.0f && frame % 3 == 0) {
+      anim_blink_scale = 0.1f; // start open
+    } else if (anim_blink_scale > 0.0f && anim_blink_scale < 1.0f) {
+      anim_blink_scale += 0.2f; // open slower
     }
-  #endif
-
-  // ─ FSR read (DevKitC) ─────────────────────────────────────
-  #if HAS_FSR
-    int fsr = analogRead(FSR_PIN);
-    if (fsr >= FSR_HARSH_MIN) {
-      if (emo_current != EMO_ANGRY) {
-        emo_current = EMO_ANGRY;
-        emo_timer   = now;
-        emo_dirty   = true;
-        #if HAS_DAC
-          xTaskCreate([](void*) { pet_play_alert(); vTaskDelete(nullptr); },
-                      "snd_alert", 2048, nullptr, 1, nullptr);
-        #endif
-      }
-    } else if (fsr >= FSR_GENTLE_MIN && fsr <= FSR_GENTLE_MAX) {
-      if (emo_current != EMO_HAPPY) {
-        emo_current = EMO_HAPPY;
-        emo_timer   = now;
-        emo_dirty   = true;
-        #if HAS_DAC
-          xTaskCreate([](void*) { pet_play_purr(); vTaskDelete(nullptr); },
-                      "snd_purr", 2048, nullptr, 1, nullptr);
-        #endif
-      }
+    
+    if (anim_blink_scale >= 1.0f) {
+      anim_blink_scale = 1.0f;
+      anim_is_blinking = false;
+      anim_blink_next = now + random(2000, 6000);
     }
-  #endif
-
-  // ─ Bass-reactive bobbing ────────────────────────────────────
-  if (bass_energy > BASS_THRESHOLD &&
-      emo_current != EMO_ANGRY && emo_current != EMO_SAD) {
-    emo_current = EMO_BOBBING;
-    emo_timer   = now;
+    anim_changed = true;
+  }
+  
+  // Look around (Idle/Thinking only)
+  if (now > anim_look_next) {
+    if (face_current == FACE_IDLE || face_current == FACE_THINKING) {
+      anim_look_x = random(-6, 7);
+      anim_look_y = random(-4, 5);
+    } else {
+      anim_look_x = 0;
+      anim_look_y = 0;
+    }
+    anim_look_next = now + random(1000, 4000);
+    anim_changed = true;
   }
 
-  // ─ Auto-return to IDLE after 3 s ───────────────────────────
-  if ((emo_current == EMO_HAPPY   || emo_current == EMO_ANGRY  ||
-       emo_current == EMO_BOBBING || emo_current == EMO_SURPRISED) &&
-      now - emo_timer > 3000) {
-    emo_current = EMO_IDLE;
-    emo_dirty   = true;
+  // Auto-sleep fallback
+  if (face_current != FACE_SLEEPY && now - last_active_ms > 30000) {
+    face_current = FACE_SLEEPY;
+    face_dirty = true;
   }
 
-  // ─ Screensaver Timeout (1 min idle) ─────────────────────────
-  if (now - last_interact_ms > 60000) {
-    if (emo_current != EMO_SCREENSAVER) {
-      emo_current = EMO_SCREENSAVER;
-      emo_dirty = true;
-      ss_cycle_ms = now;
-      _ptft->fillScreen(TFT_BLACK); // Full clear for screensaver
+  // ── Render ────────────────────────────────────────────────────
+  bool needs_anim = (face_current == FACE_EXCITED || face_current == FACE_SAD || 
+                     face_current == FACE_STARTUP || face_current == FACE_THINKING ||
+                     face_current == FACE_LOVE    || face_current == FACE_SLEEPY);
+                     
+  if (face_dirty || face_current != face_last || anim_changed || (needs_anim && frame % 3 == 0)) {
+    // Overdraw background to erase previous frame
+    _rtft->fillRect(0, 40, TFT_W, 160, C_BG); 
+    
+    face_dirty = false;
+    face_last = face_current;
+    
+    if (face_current < FACE_COUNT) {
+      face_fns[face_current](frame);
+    }
+    
+    // Only redraw status bar if it was dirty
+    if (anim_changed == false || frame % 15 == 0) {
+      draw_status_bar();
     }
   }
 
-  // ─ Screensaver Logic & Clock Sync ──────────────────────────
-  if (emo_current == EMO_SCREENSAVER) {
-    // Sync time string
-    struct tm timeinfo;
-    if (getLocalTime(&timeinfo, 10)) {
-      strftime(pet_time_str, sizeof(pet_time_str), "%H:%M", &timeinfo);
-      strftime(pet_date_str, sizeof(pet_date_str), "%a %d %b", &timeinfo);
-    }
-    // Flip page every 5 seconds
-    if (now - ss_cycle_ms > 5000) {
-      ss_cycle_ms = now;
-      ss_page = (ss_page + 1) % 2;
-      emo_dirty = true;
-      _ptft->fillRect(0, 40, TFT_W, TFT_H - 80, TFT_BLACK); // Clear middle
-    }
-  }
-
-  // ─ Scheduled blink (only when not in screensaver) ─────────
-  if (emo_current == EMO_IDLE && now > blink_next) {
-    emo_current = EMO_BLINK;
-    emo_dirty   = true;
-    vTaskDelay(pdMS_TO_TICKS(140));
-    emo_current = EMO_IDLE;
-    blink_next  = millis() + random(3000, 7000);
-    emo_dirty   = true;
-  }
-
-  // ─ Bobbing animation step ───────────────────────────────────
-  if (emo_current == EMO_BOBBING) {
-    bob_offset += bob_dir * 3;
-    if (bob_offset >= 10)  bob_dir = -1;
-    if (bob_offset <= -10) bob_dir =  1;
-    emo_dirty = true;
-  } else if (bob_offset != 0) {
-    bob_offset = 0;
-    emo_dirty  = true;
-  }
-
-  // ─ Redraw only when state changed ──────────────────────────
-  if (emo_dirty || emo_current != emo_last) {
-    emo_dirty  = false;
-    emo_last   = emo_current;
-    pet_draw_face(emo_current, bob_offset);
-  }
-
-  vTaskDelay(pdMS_TO_TICKS(30));   // ≈ 33 fps
+  vTaskDelay(pdMS_TO_TICKS(33)); // ~30 FPS
 }

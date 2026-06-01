@@ -1,0 +1,20 @@
+# ================================================================
+#  AeroSniffer PC Agent — Python Requirements
+#  Run: pip install -r requirements.txt
+# ================================================================
+
+# Core (all platforms)
+pyserial>=3.5          # USB Serial communication with ESP32
+psutil>=5.9.0          # CPU, RAM, process monitoring
+pynput>=1.7.6          # Keyboard activity detection (cross-platform)
+
+# ── Windows only (uncomment if on Windows) ──────────────────────
+# pygetwindow>=0.0.9   # Window title detection (backup method)
+
+# ── macOS only ──────────────────────────────────────────────────
+# pyobjc-framework-Cocoa   # Native macOS window APIs (optional)
+
+# ── Linux: install xdotool via system package manager ──────────
+# sudo apt install xdotool       (Debian / Ubuntu)
+# sudo dnf install xdotool       (Fedora)
+# sudo pacman -S xdotool         (Arch)

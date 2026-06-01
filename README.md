@@ -11,7 +11,7 @@ AeroSniffer treats the ESP32-S3 like a mini operating system with three complete
 
 | Mode | Name | What It Does |
 |------|------|--------------|
-| 🐾 **Mode 1** | The Companion | Interactive desk pet with animated face expressions, capacitive touch interaction (head-pats!), and automatic blinking |
+| 🐾 **Mode 1** | Cyber-Pet | PC-driven interactive desk companion with smooth, high-FPS vector face expressions that react to your computer's activity (typing, CPU load, apps) |
 | 🛡️ **Mode 2** | Network Auditor | 802.11 packet sniffer with animated radar sweep display + companion web app ([aero-sniffer.vercel.app](https://aero-sniffer.vercel.app/)) for full Marauder control |
 | ✈️ **Mode 3** | Flight Radar | Live ADS-B flight tracker pulling from OpenSky Network API with callsign, altitude, speed, and compass heading |
 
@@ -133,9 +133,9 @@ No need to hardcode passwords in C++! Once you flash the firmware, simply plug t
 **[https://aero-sniffer.vercel.app/](https://aero-sniffer.vercel.app/)**
 
 Using the **Web Serial API**, you can instantly configure:
-- **Wi-Fi Credentials** (for Mode 1 and Mode 3)
+- **Wi-Fi Credentials** (for Mode 3)
 - **GPS Bounding Box** (for Mode 3 Flight Radar)
-- **Screensaver Colors** (for Mode 1 Clock/Weather UI)
+- **Theme Colors** (for the UI)
 
 Settings are permanently saved to the ESP32's Non-Volatile Flash memory.
 
@@ -143,28 +143,21 @@ Settings are permanently saved to the ESP32's Non-Volatile Flash memory.
 
 ## 🧩 Hardware Architecture
 
-<<<<<<< HEAD
 ![Hardware Architecture](docs/ESP32%20Hardware%20Control-Workflow.png)
-=======
-```
-                     ┌───────────────────────────────────┐
-                     │  Capacitive Touch (GPIO 1)        │
-                     │  short tap = interact             │
-                     │  long press (1.5s) = mode switch  │
-                     └────────────────┬──────────────────┘
-                                      │ g_mode_dirty flag
-                   ┌──────────────────▼──────────────────┐
-                   │        FreeRTOS Task Router         │
-                   ├──────────────────┬──────────────────┤
-                   │    CORE 0        │     CORE 1       │
-                   │  (Background)    │   (UI Engine)    │
-                   ├──────────────────┼──────────────────┤
-                   │ WiFi promiscu.   │ TFT rendering    │
-                   │ HTTP API calls   │ Touch polling    │
-                   │ Channel hopping  │ State machine    │
-                   └──────────────────┴──────────────────┘
-```
->>>>>>> fbcee63e9e64daf01aeb9ba882a350e6faee4fd2
+
+---
+
+## 🐾 Mode 1: Cyber-Pet PC Agent
+
+AeroSniffer now features a fully autonomous PC Agent that connects to the ESP32 over USB Serial. It monitors your active windows, CPU usage, and keyboard activity, beaming real-time emotional states directly to the robot's smooth, high-FPS geometric vector face!
+
+**How to run it:**
+1. Connect your AeroSniffer via USB and switch to **Mode 1**.
+2. Open a terminal and navigate to the `pc-agent` directory.
+3. Install the dependencies: `pip install -r requirements.txt`
+4. Run the agent: `python pc_agent.py`
+
+The robot will now react when you type, panic when your CPU spikes, and fall asleep when you step away! You can easily map your own apps to custom faces by editing `pc_agent.py`.
 
 ---
 
