@@ -595,7 +595,7 @@ function TutorialPanel() {
           <div className="bg-[#06080e] p-5 border border-[color:var(--as-violet)]/30">
             <h3 className="font-pixel text-sm text-[color:var(--as-violet)] mb-3">3. PC AGENT</h3>
             <p className="font-mono-pixel text-lg text-[color:var(--as-neon)]/80">
-              To enable dynamic expressions, run the <code className="text-[color:var(--as-pink)]">pc_agent.py</code> script on your host machine. It will track your keyboard inputs, CPU load, and active windows, sending emotion updates directly to the pet over WebSockets/Serial.
+              To enable dynamic expressions, double-click the <code className="text-[color:var(--as-pink)]">Start_DeskBuddy.bat</code> file. It will silently track your typing, CPU load, and active windows in the background, bringing your pet to life! (Add a shortcut to <code className="text-[color:var(--as-pink)]">shell:startup</code> for auto-boot).
             </p>
           </div>
           

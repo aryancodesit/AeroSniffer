@@ -153,11 +153,12 @@ AeroSniffer now features a fully autonomous PC Agent that connects to the ESP32 
 
 **How to run it:**
 1. Connect your AeroSniffer via USB and switch to **Mode 1**.
-2. Open a terminal and navigate to the `pc-agent` directory.
-3. Install the dependencies: `pip install -r requirements.txt`
-4. Run the agent: `python pc_agent.py`
+2. Install the dependencies (one-time setup):
+   - Open a terminal in the `pc-agent` directory and run `pip install -r requirements.txt`
+3. To start the agent seamlessly, simply double-click the **`Start_DeskBuddy.bat`** file in the root folder. It will launch the agent silently in the background!
+4. *(Optional)* Add a shortcut to `Start_DeskBuddy.bat` in your Windows `shell:startup` folder to have your pet wake up automatically when you boot your PC.
 
-The robot will now react when you type, panic when your CPU spikes, and fall asleep when you step away! You can easily map your own apps to custom faces by editing `pc_agent.py`.
+The robot will now react when you type, panic when your CPU spikes, and fall asleep when you step away! You can easily map your own apps to custom faces by editing `pc-agent/pc_agent.py`.
 
 ---
 
