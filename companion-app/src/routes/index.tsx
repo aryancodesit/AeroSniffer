@@ -25,7 +25,7 @@ function Index() {
   const [face, setFace] = useState<FaceState>("startup");
   const [booted, setBooted] = useState(false);
   const [bootLines, setBootLines] = useState<string[]>([]);
-  const [mode, setMode] = useState<0 | 1 | 2>(0);
+  const [mode, setMode] = useState<0 | 1 | 2 | 3 | 4>(0);
   const heroRef = useRef<HTMLDivElement>(null);
 
   // Boot sequence → idle
@@ -171,6 +171,8 @@ function Index() {
         {mode === 1 && <LiveRadarPanel />}
         {mode === 2 && <FlightPanel />}
         {mode === 0 && <PetPanel />}
+        {mode === 3 && <PayloadPanel />}
+        {mode === 4 && <TutorialPanel />}
       </section>
 
       {/* FACES GALLERY */}
@@ -250,7 +252,8 @@ function Index() {
             title="PAYLOADS"
             desc="Library of pre-configured scans and automated workflows."
             btn="VIEW PAYLOADS"
-            href="#faces"
+            onClick={() => setMode(3)}
+            href="#modes"
           />
           <ToolCard
             icon="▤"
@@ -258,6 +261,7 @@ function Index() {
             title="TUTORIAL"
             desc="Learn how to use all three modes of AeroSniffer."
             btn="READ GUIDE"
+            onClick={() => setMode(4)}
             href="#modes"
           />
           <ToolCard
@@ -528,6 +532,80 @@ function PetPanel() {
         <div>[host] CPU 12%  · idle</div>
         <div>[host] new tab opened → face: surprised</div>
         <div className="text-[color:var(--as-pink)]">[host] you've been here 2h — face: love</div>
+      </div>
+    </div>
+  );
+}
+
+function PayloadPanel() {
+  const attacks = [
+    { name: "Beacon Spam", desc: "Flood SSIDs to confuse nearby devices", cmd: "attack -t beacon -l" },
+    { name: "Deauth All", desc: "Disconnect all clients from APs", cmd: "attack -t deauth -c" },
+    { name: "Probe Request", desc: "Send random probe requests", cmd: "attack -t probe" },
+    { name: "Rick Roll", desc: "Broadcast Rick Astley lyrics as APs", cmd: "attack -t rickroll" },
+  ];
+  return (
+    <div className="max-w-6xl mx-auto mt-10 pixel-card p-6 border-[color:var(--as-orange)]">
+      <div className="font-pixel text-[10px] text-[color:var(--as-orange)] mb-4">
+        ▲ ESP32 MARAUDER · PAYLOAD OPTIONS
+      </div>
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+        {attacks.map((atk, i) => (
+          <div key={i} className="bg-[#06080e] p-4 border border-[color:var(--as-orange)]/30 hover:border-[color:var(--as-orange)] transition-colors">
+            <h4 className="font-pixel text-xs text-[color:var(--as-orange)] mb-2">{atk.name}</h4>
+            <p className="font-mono-pixel text-[color:var(--as-neon)]/70 text-sm mb-4 h-10">{atk.desc}</p>
+            <div className="font-mono-pixel text-[10px] bg-black p-2 rounded text-[color:var(--as-pink)] mb-3">
+              {atk.cmd}
+            </div>
+            <button className="w-full pixel-btn pixel-btn-ghost text-[9px] py-2" style={{ color: "var(--as-orange)", borderColor: "var(--as-orange)" }}>
+              EXECUTE PAYLOAD
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TutorialPanel() {
+  return (
+    <div className="max-w-6xl mx-auto mt-10 pixel-card p-8">
+      <div className="font-pixel text-[10px] text-[color:var(--as-violet)] mb-6">
+        ▲ TUTORIAL · HOW TO TRAIN YOUR DESKBUDDY
+      </div>
+      
+      <div className="grid md:grid-cols-2 gap-10">
+        <div className="space-y-6">
+          <div className="bg-[#06080e] p-5 border border-[color:var(--as-violet)]/30">
+            <h3 className="font-pixel text-sm text-[color:var(--as-violet)] mb-3">1. BOOTING UP</h3>
+            <p className="font-mono-pixel text-lg text-[color:var(--as-neon)]/80">
+              Plug the AeroSniffer into your PC using a USB-C data cable. The ESP32-S3 will initialize FreeRTOS and load the Cyber-Pet face by default.
+            </p>
+          </div>
+          
+          <div className="bg-[#06080e] p-5 border border-[color:var(--as-violet)]/30">
+            <h3 className="font-pixel text-sm text-[color:var(--as-violet)] mb-3">2. SWITCHING MODES</h3>
+            <p className="font-mono-pixel text-lg text-[color:var(--as-neon)]/80">
+              Tap the capacitive touch pad on the top of the enclosure to cycle through faces. <strong className="text-[color:var(--as-pink)]">Long-press for 1.5 seconds</strong> to reboot into the next operating system (Cyber-Pet → Auditor → Radar).
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="bg-[#06080e] p-5 border border-[color:var(--as-violet)]/30">
+            <h3 className="font-pixel text-sm text-[color:var(--as-violet)] mb-3">3. PC AGENT</h3>
+            <p className="font-mono-pixel text-lg text-[color:var(--as-neon)]/80">
+              To enable dynamic expressions, run the <code className="text-[color:var(--as-pink)]">pc_agent.py</code> script on your host machine. It will track your keyboard inputs, CPU load, and active windows, sending emotion updates directly to the pet over WebSockets/Serial.
+            </p>
+          </div>
+          
+          <div className="bg-[#06080e] p-5 border border-[color:var(--as-violet)]/30">
+            <h3 className="font-pixel text-sm text-[color:var(--as-violet)] mb-3">4. WEB SERIAL DASHBOARD</h3>
+            <p className="font-mono-pixel text-lg text-[color:var(--as-neon)]/80">
+              When in Mode 2 (Network Auditor), open the "Connect & Scan" tool on this website. Click "Connect", select the COM port of your ESP32, and you'll immediately see live packets and access points streaming onto the dashboard!
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
