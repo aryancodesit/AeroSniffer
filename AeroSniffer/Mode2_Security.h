@@ -295,6 +295,11 @@ static void sec_handle_serial() {
       Serial.println("RES:{\"ok\":false,\"error\":\"invalid format\"}");
     }
   }
+  else if (cmd.startsWith("REBOOT")) {
+    Serial.println("RES:{\"ok\":true,\"action\":\"reboot\"}");
+    delay(100);
+    ESP.restart();
+  }
   else {
     Serial.printf("RES:{\"ok\":false,\"error\":\"unknown command: %s\"}\n", cmd.c_str());
   }
