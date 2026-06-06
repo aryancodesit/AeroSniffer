@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { BotFace, FACE_META, type FaceState } from "@/components/BotFace";
 import { PixelBackdrop } from "@/components/PixelBackdrop";
 import { LiveRadarPanel } from "@/components/LiveRadarPanel";
+import { serialAPI } from "@/lib/serial";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -144,9 +145,9 @@ function Index() {
                 <a href="#modes" className="pixel-btn">
                   CHOOSE A MODE
                 </a>
-                <a href="#faces" className="pixel-btn pixel-btn-ghost">
-                  VIEW FACES
-                </a>
+                <button onClick={() => document.querySelector('nav button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))} className="pixel-btn pixel-btn-ghost text-[color:var(--as-yellow)] border-[color:var(--as-yellow)]">
+                  ⚙️ FIRST BOOT SETUP
+                </button>
               </div>
             </div>
           </div>
@@ -347,33 +348,181 @@ function Index() {
 /* ───── helpers ───── */
 
 function Nav({ onFace }: { onFace: (f: FaceState) => void }) {
+  const [showSetup, setShowSetup] = useState(false);
+  const [setupConnected, setSetupConnected] = useState(false);
+  const [deviceData, setDeviceData] = useState<any>(null);
+  const [wifi, setWifi] = useState({ ssid: "", pass: "" });
+  const [bbox, setBbox] = useState({ lamin: "", lomin: "", lamax: "", lomax: "" });
+  const [setupMsg, setSetupMsg] = useState("");
+
+  useEffect(() => {
+    serialAPI.onMessage = (type: string, data: any) => {
+      if (type === "RES" && (data.fw || data.lamin !== undefined)) {
+        setDeviceData(data);
+        if (data.lamin !== undefined && !bbox.lamin) {
+          setBbox({
+            lamin: data.lamin.toString(),
+            lomin: data.lomin.toString(),
+            lamax: data.lamax.toString(),
+            lomax: data.lomax.toString(),
+          });
+        }
+        if (data.ssid && data.ssid !== "YOUR_WIFI_SSID") {
+          setWifi((w) => ({ ...w, ssid: data.ssid }));
+        }
+      }
+    };
+    serialAPI.onDisconnect = () => setSetupConnected(false);
+  }, [bbox.lamin]);
+
+  const handleConnect = async () => {
+    try {
+      setSetupMsg("");
+      await serialAPI.connect();
+      setSetupConnected(true);
+      await serialAPI.sendCommand("PING");
+      setTimeout(() => serialAPI.sendCommand("GET_CFG"), 500);
+    } catch (e: any) {
+      setSetupMsg(e.message || "Connection failed.");
+    }
+  };
+
+  const handleAutoLocate = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        setBbox({
+          lamin: (lat - 0.6).toFixed(2),
+          lamax: (lat + 0.6).toFixed(2),
+          lomin: (lon - 0.9).toFixed(2),
+          lomax: (lon + 0.9).toFixed(2),
+        });
+      }, () => setSetupMsg("Location access denied."));
+    } else {
+      setSetupMsg("Geolocation not supported.");
+    }
+  };
+
+  const handleSave = () => {
+    if (wifi.ssid) serialAPI.sendCommand(`SET_WIFI:${wifi.ssid}:${wifi.pass}`);
+    if (bbox.lamin) serialAPI.sendCommand(`SET_BBOX:${bbox.lamin}:${bbox.lomin}:${bbox.lamax}:${bbox.lomax}`);
+    setSetupMsg("Saved! Rebooting robot...");
+    setTimeout(() => {
+      serialAPI.sendCommand("REBOOT");
+      serialAPI.disconnect();
+      setSetupConnected(false);
+      setShowSetup(false);
+    }, 1000);
+  };
+
   const items: { label: string; href: string; face: FaceState }[] = [
     { label: "modes", href: "#modes", face: "excited" },
     { label: "faces", href: "#faces", face: "happy" },
     { label: "specs", href: "#specs", face: "thinking" },
   ];
   return (
-    <nav className="sticky top-0 z-40 backdrop-blur-md bg-[#06080e]/70 border-b border-[color:var(--as-neon)]/20">
-      <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-3">
-        <a href="#" className="flex items-center gap-3">
-          <BotFace state="idle" size={44} />
-          <span className="font-pixel text-xs neon-text">AeroSniffer</span>
-        </a>
-        <ul className="flex items-center gap-1">
-          {items.map((i) => (
-            <li key={i.label}>
-              <a
-                href={i.href}
-                onMouseEnter={() => onFace(i.face)}
-                className="font-pixel text-[10px] text-[color:var(--as-neon)]/70 hover:text-[color:var(--as-neon)] px-3 py-2"
+    <>
+      <nav className="sticky top-0 z-40 backdrop-blur-md bg-[#06080e]/70 border-b border-[color:var(--as-neon)]/20">
+        <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-3">
+          <a href="#" className="flex items-center gap-3">
+            <BotFace state="idle" size={44} />
+            <span className="font-pixel text-xs neon-text hidden sm:inline">AeroSniffer</span>
+          </a>
+          <ul className="flex items-center gap-1 sm:gap-4">
+            {items.map((i) => (
+              <li key={i.label}>
+                <a
+                  href={i.href}
+                  onMouseEnter={() => onFace(i.face)}
+                  className="font-pixel text-[10px] text-[color:var(--as-neon)]/70 hover:text-[color:var(--as-neon)] px-3 py-2"
+                >
+                  {i.label.toUpperCase()}
+                </a>
+              </li>
+            ))}
+            <li>
+              <button
+                onClick={() => setShowSetup(true)}
+                className="font-pixel text-[10px] text-[color:var(--as-yellow)] hover:underline px-3 py-2 border border-[color:var(--as-yellow)]"
+                onMouseEnter={() => onFace("alert")}
               >
-                {i.label.toUpperCase()}
-              </a>
+                ⚙️ SETUP
+              </button>
             </li>
-          ))}
-        </ul>
-      </div>
-    </nav>
+          </ul>
+        </div>
+      </nav>
+
+      {/* GLOBAL SETUP MODAL */}
+      {showSetup && (
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-[#06080e] border-2 border-[color:var(--as-neon)] p-6 max-w-md w-full pixel-card">
+            <div className="flex justify-between items-center mb-6 border-b border-[color:var(--as-neon)]/20 pb-4">
+              <div className="font-pixel text-lg text-[color:var(--as-neon)]">
+                ⚙️ AEROSNIFFER SETUP
+              </div>
+              <button onClick={() => setShowSetup(false)} className="text-[color:var(--as-pink)] font-pixel text-xs hover:underline">
+                [X] CLOSE
+              </button>
+            </div>
+
+            {!setupConnected ? (
+              <div className="text-center py-6">
+                <p className="font-mono-pixel text-[color:var(--as-neon)]/70 mb-6 text-sm">
+                  To configure WiFi and Location, put your AeroSniffer into <b>Mode 2 (Network Auditor)</b> and connect via USB.
+                </p>
+                <button onClick={handleConnect} className="pixel-btn w-full">
+                  CONNECT VIA WEB SERIAL
+                </button>
+                {setupMsg && <p className="mt-4 font-mono-pixel text-[color:var(--as-pink)] text-xs">{setupMsg}</p>}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="font-pixel text-[10px] text-[color:var(--as-orange)] mb-4">
+                  ▲ CONNECTED TO ESP32
+                </div>
+                
+                <div>
+                  <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">Wi-Fi SSID</label>
+                  <input type="text" value={wifi.ssid} onChange={(e) => setWifi(w => ({ ...w, ssid: e.target.value }))} className="w-full bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" placeholder="Network Name" />
+                </div>
+                <div>
+                  <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">Wi-Fi Password</label>
+                  <input type="password" value={wifi.pass} onChange={(e) => setWifi(w => ({ ...w, pass: e.target.value }))} className="w-full bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" placeholder="Password" />
+                </div>
+
+                <div className="border-t border-[color:var(--as-neon)]/20 pt-4 mt-4">
+                  <div className="flex justify-between items-end mb-2">
+                    <label className="block font-pixel text-[10px] text-[color:var(--as-yellow)]/70">Mode 3 Radar Bounds</label>
+                    <button onClick={handleAutoLocate} className="text-[10px] font-pixel text-[color:var(--as-yellow)] hover:underline border border-[color:var(--as-yellow)] px-2 py-1">
+                      [ AUTO DETECT ]
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <input type="number" step="0.1" value={bbox.lamin} onChange={e => setBbox(b => ({...b, lamin: e.target.value}))} placeholder="Min Lat" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" />
+                    <input type="number" step="0.1" value={bbox.lamax} onChange={e => setBbox(b => ({...b, lamax: e.target.value}))} placeholder="Max Lat" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" />
+                    <input type="number" step="0.1" value={bbox.lomin} onChange={e => setBbox(b => ({...b, lomin: e.target.value}))} placeholder="Min Lon" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" />
+                    <input type="number" step="0.1" value={bbox.lomax} onChange={e => setBbox(b => ({...b, lomax: e.target.value}))} placeholder="Max Lon" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" />
+                  </div>
+                </div>
+
+                {setupMsg && <p className="font-mono-pixel text-[color:var(--as-neon)] text-xs text-center my-2">{setupMsg}</p>}
+
+                <div className="pt-4 mt-2">
+                  <button onClick={handleSave} className="pixel-btn w-full py-3 text-xs mb-3">
+                    SAVE & REBOOT ROBOT
+                  </button>
+                  <button onClick={() => { serialAPI.disconnect(); setSetupConnected(false); }} className="pixel-btn pixel-btn-ghost w-full py-2 text-xs border-[color:var(--as-pink)] text-[color:var(--as-pink)]">
+                    DISCONNECT
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
