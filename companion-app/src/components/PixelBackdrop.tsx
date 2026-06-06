@@ -1,13 +1,15 @@
 import { useEffect, useRef } from "react";
 
 interface Props {
-  mode: 0 | 1 | 2;
+  mode: number;
 }
 
 const MODE_COLORS: Record<number, [number, number, number]> = {
   0: [255, 79, 216], // pink — Cyber-Pet
   1: [255, 138, 61], // orange — Auditor
   2: [255, 210, 63], // yellow — Radar
+  3: [74, 240, 188], // neon green — Payload
+  4: [153, 102, 255], // violet — Tutorial
 };
 
 /**
@@ -64,7 +66,7 @@ export function PixelBackdrop({ mode }: Props) {
 
     const draw = (now: number) => {
       ctx.clearRect(0, 0, w, h);
-      const [mr, mg, mb] = MODE_COLORS[modeRef.current];
+      const [mr, mg, mb] = MODE_COLORS[modeRef.current] || [74, 240, 188];
       const cols = Math.ceil(w / CELL);
       const rows = Math.ceil(h / CELL);
       const mx = mouse.current.x;

@@ -8,6 +8,7 @@ export default defineConfig({
   plugins: [
     tanstackStart({
       server: {
+        // @ts-ignore
         preset: "vercel",
       },
     }),

@@ -1,4 +1,13 @@
 class SerialProtocol {
+  port: any;
+  reader: any;
+  writer: any;
+  keepReading: boolean;
+  readPromise: any;
+  onMessage: any;
+  onDisconnect: any;
+  encoderClosed: any;
+
   constructor() {
     this.port = null;
     this.reader = null;
@@ -15,14 +24,14 @@ class SerialProtocol {
     }
 
     try {
-      this.port = await navigator.serial.requestPort();
+      this.port = await (navigator as any).serial.requestPort();
       await this.port.open({ baudRate });
 
       this.keepReading = true;
       this.readPromise = this.readLoop();
 
       // Setup disconnect listener
-      navigator.serial.addEventListener("disconnect", (event) => {
+      (navigator as any).serial.addEventListener("disconnect", (event: any) => {
         if (event.target === this.port) {
           this.disconnect();
           if (this.onDisconnect) this.onDisconnect();
@@ -92,7 +101,7 @@ class SerialProtocol {
     }
   }
 
-  parseMessage(line) {
+  parseMessage(line: any) {
     if (line.startsWith("RES:")) {
       try {
         const data = JSON.parse(line.substring(4));
@@ -110,7 +119,7 @@ class SerialProtocol {
     }
   }
 
-  async sendCommand(cmd) {
+  async sendCommand(cmd: any) {
     if (!this.port || !this.port.writable) return;
 
     if (!this.writer) {
