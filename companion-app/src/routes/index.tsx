@@ -354,6 +354,8 @@ function Nav({ onFace }: { onFace: (f: FaceState) => void }) {
   const [wifi, setWifi] = useState({ ssid: "", pass: "" });
   const [bbox, setBbox] = useState({ lamin: "", lomin: "", lamax: "", lomax: "" });
   const [setupMsg, setSetupMsg] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     serialAPI.onMessage = (type: string, data: any) => {
@@ -401,6 +403,33 @@ function Nav({ onFace }: { onFace: (f: FaceState) => void }) {
       }, () => setSetupMsg("Location access denied."));
     } else {
       setSetupMsg("Geolocation not supported.");
+    }
+  };
+
+  const handleCitySearch = async () => {
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    setSetupMsg("Searching for city...");
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`);
+      const data = await res.json();
+      if (data && data.length > 0) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        setBbox({
+          lamin: (lat - 0.6).toFixed(2),
+          lamax: (lat + 0.6).toFixed(2),
+          lomin: (lon - 0.9).toFixed(2),
+          lomax: (lon + 0.9).toFixed(2),
+        });
+        setSetupMsg(`Found: ${data[0].display_name.split(',')[0]}`);
+      } else {
+        setSetupMsg("City not found.");
+      }
+    } catch (err) {
+      setSetupMsg("Search failed.");
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -493,13 +522,31 @@ function Nav({ onFace }: { onFace: (f: FaceState) => void }) {
                 </div>
 
                 <div className="border-t border-[color:var(--as-neon)]/20 pt-4 mt-4">
-                  <div className="flex justify-between items-end mb-2">
+                  <div className="flex flex-col gap-2 mb-3">
                     <label className="block font-pixel text-[10px] text-[color:var(--as-yellow)]/70">Mode 3 Radar Bounds</label>
-                    <button onClick={handleAutoLocate} className="text-[10px] font-pixel text-[color:var(--as-yellow)] hover:underline border border-[color:var(--as-yellow)] px-2 py-1">
-                      [ AUTO DETECT ]
-                    </button>
+                    
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleCitySearch()}
+                        placeholder="Search City..." 
+                        className="flex-1 bg-black border border-[color:var(--as-yellow)]/30 p-2 font-mono-pixel text-[color:var(--as-yellow)] text-xs"
+                      />
+                      <button 
+                        onClick={handleCitySearch}
+                        disabled={isSearching}
+                        className="text-[10px] font-pixel text-[color:var(--as-yellow)] hover:underline border border-[color:var(--as-yellow)] px-2 py-1 whitespace-nowrap"
+                      >
+                        {isSearching ? "[ ... ]" : "[ SEARCH ]"}
+                      </button>
+                      <button onClick={handleAutoLocate} className="text-[10px] font-pixel text-[color:var(--as-yellow)] hover:underline border border-[color:var(--as-yellow)] px-2 py-1 whitespace-nowrap" title="Use GPS">
+                        [ GPS ]
+                      </button>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 mt-3">
+                  <div className="grid grid-cols-2 gap-2 mt-2">
                     <input type="number" step="0.1" value={bbox.lamin} onChange={e => setBbox(b => ({...b, lamin: e.target.value}))} placeholder="Min Lat" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" />
                     <input type="number" step="0.1" value={bbox.lamax} onChange={e => setBbox(b => ({...b, lamax: e.target.value}))} placeholder="Max Lat" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" />
                     <input type="number" step="0.1" value={bbox.lomin} onChange={e => setBbox(b => ({...b, lomin: e.target.value}))} placeholder="Min Lon" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" />
