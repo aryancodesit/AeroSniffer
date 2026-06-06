@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useEffect, useRef } from "react";
 import { serialAPI } from "../lib/serial";
 
@@ -47,7 +49,7 @@ export function LiveRadarPanel() {
             });
           }
           if (data.ssid && data.ssid !== "YOUR_WIFI_SSID") {
-            setWifi(w => ({ ...w, ssid: data.ssid }));
+            setWifi((w) => ({ ...w, ssid: data.ssid }));
           }
           if (data.ssid === "YOUR_WIFI_SSID") {
             setShowSettings(true);
@@ -57,7 +59,10 @@ export function LiveRadarPanel() {
           setApList(data.aps);
         }
       } else if (type === "EVT") {
-        setEvents((prev) => [...prev.slice(-49), { time: new Date().toLocaleTimeString(), ...data }]);
+        setEvents((prev) => [
+          ...prev.slice(-49),
+          { time: new Date().toLocaleTimeString(), ...data },
+        ]);
       }
     };
 
@@ -110,16 +115,19 @@ export function LiveRadarPanel() {
 
   const handleAutoLocate = () => {
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-        setBbox({
-          lamin: (lat - 0.6).toFixed(2),
-          lamax: (lat + 0.6).toFixed(2),
-          lomin: (lon - 0.9).toFixed(2),
-          lomax: (lon + 0.9).toFixed(2)
-        });
-      }, () => alert("Location access denied or failed."));
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          setBbox({
+            lamin: (lat - 0.6).toFixed(2),
+            lamax: (lat + 0.6).toFixed(2),
+            lomin: (lon - 0.9).toFixed(2),
+            lomax: (lon + 0.9).toFixed(2),
+          });
+        },
+        () => alert("Location access denied or failed."),
+      );
     } else {
       alert("Geolocation is not supported by this browser.");
     }
@@ -163,10 +171,16 @@ export function LiveRadarPanel() {
           ▲ MODE 2 · NETWORK AUDITOR · <span className="text-[color:var(--as-neon)]">LIVE</span>
         </div>
         <div className="flex items-center gap-4">
-          <button onClick={() => setShowSettings(true)} className="font-pixel text-[12px] text-[color:var(--as-yellow)] hover:scale-110 transition-transform">
+          <button
+            onClick={() => setShowSettings(true)}
+            className="font-pixel text-[12px] text-[color:var(--as-yellow)] hover:scale-110 transition-transform"
+          >
             ⚙️ SETTINGS
           </button>
-          <button onClick={disconnectDevice} className="font-pixel text-[10px] text-[color:var(--as-pink)] hover:underline">
+          <button
+            onClick={disconnectDevice}
+            className="font-pixel text-[10px] text-[color:var(--as-pink)] hover:underline"
+          >
             DISCONNECT
           </button>
         </div>
@@ -178,30 +192,79 @@ export function LiveRadarPanel() {
             <div className="font-pixel text-lg text-[color:var(--as-neon)] mb-6 text-center">
               AEROSNIFFER SETUP
             </div>
-            
+
             <div className="space-y-4 mb-6">
               <div>
-                <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">Wi-Fi SSID</label>
-                <input type="text" value={wifi.ssid} onChange={e => setWifi(w => ({...w, ssid: e.target.value}))} className="w-full bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)]" placeholder="Network Name" />
+                <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">
+                  Wi-Fi SSID
+                </label>
+                <input
+                  type="text"
+                  value={wifi.ssid}
+                  onChange={(e) => setWifi((w) => ({ ...w, ssid: e.target.value }))}
+                  className="w-full bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)]"
+                  placeholder="Network Name"
+                />
               </div>
               <div>
-                <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">Wi-Fi Password</label>
-                <input type="password" value={wifi.pass} onChange={e => setWifi(w => ({...w, pass: e.target.value}))} className="w-full bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)]" placeholder="Password" />
+                <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">
+                  Wi-Fi Password
+                </label>
+                <input
+                  type="password"
+                  value={wifi.pass}
+                  onChange={(e) => setWifi((w) => ({ ...w, pass: e.target.value }))}
+                  className="w-full bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)]"
+                  placeholder="Password"
+                />
               </div>
             </div>
 
             <div className="border-t border-[color:var(--as-neon)]/20 pt-4 mb-6">
               <div className="flex justify-between items-end mb-2">
-                <label className="block font-pixel text-[10px] text-[color:var(--as-yellow)]/70">Mode 3 Radar Bounds</label>
-                <button onClick={handleAutoLocate} className="text-[10px] font-pixel text-[color:var(--as-yellow)] hover:underline border border-[color:var(--as-yellow)] px-2 py-1">
+                <label className="block font-pixel text-[10px] text-[color:var(--as-yellow)]/70">
+                  Mode 3 Radar Bounds
+                </label>
+                <button
+                  onClick={handleAutoLocate}
+                  className="text-[10px] font-pixel text-[color:var(--as-yellow)] hover:underline border border-[color:var(--as-yellow)] px-2 py-1"
+                >
                   [ AUTO DETECT ]
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2 mt-3">
-                <input type="number" step="0.1" value={bbox.lamin} onChange={e => setBbox(b => ({...b, lamin: e.target.value}))} placeholder="Min Lat" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)]" />
-                <input type="number" step="0.1" value={bbox.lamax} onChange={e => setBbox(b => ({...b, lamax: e.target.value}))} placeholder="Max Lat" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)]" />
-                <input type="number" step="0.1" value={bbox.lomin} onChange={e => setBbox(b => ({...b, lomin: e.target.value}))} placeholder="Min Lon" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)]" />
-                <input type="number" step="0.1" value={bbox.lomax} onChange={e => setBbox(b => ({...b, lomax: e.target.value}))} placeholder="Max Lon" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)]" />
+                <input
+                  type="number"
+                  step="0.1"
+                  value={bbox.lamin}
+                  onChange={(e) => setBbox((b) => ({ ...b, lamin: e.target.value }))}
+                  placeholder="Min Lat"
+                  className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)]"
+                />
+                <input
+                  type="number"
+                  step="0.1"
+                  value={bbox.lamax}
+                  onChange={(e) => setBbox((b) => ({ ...b, lamax: e.target.value }))}
+                  placeholder="Max Lat"
+                  className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)]"
+                />
+                <input
+                  type="number"
+                  step="0.1"
+                  value={bbox.lomin}
+                  onChange={(e) => setBbox((b) => ({ ...b, lomin: e.target.value }))}
+                  placeholder="Min Lon"
+                  className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)]"
+                />
+                <input
+                  type="number"
+                  step="0.1"
+                  value={bbox.lomax}
+                  onChange={(e) => setBbox((b) => ({ ...b, lomax: e.target.value }))}
+                  placeholder="Max Lon"
+                  className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)]"
+                />
               </div>
             </div>
 
@@ -210,14 +273,20 @@ export function LiveRadarPanel() {
                 SAVE CONFIG
               </button>
               {deviceInfo?.ssid !== "YOUR_WIFI_SSID" && (
-                <button onClick={() => setShowSettings(false)} className="pixel-btn pixel-btn-ghost py-2 text-xs px-4 border-[color:var(--as-neon)]/50 text-[color:var(--as-neon)]/50">
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="pixel-btn pixel-btn-ghost py-2 text-xs px-4 border-[color:var(--as-neon)]/50 text-[color:var(--as-neon)]/50"
+                >
                   CANCEL
                 </button>
               )}
             </div>
             {deviceInfo?.ssid !== "YOUR_WIFI_SSID" && (
               <div className="mt-4 pt-4 border-t border-red-500/20 text-center">
-                <button onClick={rebootDevice} className="font-pixel text-[10px] text-red-500 hover:underline">
+                <button
+                  onClick={rebootDevice}
+                  className="font-pixel text-[10px] text-red-500 hover:underline"
+                >
                   [ RESTART ROBOT ]
                 </button>
               </div>
@@ -246,9 +315,26 @@ export function LiveRadarPanel() {
           </div>
 
           <div className="flex gap-2 justify-center">
-            <button onClick={startScan} disabled={status.scanning} className="pixel-btn px-4 py-2 text-xs">START</button>
-            <button onClick={stopScan} disabled={!status.scanning} className="pixel-btn px-4 py-2 text-xs" style={{ borderColor: 'var(--as-pink)', color: 'var(--as-pink)' }}>STOP</button>
-            <button onClick={toggleHop} disabled={!status.scanning} className="pixel-btn pixel-btn-ghost px-4 py-2 text-xs">
+            <button
+              onClick={startScan}
+              disabled={status.scanning}
+              className="pixel-btn px-4 py-2 text-xs"
+            >
+              START
+            </button>
+            <button
+              onClick={stopScan}
+              disabled={!status.scanning}
+              className="pixel-btn px-4 py-2 text-xs"
+              style={{ borderColor: "var(--as-pink)", color: "var(--as-pink)" }}
+            >
+              STOP
+            </button>
+            <button
+              onClick={toggleHop}
+              disabled={!status.scanning}
+              className="pixel-btn pixel-btn-ghost px-4 py-2 text-xs"
+            >
               {status.hopping ? "LOCK CH" : "HOP"}
             </button>
           </div>
@@ -260,11 +346,15 @@ export function LiveRadarPanel() {
             </div>
             <div className="bg-[#06080e] p-3 border border-[color:var(--as-neon)]/20">
               <div className="text-[color:var(--as-neon)]/50 text-xs mb-1">PKT/S</div>
-              <div className={status.pps > 100 ? "text-[color:var(--as-violet)]" : ""}>{status.pps}</div>
+              <div className={status.pps > 100 ? "text-[color:var(--as-violet)]" : ""}>
+                {status.pps}
+              </div>
             </div>
             <div className="bg-[#06080e] p-3 border border-[color:var(--as-neon)]/20">
               <div className="text-[color:var(--as-neon)]/50 text-xs mb-1">DEAUTHS</div>
-              <div className={status.deauths > 0 ? "text-[color:var(--as-pink)] alert-pulse" : ""}>{status.deauths}</div>
+              <div className={status.deauths > 0 ? "text-[color:var(--as-pink)] alert-pulse" : ""}>
+                {status.deauths}
+              </div>
             </div>
             <div className="bg-[#06080e] p-3 border border-[color:var(--as-neon)]/20">
               <div className="text-[color:var(--as-neon)]/50 text-xs mb-1">APS</div>
@@ -279,9 +369,20 @@ export function LiveRadarPanel() {
             <div className="text-[color:var(--as-neon)]/50 text-xs mb-3">LATEST ACCESS POINTS</div>
             <div className="overflow-y-auto flex-1 space-y-2 text-sm text-[color:var(--as-neon)]/80 pr-2 custom-scrollbar">
               {apList.slice(0, 8).map((ap, i) => (
-                <div key={i} className="flex justify-between border-b border-[color:var(--as-neon)]/10 pb-1">
+                <div
+                  key={i}
+                  className="flex justify-between border-b border-[color:var(--as-neon)]/10 pb-1"
+                >
                   <span className="truncate pr-2">{ap.ssid || "<hidden>"}</span>
-                  <span className={ap.rssi > -60 ? "text-[color:var(--as-neon)]" : "text-[color:var(--as-orange)]"}>{ap.rssi}</span>
+                  <span
+                    className={
+                      ap.rssi > -60
+                        ? "text-[color:var(--as-neon)]"
+                        : "text-[color:var(--as-orange)]"
+                    }
+                  >
+                    {ap.rssi}
+                  </span>
                 </div>
               ))}
             </div>

@@ -10,8 +10,8 @@ class SerialProtocol {
   }
 
   async connect(baudRate = 115200) {
-    if (!('serial' in navigator)) {
-      throw new Error('Web Serial API not supported in this browser.');
+    if (!("serial" in navigator)) {
+      throw new Error("Web Serial API not supported in this browser.");
     }
 
     try {
@@ -31,14 +31,14 @@ class SerialProtocol {
 
       return true;
     } catch (err) {
-      console.error('Serial connection error:', err);
+      console.error("Serial connection error:", err);
       throw err;
     }
   }
 
   async disconnect() {
     this.keepReading = false;
-    
+
     if (this.reader) {
       await this.reader.cancel();
       this.reader = null;
@@ -61,7 +61,7 @@ class SerialProtocol {
   }
 
   async readLoop() {
-    let buffer = '';
+    let buffer = "";
     const textDecoder = new TextDecoderStream();
     const readableStreamClosed = this.port.readable.pipeTo(textDecoder.writable);
     this.reader = textDecoder.readable.getReader();
@@ -72,19 +72,19 @@ class SerialProtocol {
         if (done) break;
 
         buffer += value;
-        
+
         let newlineIdx;
-        while ((newlineIdx = buffer.indexOf('\n')) >= 0) {
+        while ((newlineIdx = buffer.indexOf("\n")) >= 0) {
           const line = buffer.slice(0, newlineIdx).trim();
           buffer = buffer.slice(newlineIdx + 1);
-          
+
           if (line && this.onMessage) {
             this.parseMessage(line);
           }
         }
       }
     } catch (error) {
-      console.error('Read error:', error);
+      console.error("Read error:", error);
     } finally {
       this.reader.releaseLock();
       await textDecoder.writable.close();
@@ -93,19 +93,19 @@ class SerialProtocol {
   }
 
   parseMessage(line) {
-    if (line.startsWith('RES:')) {
+    if (line.startsWith("RES:")) {
       try {
         const data = JSON.parse(line.substring(4));
-        this.onMessage('RES', data);
+        this.onMessage("RES", data);
       } catch (e) {
-        console.error('Failed to parse RES JSON:', line);
+        console.error("Failed to parse RES JSON:", line);
       }
-    } else if (line.startsWith('EVT:')) {
+    } else if (line.startsWith("EVT:")) {
       try {
         const data = JSON.parse(line.substring(4));
-        this.onMessage('EVT', data);
+        this.onMessage("EVT", data);
       } catch (e) {
-        console.error('Failed to parse EVT JSON:', line);
+        console.error("Failed to parse EVT JSON:", line);
       }
     }
   }

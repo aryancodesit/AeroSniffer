@@ -16,16 +16,26 @@ export const FACE_META: Record<
   FaceState,
   { label: string; sub: string; color: string; group: string }
 > = {
-  idle:      { label: "idle",      sub: "neutral / standby",         color: "#38e1ff", group: "PASSIVE" },
-  happy:     { label: "happy",     sub: "positive action / greeting",color: "#4af0bc", group: "PASSIVE" },
-  excited:   { label: "excited",   sub: "new connection / task",     color: "#ffd23f", group: "PASSIVE" },
-  sleepy:    { label: "sleepy",    sub: "idle timeout / low battery",color: "#6d8cff", group: "PASSIVE" },
-  thinking:  { label: "thinking",  sub: "processing / waiting",      color: "#b86bff", group: "REACTIVE" },
-  sad:       { label: "sad",       sub: "disconnect / task fail",    color: "#ff5466", group: "REACTIVE" },
-  alert:     { label: "alert",     sub: "USB inserted / intrusion",  color: "#ff8a3d", group: "REACTIVE" },
-  love:      { label: "love",      sub: "paired device / uptime",    color: "#ff4fd8", group: "REACTIVE" },
-  startup:   { label: "startup",   sub: "power-on sequence",         color: "#a8b3cf", group: "SYSTEM" },
-  surprised: { label: "surprised", sub: "new notification / drop",   color: "#e8fff5", group: "SYSTEM" },
+  idle: { label: "idle", sub: "neutral / standby", color: "#38e1ff", group: "PASSIVE" },
+  happy: { label: "happy", sub: "positive action / greeting", color: "#4af0bc", group: "PASSIVE" },
+  excited: { label: "excited", sub: "new connection / task", color: "#ffd23f", group: "PASSIVE" },
+  sleepy: {
+    label: "sleepy",
+    sub: "idle timeout / low battery",
+    color: "#6d8cff",
+    group: "PASSIVE",
+  },
+  thinking: { label: "thinking", sub: "processing / waiting", color: "#b86bff", group: "REACTIVE" },
+  sad: { label: "sad", sub: "disconnect / task fail", color: "#ff5466", group: "REACTIVE" },
+  alert: { label: "alert", sub: "USB inserted / intrusion", color: "#ff8a3d", group: "REACTIVE" },
+  love: { label: "love", sub: "paired device / uptime", color: "#ff4fd8", group: "REACTIVE" },
+  startup: { label: "startup", sub: "power-on sequence", color: "#a8b3cf", group: "SYSTEM" },
+  surprised: {
+    label: "surprised",
+    sub: "new notification / drop",
+    color: "#e8fff5",
+    group: "SYSTEM",
+  },
 };
 
 interface BotFaceProps {
@@ -66,10 +76,13 @@ export function BotFace({ state, size = 280, followCursor = false, className }: 
   }, [followCursor]);
 
   useEffect(() => {
-    const t = setInterval(() => {
-      setBlink(true);
-      setTimeout(() => setBlink(false), 140);
-    }, 3200 + Math.random() * 1800);
+    const t = setInterval(
+      () => {
+        setBlink(true);
+        setTimeout(() => setBlink(false), 140);
+      },
+      3200 + Math.random() * 1800,
+    );
     return () => clearInterval(t);
   }, []);
 
@@ -100,7 +113,7 @@ export function BotFace({ state, size = 280, followCursor = false, className }: 
         {[1, 22].map((x) =>
           [1, 14].map((y) => (
             <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill={`${c}40`} />
-          ))
+          )),
         )}
         <Face state={state} color={c} eyeOffX={eyeOffX} eyeOffY={eyeOffY} blink={blink} />
       </svg>

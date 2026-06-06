@@ -5,9 +5,9 @@ interface Props {
 }
 
 const MODE_COLORS: Record<number, [number, number, number]> = {
-  0: [255, 79, 216],   // pink — Cyber-Pet
-  1: [255, 138, 61],   // orange — Auditor
-  2: [255, 210, 63],   // yellow — Radar
+  0: [255, 79, 216], // pink — Cyber-Pet
+  1: [255, 138, 61], // orange — Auditor
+  2: [255, 210, 63], // yellow — Radar
 };
 
 /**
@@ -32,7 +32,8 @@ export function PixelBackdrop({ mode }: Props) {
     const canvas = ref.current!;
     const ctx = canvas.getContext("2d")!;
     let raf = 0;
-    let w = 0, h = 0;
+    let w = 0,
+      h = 0;
     const CELL = 18; // pixel grid cell size (CSS px)
 
     const resize = () => {
@@ -45,7 +46,10 @@ export function PixelBackdrop({ mode }: Props) {
       mouse.current.x = e.clientX;
       mouse.current.y = e.clientY;
     };
-    const onLeave = () => { mouse.current.x = -9999; mouse.current.y = -9999; };
+    const onLeave = () => {
+      mouse.current.x = -9999;
+      mouse.current.y = -9999;
+    };
     const onClick = (e: MouseEvent) => {
       ripples.current.push({ x: e.clientX, y: e.clientY, t: performance.now() });
       if (ripples.current.length > 8) ripples.current.shift();
@@ -80,7 +84,8 @@ export function PixelBackdrop({ mode }: Props) {
           let a = 0.04 + wave * 0.05;
 
           // cursor proximity glow
-          const dx = cx - mx, dy = cy - my;
+          const dx = cx - mx,
+            dy = cy - my;
           const dist = Math.sqrt(dx * dx + dy * dy);
           const cursor = Math.max(0, 1 - dist / 220);
           a += cursor * 0.55;
