@@ -1,7 +1,7 @@
 # ✈️ AeroSniffer
 ### A Multi-Boot ESP32-S3 Desk Gadget
 
-> **Three devices in one.** Long-press the touch sensor to switch between a living desktop companion, a wireless security monitor, and a real-time flight radar — all running on a single XIAO ESP32S3 inside a DeskBuddy 2.0 enclosure.
+> **Three devices in one.** Long-press the touch sensor to switch between a living desktop companion, a wireless security monitor, and a real-time flight radar — all running on a single XIAO ESP32S3.
 
 ---
 
@@ -12,14 +12,14 @@ AeroSniffer treats the ESP32-S3 like a mini operating system with three complete
 | Mode | Name | What It Does |
 |------|------|--------------|
 | 🐾 **Mode 1** | Cyber-Pet | PC-driven interactive desk companion with smooth, high-FPS vector face expressions that react to your computer's activity (typing, CPU load, apps) |
-| 🛡️ **Mode 2** | Network Auditor | 802.11 packet sniffer with animated radar sweep display + companion web app ([aero-sniffer.vercel.app](https://aero-sniffer.vercel.app/)) for full Marauder control |
+| 🛡️ **Mode 2** | Network Auditor | 802.11 packet sniffer with animated radar sweep display + companion web app ([aero-sniffer.vercel.app](https://aero-sniffer.vercel.app/)) for full security control |
 | ✈️ **Mode 3** | Flight Radar | Live ADS-B flight tracker pulling from OpenSky Network API with callsign, altitude, speed, and compass heading |
 
 **Switch modes instantly** with a 1.5-second long-press on the capacitive touch sensor. No reboot needed — FreeRTOS handles clean teardown and re-init of all hardware between modes.
 
 ---
 
-## 🛒 Hardware: DeskBuddy 2.0 Kit (₹2,299)
+## 🛒 Hardware
 
 > **One purchase, everything included.** No extra components needed.
 
@@ -33,9 +33,8 @@ AeroSniffer treats the ESP32-S3 like a mini operating system with three complete
 | 6 | 3D Printed Enclosure | ✅ |
 | 7 | USB-C Cable | ✅ |
 
-**Buy:** [ESC Labs — DeskBuddy 2.0 Kit](https://www.esclabs.in/product/deskbuddy-2-0-kit/)
 
-See [docs/HARDWARE.md](docs/HARDWARE.md) for full specs, pin allocation, and purchase links.
+See [docs/HARDWARE.md](docs/HARDWARE.md) for full specs, pin allocation, and links.
 
 ---
 
@@ -85,7 +84,7 @@ XIAO ESP32S3
 │          Long press = switch mode (1.5s)
 │
 ├── USB  → Companion App (Mode 2 control)
-│          Native USB-C Serial for Marauder commands
+│          Native USB-C Serial for payload commands
 │          Access the dashboard: https://aero-sniffer.vercel.app/
 │
 └── WiFi → Mode 3 Flight Radar (STA mode)
@@ -179,19 +178,6 @@ Mode 2 uses a split architecture optimized for the tiny 1.3" display:
 - Live Event Log for Deauth attacks
 
 ![Web App Architecture](assets/Webapp-workflow.png)
-
----
-
-## 📚 Inspired By
-
-| Project | Author | What We Borrowed |
-|---------|--------|-----------------|
-| [Dasai Mochi](https://github.com/maraulsav/Dasai-Mochi) + [TFT Clone](https://github.com/huykhoong/esp32_dasai_mochi_clone_and_how_to) | maraulsav / huykhoong | Pet animation pipeline, expression state machine |
-| [ESP32 Marauder](https://github.com/justcallmekoko/ESP32Marauder) | justcallmekoko | Promiscuous WiFi engine, packet classification logic |
-| [esp32-flightradar24-ttgo](https://github.com/rzeldent/esp32-flightradar24-ttgo) | rzeldent | Flight API parsing, airline DB structure, card layout |
-| [DeskBuddy 2.0](https://www.esclabs.in/product/deskbuddy-2-0-kit/) | ESC Labs | Hardware kit, enclosure design, XIAO form factor |
-
-All firmware in this repository is original code written for ESP32-S3 with FreeRTOS dual-core architecture.
 
 ---
 

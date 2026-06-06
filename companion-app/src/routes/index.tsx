@@ -33,7 +33,7 @@ function Index() {
     const lines = [
       "> XIAO_ESP32S3  boot   OK",
       "> FreeRTOS     init   OK",
-      "> DeskBuddy 2.0 shell  OK",
+      "> AeroShell 2.0  OK",
       "> loading pixel.soul …",
       "> hello, friend.",
     ];
@@ -101,7 +101,7 @@ function Index() {
           {/* Title + boot */}
           <div className="order-1 md:order-2">
             <div className="font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-3">
-              ┌── DESKBUDDY 2.0 ──┐
+              ┌── AEROSHELL 2.0 ──┐
             </div>
             <h1 className="font-pixel neon-text text-3xl md:text-5xl leading-tight">
               AERO<br />SNIFFER
@@ -151,8 +151,8 @@ function Index() {
             n={2}
             name="Network Auditor"
             face="alert"
-            desc="802.11 packet sniffer with an animated radar sweep + companion web app for full Marauder control. Plug in, scan, learn."
-            tags={["WiFi sniffer", "Marauder UI", "Web Serial"]}
+            desc="802.11 packet sniffer with an animated radar sweep + companion web app for full security control. Plug in, scan, learn."
+            tags={["WiFi sniffer", "Payload UI", "Web Serial"]}
             active={mode === 1}
             onClick={() => setMode(1)}
           />
@@ -286,7 +286,7 @@ function Index() {
             ["Input",   "Capacitive touch · 1.5s long-press"],
             ["Radios",  "Wi-Fi 802.11 · monitor mode"],
             ["Power",   "USB-C · LiPo standby"],
-            ["Shell",   "DeskBuddy 2.0 enclosure (FDM)"],
+            ["Shell",   "AeroShell 2.0 enclosure (FDM)"],
             ["Modes",   "Cyber-Pet · Auditor · Radar"],
           ].map(([k, v]) => (
             <div key={k} className="pixel-card p-4 flex items-center justify-between">
@@ -405,7 +405,7 @@ function Marquee() {
     "◆ WiFi 802.11",
     "♥ ADS-B Live",
     "■ Web Serial",
-    "✦ DeskBuddy 2.0",
+    "✦ AeroShell 2.0",
     "◉ Pixel Soul",
   ];
   const row = [...items, ...items];
@@ -547,7 +547,7 @@ function PayloadPanel() {
   return (
     <div className="max-w-6xl mx-auto mt-10 pixel-card p-6 border-[color:var(--as-orange)]">
       <div className="font-pixel text-[10px] text-[color:var(--as-orange)] mb-4">
-        ▲ ESP32 MARAUDER · PAYLOAD OPTIONS
+        ▲ AERO-PAYLOAD ENGINE · OPTIONS
       </div>
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
         {attacks.map((atk, i) => (
@@ -571,7 +571,7 @@ function TutorialPanel() {
   return (
     <div className="max-w-6xl mx-auto mt-10 pixel-card p-8">
       <div className="font-pixel text-[10px] text-[color:var(--as-violet)] mb-6">
-        ▲ TUTORIAL · HOW TO TRAIN YOUR DESKBUDDY
+        ▲ TUTORIAL · HOW TO TRAIN YOUR AEROSNIFFER
       </div>
       
       <div className="grid md:grid-cols-2 gap-10">
@@ -595,7 +595,7 @@ function TutorialPanel() {
           <div className="bg-[#06080e] p-5 border border-[color:var(--as-violet)]/30">
             <h3 className="font-pixel text-sm text-[color:var(--as-violet)] mb-3">3. PC AGENT</h3>
             <p className="font-mono-pixel text-lg text-[color:var(--as-neon)]/80">
-              To enable dynamic expressions, double-click the <code className="text-[color:var(--as-pink)]">Start_DeskBuddy.bat</code> file. It will silently track your typing, CPU load, and active windows in the background, bringing your pet to life! (Add a shortcut to <code className="text-[color:var(--as-pink)]">shell:startup</code> for auto-boot).
+              To enable dynamic expressions, double-click the <code className="text-[color:var(--as-pink)]">Start_AeroSniffer.bat</code> file. It will silently track your typing, CPU load, and active windows in the background, bringing your pet to life! (Add a shortcut to <code className="text-[color:var(--as-pink)]">shell:startup</code> for auto-boot).
             </p>
           </div>
           

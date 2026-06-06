@@ -2,16 +2,16 @@
 //  Mode2_Security.h  —  Web-UI Hybrid Security Monitor
 //  AeroSniffer | ESP32-S3 Multi-Boot Desk Gadget
 //
-//  DESKBUDDY 2.0 ARCHITECTURE:
-//    The 1.3" 240×240 screen is too small for Marauder's full UI.
+//  AEROSHELL ARCHITECTURE:
+//    The 1.3" 240×240 screen is too small for a full UI.
 //    Instead we use a split architecture:
 //      • DISPLAY: Animated radar sweep + live packet stats
 //      • CONTROL: Web interface at http://192.168.4.1 (phone/laptop)
 //
 //  DEVKITC ARCHITECTURE:
-//    Falls back to the original Marauder integration wrapper.
+//    Falls back to the original security integration wrapper.
 //
-//  NOTE (DevKitC): Marauder cannot be cleanly stopped. Switching out
+//  NOTE (DevKitC): Security engine cannot be cleanly stopped. Switching out
 //  of Mode 2 triggers ESP.restart().
 // ================================================================
 #pragma once
@@ -546,31 +546,31 @@ void security_core1_task() {
 }
 
 // ================================================================
-//  DEVKITC — ORIGINAL MARAUDER INTEGRATION WRAPPER
+//  DEVKITC — ORIGINAL SECURITY INTEGRATION WRAPPER
 // ================================================================
 #elif defined(HW_DEVKITC)
 
-extern void marauder_setup(TFT_eSPI* tft) __attribute__((weak));
-extern void marauder_loop() __attribute__((weak));
+extern void security_engine_setup(TFT_eSPI* tft) __attribute__((weak));
+extern void security_engine_loop() __attribute__((weak));
 
-void marauder_setup(TFT_eSPI* tft) {
+void security_engine_setup(TFT_eSPI* tft) {
   if (tft) {
     tft->fillScreen(TFT_BLACK);
     tft->setTextColor(TFT_WHITE);
     tft->setTextSize(2);
     tft->setCursor(10, 100);
-    tft->print("Marauder files");
+    tft->print("Security files");
     tft->setCursor(10, 130);
     tft->print("not found yet.");
   }
 }
-void marauder_loop() {
+void security_engine_loop() {
   vTaskDelay(pdMS_TO_TICKS(1000));
 }
 
 void security_setup(TFT_eSPI* tft) {
   _stft = tft;
-  marauder_setup(tft);
+  security_engine_setup(tft);
 }
 
 void security_teardown() {
@@ -582,7 +582,7 @@ void security_core0_task() {
 }
 
 void security_core1_task() {
-  marauder_loop();
+  security_engine_loop();
   taskYIELD();
 }
 

@@ -20,26 +20,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
----
-
-THIRD-PARTY ACKNOWLEDGEMENTS
-
-This project was built by studying code patterns from the following open-source
-projects. No source code was directly copied — only architectural and algorithmic
-patterns were adapted:
-
-  - Dasai Mochi (maraulsav) — MIT License
-    https://github.com/maraulsav/Dasai-Mochi
-
-  - ESP32 Dasai Mochi Clone (huykhoong) — MIT License
-    https://github.com/huykhoong/esp32_dasai_mochi_clone_and_how_to
-
-  - ESP32 Marauder (justcallmekoko) — MIT License
-    https://github.com/justcallmekoko/ESP32Marauder
-
-  - esp32-flightradar24-ttgo (rzeldent) — MIT License
-    https://github.com/rzeldent/esp32-flightradar24-ttgo
-
 ETHICAL USE NOTICE
 
 The wireless monitoring capabilities in Mode 2 (Network Auditor) are intended

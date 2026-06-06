@@ -63,6 +63,25 @@ static uint32_t  anim_look_next   = 0;
 static char      pc_status[40]    = "";
 static char      pc_app[32]       = "";
 
+// ── Particle System ───────────────────────────────────────────────
+enum ParticleType {
+  PT_NONE = 0,
+  PT_MUSIC,
+  PT_SWEAT,
+  PT_HEART
+};
+
+struct Particle {
+  ParticleType type;
+  float x;
+  float y;
+  float life; // 1.0 to 0.0
+  uint16_t color;
+};
+
+#define MAX_PARTICLES 5
+static Particle active_particles[MAX_PARTICLES];
+
 // ================================================================
 //  GEOMETRY HELPERS
 // ================================================================
@@ -87,6 +106,17 @@ static void draw_dotted_frown(int cx, int cy, int width, int drop, uint16_t colo
   _rtft->fillRect(cx - width/4, cy, 4, 4, color);
   _rtft->fillRect(cx + width/4, cy, 4, 4, color);
   _rtft->fillRect(cx + width/2, cy + drop, 4, 4, color);
+}
+
+static void draw_music_note(int cx, int cy, uint16_t color) {
+  _rtft->fillCircle(cx, cy, 3, color);
+  _rtft->fillRect(cx+1, cy-10, 2, 10, color);
+  _rtft->fillRect(cx+1, cy-12, 6, 2, color);
+}
+
+static void draw_sweat(int cx, int cy, uint16_t color) {
+  _rtft->fillCircle(cx, cy, 4, color);
+  _rtft->fillTriangle(cx-4, cy, cx+4, cy, cx, cy-8, color);
 }
 
 // ================================================================
@@ -360,6 +390,35 @@ static void pet_parse_serial() {
     } else if (line.startsWith("APP:")) {
       strncpy(pc_app, line.substring(4).c_str(), sizeof(pc_app)-1);
       face_dirty = true;
+    } else if (line.startsWith("PARTICLE:")) {
+      String pType = line.substring(9);
+      ParticleType pt = PT_NONE;
+      if (pType == "MUSIC") pt = PT_MUSIC;
+      else if (pType == "SWEAT") pt = PT_SWEAT;
+      else if (pType == "HEART") pt = PT_HEART;
+      
+      if (pt != PT_NONE) {
+        for (int i=0; i<MAX_PARTICLES; i++) {
+          if (active_particles[i].type == PT_NONE || active_particles[i].life <= 0) {
+            active_particles[i].type = pt;
+            active_particles[i].life = 1.0f;
+            if (pt == PT_MUSIC) {
+               active_particles[i].x = random(30, 210);
+               active_particles[i].y = 160;
+               active_particles[i].color = 0x07FF; // Cyan
+            } else if (pt == PT_SWEAT) {
+               active_particles[i].x = random(180, 210);
+               active_particles[i].y = 50;
+               active_particles[i].color = 0x05FF; // Blue
+            } else if (pt == PT_HEART) {
+               active_particles[i].x = random(30, 210);
+               active_particles[i].y = 150;
+               active_particles[i].color = C_LOVE;
+            }
+            break;
+          }
+        }
+      }
     } else if (line.startsWith("PING")) {
       Serial.println("{\"pong\":1}");
     }
@@ -382,6 +441,10 @@ void pet_setup(TFT_eSPI* tft) {
   
   memset(pc_status, 0, sizeof(pc_status));
   memset(pc_app,    0, sizeof(pc_app));
+  for(int i=0; i<MAX_PARTICLES; i++) {
+    active_particles[i].type = PT_NONE;
+    active_particles[i].life = 0;
+  }
 
   _rtft->fillScreen(C_BG);
   
@@ -461,7 +524,15 @@ void pet_core1_task() {
                      face_current == FACE_STARTUP || face_current == FACE_THINKING ||
                      face_current == FACE_LOVE    || face_current == FACE_SLEEPY);
                      
-  if (face_dirty || face_current != face_last || anim_changed || (needs_anim && frame % 3 == 0)) {
+  bool has_particles = false;
+  for(int i=0; i<MAX_PARTICLES; i++) {
+    if(active_particles[i].type != PT_NONE && active_particles[i].life > 0) {
+      has_particles = true;
+      break;
+    }
+  }
+
+  if (face_dirty || face_current != face_last || anim_changed || has_particles || (needs_anim && frame % 3 == 0)) {
     // Overdraw background to erase previous frame
     _rtft->fillRect(0, 40, TFT_W, 160, C_BG); 
     
@@ -470,6 +541,30 @@ void pet_core1_task() {
     
     if (face_current < FACE_COUNT) {
       face_fns[face_current](frame);
+    }
+    
+    // Draw particles over face
+    if (has_particles) {
+      for(int i=0; i<MAX_PARTICLES; i++) {
+        if(active_particles[i].type != PT_NONE && active_particles[i].life > 0) {
+           active_particles[i].life -= 0.05f; // decay
+           
+           if (active_particles[i].type == PT_MUSIC) {
+              active_particles[i].y -= 2.0f; // float up
+              draw_music_note((int)active_particles[i].x, (int)active_particles[i].y, active_particles[i].color);
+           } else if (active_particles[i].type == PT_SWEAT) {
+              active_particles[i].y += 3.0f; // slide down
+              draw_sweat((int)active_particles[i].x, (int)active_particles[i].y, active_particles[i].color);
+           } else if (active_particles[i].type == PT_HEART) {
+              active_particles[i].y -= 2.0f; // float up
+              draw_heart((int)active_particles[i].x, (int)active_particles[i].y, 14, active_particles[i].color);
+           }
+           
+           if(active_particles[i].life <= 0) {
+              active_particles[i].type = PT_NONE;
+           }
+        }
+      }
     }
     
     // Only redraw status bar if it was dirty

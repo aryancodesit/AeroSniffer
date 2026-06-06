@@ -132,7 +132,14 @@ CONFIG = {
         "brave":               "IDLE",
         "opera":               "IDLE",
 
-        # Productivity
+        # Social & Web
+        "github":              "LOVE_BONDING",
+        "linkedin":            "THINKING",
+        "reddit":              "SURPRISED",
+        "chatgpt":             "LOVE_BONDING",
+        "stackoverflow":       "SAD_ERROR",
+
+        # Productivity & Docs
         "notion":              "THINKING",
         "obsidian":            "THINKING",
         "figma":               "THINKING",
@@ -141,6 +148,8 @@ CONFIG = {
         "excel":               "THINKING",
         "word":                "THINKING",
         "powerpoint":          "THINKING",
+        "pdf":                 "THINKING",
+        "acrobat":             "THINKING",
 
         # File managers
         "explorer":            "IDLE",
@@ -410,74 +419,144 @@ class SystemMonitor:
     def is_idle(self) -> bool:
         return self.idle_seconds >= CONFIG["idle_sleep_secs"]
 
+    @property
+    def battery_status(self) -> str:
+        """Return BAT_LOW, BAT_CHARGING, BAT_FULL or empty string."""
+        if not hasattr(psutil, "sensors_battery"):
+            return ""
+        bat = psutil.sensors_battery()
+        if not bat:
+            return ""
+        if bat.power_plugged:
+            if bat.percent >= 99:
+                return "BAT_FULL"
+            return "BAT_CHARGING"
+        elif bat.percent < 20:
+            return "BAT_LOW"
+        return ""
+
 # ==============================================================
-#  FACE CONTROLLER  — maps events → face commands
+#  MOOD ENGINE  — Advanced character state
 # ==============================================================
-class FaceController:
+class MoodEngine:
     def __init__(self, serial_mgr: SerialManager):
         self.serial      = serial_mgr
-        self.face        = "IDLE"
+        self.happiness   = 50.0
+        self.energy      = 80.0
+        self.focus       = 50.0
+        
         self.last_face   = None
-        self.last_window = ""
         self.last_app    = ""
-
-    def _match_app_face(self, title: str) -> str:
-        """Find the best matching face for the active window title."""
-        for keyword, face in CONFIG["app_faces"].items():
-            if keyword in title:
-                return face
-        return "IDLE"
+        self.last_update = time.time()
+        self.last_particle_time = 0
 
     def update(self, window_title: str, typing: bool, sys_mon: SystemMonitor):
-        """Decide current face based on all inputs. Returns True if changed."""
+        now = time.time()
+        dt = now - self.last_update
+        self.last_update = now
 
-        # ── Priority 1: CPU panic ──────────────────────────────
-        if sys_mon.cpu_panic:
-            new_face = "ALERT_WARNING"
-            reason   = f"CPU {sys_mon.cpu_pct:.0f}%"
-
-        # ── Priority 2: System idle ────────────────────────────
-        elif sys_mon.is_idle:
-            new_face = "SLEEPY"
-            reason   = f"idle {sys_mon.idle_seconds/60:.1f}min"
-
-        # ── Priority 3: Typing (overrides app face) ────────────
-        elif typing:
-            new_face = "EXCITED"
-            reason   = "keyboard active"
-
-        # ── Priority 4: App / window ───────────────────────────
+        # ── Decay & Recovery over time ─────────────────────
+        if sys_mon.is_idle:
+            self.energy -= dt * 0.5
+            self.focus -= dt * 1.0
         else:
-            new_face = self._match_app_face(window_title)
-            reason   = f'window: "{window_title[:30]}"' if window_title else "no window"
-
-        # ── Extract short app name ─────────────────────────────
+            self.energy -= dt * 0.1
+            
+        if typing:
+            self.focus += dt * 2.0
+            self.energy += dt * 0.5
+            
+        # ── App-specific mood modifiers ────────────────────
         short_app = self._short_app_name(window_title)
+        title_lower = window_title.lower()
+        
+        is_coding = "code" in title_lower or "terminal" in title_lower or "pycharm" in title_lower or "github" in title_lower
+        is_gaming = "steam" in title_lower or "epic" in title_lower or "minecraft" in title_lower
+        is_music = "spotify" in title_lower or "music" in title_lower
+        
+        if is_coding:
+            self.focus += dt * 1.0
+        if is_gaming:
+            self.happiness += dt * 1.0
+            self.focus -= dt * 0.5
+        if is_music:
+            self.happiness += dt * 0.5
+            
+        # ── Battery & CPU ──────────────────────────────────
+        bat = sys_mon.battery_status
+        if bat == "BAT_LOW":
+            self.energy -= dt * 5.0
+            self.happiness -= dt * 2.0
+        elif bat == "BAT_CHARGING":
+            self.energy += dt * 5.0
+            
+        if sys_mon.cpu_panic:
+            self.energy -= dt * 2.0
+            self.happiness -= dt * 2.0
 
-        # ── Send only if changed ───────────────────────────────
-        changed = False
+        # Clamp stats 0-100
+        self.happiness = max(0, min(100, self.happiness))
+        self.energy = max(0, min(100, self.energy))
+        self.focus = max(0, min(100, self.focus))
+
+        # ── Determine Face based on Stats ──────────────────
+        new_face = "IDLE"
+        reason = "balanced"
+        
+        if self.energy < 20:
+            new_face = "SLEEPY"
+            reason = f"energy={self.energy:.0f}"
+        elif bat == "BAT_LOW":
+            new_face = "SAD_ERROR"
+            reason = "battery low"
+        elif sys_mon.cpu_panic:
+            new_face = "ALERT_WARNING"
+            reason = "cpu panic"
+        elif self.focus > 80:
+            new_face = "THINKING"  # Repurposed as Focused
+            reason = f"focus={self.focus:.0f}"
+        elif self.happiness > 80:
+            new_face = "LOVE_BONDING"
+            reason = f"happy={self.happiness:.0f}"
+        elif is_gaming:
+            new_face = "EXCITED"
+            reason = "gaming mode"
+        elif typing:
+            new_face = "HAPPY"
+            reason = "active"
+
+        # ── Trigger Particles ──────────────────────────────
+        if now - self.last_particle_time > 2.0:
+            if is_music:
+                self.serial.send("PARTICLE:MUSIC")
+                self.last_particle_time = now
+            elif sys_mon.cpu_panic:
+                self.serial.send("PARTICLE:SWEAT")
+                self.last_particle_time = now
+            elif self.focus > 90 and typing:
+                self.serial.send("PARTICLE:HEART")
+                self.last_particle_time = now
+
+        # ── Send to ESP32 ──────────────────────────────────
         if new_face != self.last_face:
+            log(f"  stats → H:{self.happiness:.0f} E:{self.energy:.0f} F:{self.focus:.0f}", DIM)
             log_face(new_face, reason)
             status = CONFIG["face_status"].get(new_face, "")
             self.serial.send(f"FACE:{new_face}")
             if status:
                 self.serial.send(f"STATUS:{status}")
             self.last_face = new_face
-            self.face = new_face
-            changed = True
-
+            
         if short_app != self.last_app:
             self.serial.send(f"APP:{short_app}")
             self.last_app = short_app
 
-        return changed
+        return True
 
     def _short_app_name(self, title: str) -> str:
-        """Extract a short recognisable app name from window title."""
         for keyword in CONFIG["app_faces"]:
             if keyword in title:
                 return keyword.split()[0].title()
-        # Try to grab first meaningful word
         words = title.replace("-", " ").replace("|", " ").split()
         for w in words:
             if len(w) > 2 and not w.lower() in {"the","and","for","with","from"}:
@@ -526,7 +605,7 @@ class PCAgent:
         self.window_mon = WindowMonitor()
         self.kbd_mon    = KeyboardMonitor()
         self.sys_mon    = SystemMonitor()
-        self.face_ctrl  = FaceController(self.serial)
+        self.mood_engine = MoodEngine(self.serial)
         self.notif_mon  = NotificationWatcher(self.serial)
         self._running   = False
 
@@ -569,7 +648,7 @@ class PCAgent:
                     window_changed = False
 
                 # ── Update face ────────────────────────────────
-                self.face_ctrl.update(
+                self.mood_engine.update(
                     window_title,
                     self.kbd_mon.typing,
                     self.sys_mon
