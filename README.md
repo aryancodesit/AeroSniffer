@@ -67,27 +67,6 @@ bash tools/install_libraries.sh
 
 > Full wiring guide: ![Wiring](assets/WIRING.png)
 
-
-
-```
-XIAO ESP32S3
-│
-├── SPI  → ST7789 1.3" Display (240×240)
-│          MOSI=D10(9)  SCLK=D8(7)  CS=D3(4)  DC=D2(3)  RST=D9(8)
-│
-├── DIG  → Capacitive Touch Module
-│          D0(GPIO1) — active LOW, pull-up enabled
-│          Short tap  = pet interaction
-│          Long press = switch mode (1.5s)
-│
-├── USB  → Companion App (Mode 2 control)
-│          Native USB-C Serial for payload commands
-│          Access the dashboard: https://aero-sniffer.vercel.app/
-│
-└── WiFi → Mode 3 Flight Radar (STA mode)
-           Connects to home WiFi for OpenSky API
-```
-
 ---
 
 ## 📁 Repository Structure
