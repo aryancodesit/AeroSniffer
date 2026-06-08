@@ -33,9 +33,6 @@ AeroSniffer treats the ESP32-S3 like a mini operating system with three complete
 | 6 | 3D Printed Enclosure | ✅ |
 | 7 | USB-C Cable | ✅ |
 
-
-See [docs/HARDWARE.md](docs/HARDWARE.md) for full specs, pin allocation, and links.
-
 ---
 
 ## ⚡ Quick Start
@@ -64,13 +61,13 @@ bash tools/install_libraries.sh
 #    to save your Wi-Fi, GPS coordinates, and screensaver colors!
 ```
 
-See [docs/INSTALL.md](docs/INSTALL.md) for the full step-by-step with screenshots.
-
 ---
 
 ## 🔌 Wiring At A Glance
 
-> Full wiring guide: [docs/WIRING.md](docs/WIRING.md)
+> Full wiring guide: ![Wiring](assets/WIRING.png)
+
+
 
 ```
 XIAO ESP32S3
