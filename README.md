@@ -93,15 +93,13 @@ AeroSniffer/
 │
 ├── data/                          ← SPIFFS Embedded Data
 │   ├── airlines.db                ← Airline ICAO Lookup Table
-│   └── aircraft.db                ← Aircraft Type Lookup Table
+│   └── aircraft.db                ← Aircraft Type Lookup Table             
 │
-├── docs/                          ← Comprehensive Project Documentation
-│   ├── INSTALL.md                 
-│   ├── WIRING.md                  
-│   ├── HARDWARE.md                
-│   └── images/                    
+├── assets/                        ← High-Res Architectural Diagrams & UI Previews
+├── faces/                         ← Procedural Vector Face States (JSON)
+├── tools/                         ← Automated Arduino Library Installers
 │
-└── tools/                         ← Automated Bootstrapping Scripts
+└── Start_AeroSniffer.bat          ← 1-Click Launch Script for PC Agent
 ```
 
 ---
