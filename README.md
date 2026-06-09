@@ -61,32 +61,15 @@ bash tools/install_libraries.sh
 #    to save your Wi-Fi, GPS coordinates, and screensaver colors!
 ```
 
----
+**OR**
 
-## 🔌 Wiring At A Glance
-
-> Full wiring guide: [docs/WIRING.md](docs/WIRING.md)
-
-```
-XIAO ESP32S3
-│
-├── SPI  → ST7789 1.3" Display (240×240)
-│          MOSI=D10(9)  SCLK=D8(7)  CS=D3(4)  DC=D2(3)  RST=D9(8)
-│
-├── DIG  → Capacitive Touch Module
-│          D0(GPIO1) — active LOW, pull-up enabled
-│          Short tap  = pet interaction
-│          Long press = switch mode (1.5s)
-│
-├── USB  → Companion App (Mode 2 control)
-│          Native USB-C Serial for payload commands
-│          Access the dashboard: https://aero-sniffer.vercel.app/
-│
-└── WiFi → Mode 3 Flight Radar (STA mode)
-           Connects to home WiFi for OpenSky API
-```
+Just use the vercel link [https://aero-sniffer.vercel.app/](https://aero-sniffer.vercel.app/) to configure and control everything! It's much easier than using the CLI. Trust me :p
 
 ---
+
+## 🔌 Wiring
+
+![Wiring Diagram](assets/WIRING.png)
 
 ## 📁 Repository Structure
 
