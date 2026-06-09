@@ -64,32 +64,11 @@ bash tools/install_libraries.sh
 #    to save your Wi-Fi, GPS coordinates, and screensaver colors!
 ```
 
-See [docs/INSTALL.md](docs/INSTALL.md) for the full step-by-step with screenshots.
-
 ---
 
 ## 🔌 Wiring At A Glance
 
-> Full wiring guide: [docs/WIRING.md](docs/WIRING.md)
-
-```
-XIAO ESP32S3
-│
-├── SPI  → ST7789 1.3" Display (240×240)
-│          MOSI=D10(9)  SCLK=D8(7)  CS=D3(4)  DC=D2(3)  RST=D9(8)
-│
-├── DIG  → Capacitive Touch Module
-│          D0(GPIO1) — active LOW, pull-up enabled
-│          Short tap  = pet interaction
-│          Long press = switch mode (1.5s)
-│
-├── USB  → Companion App (Mode 2 control)
-│          Native USB-C Serial for payload commands
-│          Access the dashboard: https://aero-sniffer.vercel.app/
-│
-└── WiFi → Mode 3 Flight Radar (STA mode)
-           Connects to home WiFi for OpenSky API
-```
+> Full wiring guide: ![WIRING](assets/WIRING.md)
 
 ---
 
@@ -98,45 +77,75 @@ XIAO ESP32S3
 ```
 AeroSniffer/
 │
-├── AeroSniffer/                   ← Arduino sketch (open this in IDE)
-│   ├── AeroSniffer.ino            ← Main file — orchestration + FreeRTOS tasks
-│   ├── Config.h                   ← ⭐ EDIT THIS — pins, WiFi, bounding box
-│   ├── Mode1_Pet.h                ← Desk companion — touch, animations
-│   ├── Mode2_Security.h           ← WiFi sniffer — radar display + web UI
-│   ├── Mode3_Aviation.h           ← Flight radar — OpenSky API, flight cards
-│   └── TFT_eSPI_UserSetup.h       ← Copy this into TFT_eSPI library folder
+├── AeroSniffer/                   ← Embedded C++ Firmware
+│   ├── AeroSniffer.ino            ← Core Orchestrator & FreeRTOS Tasks
+│   ├── Config.h                   ← Global Pin Definitions & Memory Maps
+│   ├── Mode1_Pet.h                ← Autonomous Cyber-Pet Routines
+│   ├── Mode2_Security.h           ← 802.11 Sniffer & Serial AP Logging
+│   └── Mode3_Aviation.h           ← Live ADS-B Aviation Radar System
 │
-├── data/                          ← SPIFFS data (upload separately)
-│   ├── airlines.db                ← Airline ICAO → name lookup (Mode 3)
-│   └── aircraft.db                ← Aircraft ICAO → type lookup (Mode 3)
+├── companion-app/                 ← Vercel-Hosted Web Application
+│   ├── src/                       ← React, Vite, & TanStack Router SPA
+│   ├── components/                ← Pixel-Art UI & Radar Dashboards
+│   └── lib/serial.ts              ← High-Speed Web Serial USB Driver
 │
-├── docs/
-│   ├── INSTALL.md                 ← Full installation walkthrough
-│   ├── WIRING.md                  ← Pin-by-pin hardware connection guide
-│   ├── HARDWARE.md                ← BOM with purchase links
-│   └── images/                    ← Wiring diagrams, photos
+├── pc-agent/                      ← Python OS Integration
+│   └── pc_agent.py                ← Real-Time System Telemetry Tracker
 │
-├── tools/
-│   ├── install_libraries.sh       ← Auto-install all Arduino libraries (Linux/Mac)
-│   └── install_libraries.bat      ← Auto-install all Arduino libraries (Windows)
+├── data/                          ← SPIFFS Embedded Data
+│   ├── airlines.db                ← Airline ICAO Lookup Table
+│   └── aircraft.db                ← Aircraft Type Lookup Table
 │
-├── .gitignore
-└── README.md                      ← You are here
+├── docs/                          ← Comprehensive Project Documentation
+│   ├── INSTALL.md                 
+│   ├── WIRING.md                  
+│   ├── HARDWARE.md                
+│   └── images/                    
+│
+└── tools/                         ← Automated Bootstrapping Scripts
 ```
 
 ---
 
-## ⚙️ Configuration is Now Browser-Based!
+## ⚙️ Global Setup Wizard & City Search
 
 No need to hardcode passwords in C++! Once you flash the firmware, simply plug the device into your computer via USB-C and open the Companion Web App:
 **[https://aero-sniffer.vercel.app/](https://aero-sniffer.vercel.app/)**
 
-Using the **Web Serial API**, you can instantly configure:
+Using the **Web Serial API**, you can instantly access the **Global Setup Wizard** from any screen by clicking `⚙️ SETUP`. Here you can configure:
 - **Wi-Fi Credentials** (for Mode 3)
 - **GPS Bounding Box** (for Mode 3 Flight Radar)
 - **Theme Colors** (for the UI)
 
+> **🌍 Built-in City Search:**
+> Don't want to use GPS to find your coordinates? The Setup Wizard features a built-in search bar powered by **Nominatim OpenStreetMap Geocoding**. Simply type your city (e.g., "London" or "Mumbai") and the dashboard will automatically calculate the exact `lamin`, `lamax`, `lomin`, and `lomax` required to track planes in your area!
+
 Settings are permanently saved to the ESP32's Non-Volatile Flash memory.
+
+---
+
+## 🚀 6 Phases of Development
+
+AeroSniffer was engineered to push the limits of embedded systems across six capability phases:
+
+1. **Phase 1: Multi-Core Foundation**
+   - True OS-like multitasking utilizing FreeRTOS.
+   - Seamless hardware orchestration across SPI displays and capacitive touch sensors.
+2. **Phase 2: Autonomous Cyber-Pet Engine**
+   - Dynamic, high-FPS procedural vector facial expressions.
+   - Live PC telemetrics (CPU load, active windows) mapped to emotional states via USB.
+3. **Phase 3: Passive Network Auditor**
+   - Stealthy 802.11 promiscuous mode packet sniffing.
+   - Automatic detection of unencrypted payloads and Deauthentication/Disassociation attacks.
+4. **Phase 4: Web Serial Security Dashboard**
+   - A fully immersive, browser-based command center.
+   - Real-time visualization of ESP32 packet logs directly over USB-C.
+5. **Phase 5: Live Aviation Radar**
+   - Autonomous WiFi connection and data ingestion from the OpenSky Network.
+   - Real-time plotting of overhead aircraft, including callsigns, speeds, and dynamic altitudes.
+6. **Phase 6: Global Configuration Hub**
+   - A universal, cloud-deployed setup wizard accessible from anywhere.
+   - Integrated OpenStreetMap geocoding for instant city-based flight tracking.
 
 ---
 
