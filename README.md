@@ -206,6 +206,22 @@ Mode 2 uses a split architecture optimized for the tiny 1.3" display:
 
 ---
 
+## ✈️ Mode 3: Live Aviation Radar
+
+Mode 3 transforms the AeroSniffer into a dedicated, real-time ADS-B flight tracking terminal. By leveraging the OpenSky Network API, it actively monitors the airspace directly above your city.
+
+**Technical Capabilities:**
+- **Autonomous API Polling:** Connects to your local Wi-Fi and continuously streams live JSON telemetry from OpenSky servers based on your configured GPS bounding box.
+- **Embedded Database Lookups:** Cross-references raw ICAO 24-bit hexadecimal transponder codes against onboard SPIFFS databases to instantly resolve actual Airline Names (e.g., "Emirates") and Aircraft Types (e.g., "Boeing 777").
+- **Dynamic Telemetry Rendering:** Renders a high-contrast aviation dashboard on the TFT display, actively plotting:
+  - Flight Callsigns and ICAO Registration
+  - Real-Time Altitude (Meters)
+  - Ground Speed (m/s)
+  - True Track Compass Heading (0-360°)
+- **Intelligent Pagination:** Automatically cycles through all detected aircraft in your airspace, keeping the display clutter-free while ensuring no flight is missed.
+
+---
+
 ## ⚠️ Legal & Ethical Use
 
 Mode 2 (Network Auditor) uses ESP32 promiscuous mode to passively observe 802.11 frames.
