@@ -20,6 +20,9 @@
 //    Arduino/libraries/TFT_eSPI/User_Setup.h
 // ================================================================
 
+#include <FS.h>
+using fs::FS;
+
 #include "Config.h"
 #include "Mode1_Pet.h"
 #include "Mode2_Security.h"
