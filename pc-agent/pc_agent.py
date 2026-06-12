@@ -194,7 +194,7 @@ def log_face(face, reason):
         "LOVE_BONDING":CYAN,"STARTUP_BOOT":GREEN,"SURPRISED":YELLOW
     }
     col = colors.get(face, "")
-    log(f"  face → {col}{BOLD}{face:14}{RESET}  {DIM}({reason}){RESET}")
+    log(f"  face -> {col}{BOLD}{face:14}{RESET}  {DIM}({reason}){RESET}")
 
 # ==============================================================
 #  SERIAL MANAGER  — auto-connect, reconnect, send commands
@@ -203,6 +203,7 @@ class SerialManager:
     def __init__(self):
         self.ser        = None
         self.connected  = False
+        self.needs_resend = False
         self.lock       = threading.Lock()
         self._stop      = False
         self._thread    = threading.Thread(target=self._keep_alive, daemon=True)
@@ -235,7 +236,7 @@ class SerialManager:
             self.ser = serial.Serial(port, CONFIG["baud"], timeout=0.1)
             time.sleep(1.5)  # Give ESP32 time to reset
             self.connected = True
-            log(f"Connected → {port}  @{CONFIG['baud']} baud", GREEN)
+            log(f"Connected -> {port}  @{CONFIG['baud']} baud", GREEN)
             return True
         except serial.SerialException as e:
             log(f"Serial error: {e}", RED)
@@ -245,14 +246,16 @@ class SerialManager:
         """Background thread: reconnect if disconnected."""
         while not self._stop:
             if not self.connected:
-                self._connect()
+                if self._connect():
+                    self.needs_resend = True
             else:
                 # Check connection is still alive
                 try:
                     if self.ser and self.ser.in_waiting > 0:
                         data = self.ser.readline().decode("utf-8", errors="ignore").strip()
                         if data:
-                            log(f"  ESP32 → {data}", DIM)
+                            log(f"  ESP32 -> {data}", DIM)
+                            self.needs_resend = True
                 except (serial.SerialException, OSError):
                     log("Serial disconnected. Reconnecting...", YELLOW)
                     self.connected = False
@@ -460,6 +463,12 @@ class MoodEngine:
         dt = now - self.last_update
         self.last_update = now
 
+        if self.serial.needs_resend:
+            self.last_face   = None
+            self.last_status = None
+            self.last_app    = ""
+            self.serial.needs_resend = False
+
         # ── Decay & Recovery over time ─────────────────────
         if sys_mon.is_idle:
             self.energy -= dt * 0.5
@@ -580,7 +589,7 @@ class MoodEngine:
 
         # ── Send to ESP32 ──────────────────────────────────
         if new_face != self.last_face:
-            log(f"  stats → H:{self.happiness:.0f} E:{self.energy:.0f} F:{self.focus:.0f}", DIM)
+            log(f"  stats -> H:{self.happiness:.0f} E:{self.energy:.0f} F:{self.focus:.0f}", DIM)
             log_face(new_face, reason)
             self.serial.send(f"FACE:{new_face}")
             self.last_face = new_face
@@ -643,9 +652,9 @@ class NotificationWatcher:
 # ==============================================================
 class PCAgent:
     def __init__(self):
-        log(f"\n{BOLD}{'─'*54}", CYAN)
+        log(f"\n{BOLD}{'-'*54}", CYAN)
         log(f"  AeroSniffer PC Agent  ({platform.system()} {platform.release()})", CYAN)
-        log(f"{'─'*54}{RESET}\n")
+        log(f"{'-'*54}{RESET}\n")
 
         self.serial     = SerialManager()
         self.window_mon = WindowMonitor()
@@ -669,7 +678,7 @@ class PCAgent:
 
         # Print header table
         print(f"  {'TIME':8}  {'FACE':14}  {'STATUS':20}  TRIGGER")
-        print(f"  {'─'*8}  {'─'*14}  {'─'*20}  {'─'*20}")
+        print(f"  {'-'*8}  {'-'*14}  {'-'*20}  {'-'*20}")
 
         try:
             while self._running:
@@ -758,7 +767,7 @@ if __name__ == "__main__":
                  "SAD_ERROR","ALERT_WARNING","LOVE_BONDING",
                  "STARTUP_BOOT","SURPRISED"]
         for face in faces:
-            log(f"  → {face}", CYAN)
+            log(f"  -> {face}", CYAN)
             mgr.send(f"FACE:{face}")
             mgr.send(f"STATUS:{CONFIG['face_status'].get(face,'')}")
             time.sleep(3)
