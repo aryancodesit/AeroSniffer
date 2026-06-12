@@ -80,7 +80,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
 
     // 1. Check AirTag / Find My (Apple Manufacturer Data)
     if (advertisedDevice.haveManufacturerData()) {
-      std::string mData = advertisedDevice.getManufacturerData();
+      String mData = advertisedDevice.getManufacturerData();
       if (mData.length() >= 2 && (uint8_t)mData[0] == 0x4C && (uint8_t)mData[1] == 0x00) {
         // Apple manufacturer data. Look for Find My locator tag (0x12)
         if (mData.length() >= 3 && (uint8_t)mData[2] == 0x12) {
@@ -986,7 +986,7 @@ void security_setup(TFT_eSPI* tft) {
 
   // Initialize BLE Scanner
   BLEDevice::init("AeroSniffer-BLE");
-  pBLEScan = BLEDevice::getBLEScan();
+  pBLEScan = BLEDevice::getScan();
   pBLEScan->setAdvertisedDeviceCallbacks(&myAdvertisedDeviceCallbacks, true);
   pBLEScan->setActiveScan(true);
   pBLEScan->setInterval(100);
