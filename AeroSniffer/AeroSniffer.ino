@@ -184,6 +184,145 @@ static void setup_mode(uint8_t mode) {
 }
 
 // ================================================================
+//  GLOBAL & LOCAL SERIAL PROTOCOL ROUTER (Non-Blocking)
+// ================================================================
+
+static bool handle_global_command(const String& line) {
+  // Web app commands prefix: "CMD:"
+  if (line.startsWith("CMD:")) {
+    String cmd = line.substring(4);
+
+    if (cmd == "PING") {
+      Serial.printf("RES:{\"ok\":true,\"fw\":\"2.0\",\"mode\":%d,\"hw\":\"deskbuddy2\"}\n", g_mode + 1);
+      return true;
+    }
+    
+    if (cmd == "GET_CFG") {
+      auto rgb565toHex = [](uint16_t color) -> String {
+        uint8_t r = (color >> 11) << 3;
+        uint8_t g = ((color >> 5) & 0x3F) << 2;
+        uint8_t b = (color & 0x1F) << 3;
+        char hex[8];
+        snprintf(hex, sizeof(hex), "#%02X%02X%02X", r, g, b);
+        return String(hex);
+      };
+      Serial.printf("RES:{\"ssid\":\"%s\",\"lamin\":%.2f,\"lomin\":%.2f,\"lamax\":%.2f,\"lomax\":%.2f,\"c_col\":\"%s\",\"w_col\":\"%s\"}\n",
+                    sys_wifi_ssid.c_str(), sys_sky_lamin, sys_sky_lomin, sys_sky_lamax, sys_sky_lomax,
+                    rgb565toHex(sys_clock_color).c_str(), rgb565toHex(sys_weather_color).c_str());
+      return true;
+    }
+    
+    if (cmd.startsWith("SET_WIFI:")) {
+      int split = cmd.indexOf(':', 9);
+      if (split > 0) {
+        String ssid = cmd.substring(9, split);
+        String pass = cmd.substring(split + 1);
+        sys_wifi_ssid = ssid;
+        sys_wifi_pass = pass;
+        Preferences p;
+        p.begin("aerosniffer", false);
+        p.putString("ssid", ssid);
+        p.putString("pass", pass);
+        p.end();
+        Serial.println("RES:{\"ok\":true,\"action\":\"set_wifi\"}");
+      } else {
+        Serial.println("RES:{\"ok\":false,\"error\":\"invalid format\"}");
+      }
+      return true;
+    }
+    
+    if (cmd.startsWith("SET_BBOX:")) {
+      float box[4];
+      int start = 9;
+      for (int i=0; i<4; i++) {
+        int end = (i==3) ? -1 : cmd.indexOf(':', start);
+        String part = (end == -1) ? cmd.substring(start) : cmd.substring(start, end);
+        box[i] = part.toFloat();
+        start = end + 1;
+      }
+      sys_sky_lamin = box[0];
+      sys_sky_lomin = box[1];
+      sys_sky_lamax = box[2];
+      sys_sky_lomax = box[3];
+      Preferences p;
+      p.begin("aerosniffer", false);
+      p.putFloat("lamin", box[0]);
+      p.putFloat("lomin", box[1]);
+      p.putFloat("lamax", box[2]);
+      p.putFloat("lomax", box[3]);
+      p.end();
+      Serial.println("RES:{\"ok\":true,\"action\":\"set_bbox\"}");
+      return true;
+    }
+    
+    if (cmd.startsWith("SET_COLOR:")) {
+      if (cmd.length() >= 25) {
+        String c1 = cmd.substring(10, 17);
+        String c2 = cmd.substring(18, 25);
+        
+        auto hex2rgb565 = [](String hex) -> uint16_t {
+          long num = strtol(hex.substring(1).c_str(), NULL, 16);
+          uint8_t r = (num >> 16) & 0xFF;
+          uint8_t g = (num >> 8) & 0xFF;
+          uint8_t b = num & 0xFF;
+          return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+        };
+        
+        sys_clock_color = hex2rgb565(c1);
+        sys_weather_color = hex2rgb565(c2);
+        
+        Preferences p;
+        p.begin("aerosniffer", false);
+        p.putUShort("c_col", sys_clock_color);
+        p.putUShort("w_col", sys_weather_color);
+        p.end();
+        Serial.println("RES:{\"ok\":true,\"action\":\"set_color\"}");
+      } else {
+        Serial.println("RES:{\"ok\":false,\"error\":\"invalid format\"}");
+      }
+      return true;
+    }
+    
+    if (cmd.startsWith("REBOOT")) {
+      Serial.println("RES:{\"ok\":true,\"action\":\"reboot\"}");
+      delay(100);
+      ESP.restart();
+      return true;
+    }
+  } else {
+    // Non-CMD web commands, e.g. PC Agent PING
+    if (line == "PING") {
+      Serial.println("{\"pong\":1}");
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+static void process_serial_commands() {
+  static String input_line = "";
+  while (Serial.available() > 0) {
+    char c = Serial.read();
+    if (c == '\n') {
+      input_line.trim();
+      if (input_line.length() > 0) {
+        if (!handle_global_command(input_line)) {
+          if (g_mode == 0) {
+            pet_handle_command(input_line);
+          } else if (g_mode == 1) {
+            security_handle_command(input_line);
+          }
+        }
+      }
+      input_line = "";
+    } else if (c != '\r') {
+      input_line += c;
+    }
+  }
+}
+
+// ================================================================
 //  FREERTOS TASKS
 // ================================================================
 
@@ -205,6 +344,9 @@ void task_core1(void*) {
   setup_mode(g_mode);
 
   for (;;) {
+    // ── Non-Blocking Serial Processing ───────────────────────
+    process_serial_commands();
+
     // ── Poll capacitive touch (DeskBuddy 2.0) ────────────────
     #if HAS_TOUCH
       poll_touch_input();

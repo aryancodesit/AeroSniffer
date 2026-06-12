@@ -499,7 +499,7 @@ function Nav({ onFace }: { onFace: (f: FaceState) => void }) {
             {!setupConnected ? (
               <div className="text-center py-6">
                 <p className="font-mono-pixel text-[color:var(--as-neon)]/70 mb-6 text-sm">
-                  To configure WiFi and Location, put your AeroSniffer into <b>Mode 2 (Network Auditor)</b> and connect via USB.
+                  To configure WiFi and Location, connect your AeroSniffer via USB (works in any mode!).
                 </p>
                 <button onClick={handleConnect} className="pixel-btn w-full">
                   CONNECT VIA WEB SERIAL

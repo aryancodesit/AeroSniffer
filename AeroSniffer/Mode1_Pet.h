@@ -48,7 +48,7 @@ enum RobotFace : uint8_t {
 };
 
 static RobotFace face_current    = FACE_IDLE;
-static RobotFace face_last       = FACE_COUNT; 
+static RobotFace face_last       = FACE_COUNT;
 static uint32_t  last_active_ms  = 0;
 static bool      face_dirty      = true;
 
@@ -87,36 +87,36 @@ static Particle active_particles[MAX_PARTICLES];
 // ================================================================
 static void draw_heart(int cx, int cy, int size, uint16_t color) {
   int r = size / 2;
-  _rtft->fillCircle(cx - r/2 + 2, cy - r/4, r, color);
-  _rtft->fillCircle(cx + r/2 - 2, cy - r/4, r, color);
-  _rtft->fillTriangle(cx - r - 7, cy - 2, 
-                      cx + r + 7, cy - 2, 
+  _rtft->fillCircle(cx - r / 2 + 2, cy - r / 4, r, color);
+  _rtft->fillCircle(cx + r / 2 - 2, cy - r / 4, r, color);
+  _rtft->fillTriangle(cx - r - 7, cy - 2,
+                      cx + r + 7, cy - 2,
                       cx, cy + size - 2, color);
 }
 
 static void draw_dotted_smile(int cx, int cy, int width, int drop, uint16_t color) {
-  _rtft->fillRect(cx - width/2, cy - drop, 4, 4, color);
-  _rtft->fillRect(cx - width/4, cy, 4, 4, color);
-  _rtft->fillRect(cx + width/4, cy, 4, 4, color);
-  _rtft->fillRect(cx + width/2, cy - drop, 4, 4, color);
+  _rtft->fillRect(cx - width / 2, cy - drop, 4, 4, color);
+  _rtft->fillRect(cx - width / 4, cy, 4, 4, color);
+  _rtft->fillRect(cx + width / 4, cy, 4, 4, color);
+  _rtft->fillRect(cx + width / 2, cy - drop, 4, 4, color);
 }
 
 static void draw_dotted_frown(int cx, int cy, int width, int drop, uint16_t color) {
-  _rtft->fillRect(cx - width/2, cy + drop, 4, 4, color);
-  _rtft->fillRect(cx - width/4, cy, 4, 4, color);
-  _rtft->fillRect(cx + width/4, cy, 4, 4, color);
-  _rtft->fillRect(cx + width/2, cy + drop, 4, 4, color);
+  _rtft->fillRect(cx - width / 2, cy + drop, 4, 4, color);
+  _rtft->fillRect(cx - width / 4, cy, 4, 4, color);
+  _rtft->fillRect(cx + width / 4, cy, 4, 4, color);
+  _rtft->fillRect(cx + width / 2, cy + drop, 4, 4, color);
 }
 
 static void draw_music_note(int cx, int cy, uint16_t color) {
   _rtft->fillCircle(cx, cy, 3, color);
-  _rtft->fillRect(cx+1, cy-10, 2, 10, color);
-  _rtft->fillRect(cx+1, cy-12, 6, 2, color);
+  _rtft->fillRect(cx + 1, cy - 10, 2, 10, color);
+  _rtft->fillRect(cx + 1, cy - 12, 6, 2, color);
 }
 
 static void draw_sweat(int cx, int cy, uint16_t color) {
   _rtft->fillCircle(cx, cy, 4, color);
-  _rtft->fillTriangle(cx-4, cy, cx+4, cy, cx, cy-8, color);
+  _rtft->fillTriangle(cx - 4, cy, cx + 4, cy, cx, cy - 8, color);
 }
 
 // ================================================================
@@ -124,31 +124,31 @@ static void draw_sweat(int cx, int cy, uint16_t color) {
 // ================================================================
 static void draw_face_idle(int frame) {
   int h = (int)(32 * anim_blink_scale);
-  int y = 90 + (32 - h)/2;
-  
+  int y = 90 + (32 - h) / 2;
+
   // Left Eye
   _rtft->fillRoundRect(60, y, 40, h, 6, C_IDLE);
-  if(h > 10) _rtft->fillRect(76 + anim_look_x, y + h/2 - 4 + anim_look_y, 8, 8, C_BLACK);
-  
+  if (h > 10) _rtft->fillRect(76 + anim_look_x, y + h / 2 - 4 + anim_look_y, 8, 8, C_BLACK);
+
   // Right Eye
   _rtft->fillRoundRect(140, y, 40, h, 6, C_IDLE);
-  if(h > 10) _rtft->fillRect(156 + anim_look_x, y + h/2 - 4 + anim_look_y, 8, 8, C_BLACK);
-  
+  if (h > 10) _rtft->fillRect(156 + anim_look_x, y + h / 2 - 4 + anim_look_y, 8, 8, C_BLACK);
+
   // Mouth
   _rtft->fillRect(95, 160, 50, 6, C_IDLE);
 }
 
 static void draw_face_happy(int frame) {
   int h = (int)(24 * anim_blink_scale);
-  int y = 90 + (24 - h)/2;
-  
+  int y = 90 + (24 - h) / 2;
+
   if (h > 10) {
     // Happy eyes (perfect half-circle arches)
-    _rtft->fillCircle(80, y+10, 22, C_HAPPY);
-    _rtft->fillCircle(80, y+16, 22, C_BG); 
-    
-    _rtft->fillCircle(160, y+10, 22, C_HAPPY);
-    _rtft->fillCircle(160, y+16, 22, C_BG); 
+    _rtft->fillCircle(80, y + 10, 22, C_HAPPY);
+    _rtft->fillCircle(80, y + 16, 22, C_BG);
+
+    _rtft->fillCircle(160, y + 10, 22, C_HAPPY);
+    _rtft->fillCircle(160, y + 16, 22, C_BG);
   } else {
     // Blinking state
     _rtft->fillRoundRect(60, y, 40, h, 2, C_HAPPY);
@@ -162,21 +162,21 @@ static void draw_face_happy(int frame) {
 
 static void draw_face_excited(int frame) {
   int h = (int)(44 * anim_blink_scale);
-  int y = 84 + (44 - h)/2;
-  
+  int y = 84 + (44 - h) / 2;
+
   // Big square eyes
   _rtft->fillRoundRect(56, y, 44, h, 8, C_EXCITED);
-  if(h > 12) _rtft->fillRoundRect(64, y + h - 16, 12, 12, 2, C_BLACK); // Pupil
-  
+  if (h > 12) _rtft->fillRoundRect(64, y + h - 16, 12, 12, 2, C_BLACK); // Pupil
+
   _rtft->fillRoundRect(140, y, 44, h, 8, C_EXCITED);
-  if(h > 12) _rtft->fillRoundRect(148, y + h - 16, 12, 12, 2, C_BLACK);
-  
+  if (h > 12) _rtft->fillRoundRect(148, y + h - 16, 12, 12, 2, C_BLACK);
+
   // O mouth
   _rtft->fillCircle(120, 160, 10, C_EXCITED);
   _rtft->fillCircle(120, 160, 4, C_BG);
-  
+
   // Sparks
-  if(frame % 8 < 4) {
+  if (frame % 8 < 4) {
     _rtft->fillRect(40, 50, 4, 4, C_EXCITED);
     _rtft->fillRect(196, 50, 4, 4, C_EXCITED);
   }
@@ -184,97 +184,97 @@ static void draw_face_excited(int frame) {
 
 static void draw_face_sleepy(int frame) {
   int h = (int)(10 * anim_blink_scale);
-  int y = 100 + (10 - h)/2;
-  
+  int y = 100 + (10 - h) / 2;
+
   _rtft->fillRoundRect(60, y, 40, h, 4, C_SLEEPY);
   _rtft->fillRoundRect(140, y, 40, h, 4, C_SLEEPY);
-  
+
   _rtft->fillRect(105, 160, 30, 4, C_SLEEPY);
-  
+
   // Animated Zzz
   int z = (frame / 10) % 3;
-  if(z >= 0) _rtft->fillRect(150, 50, 6, 2, C_SLEEPY); // Tiny z
-  if(z >= 1) _rtft->fillRect(165, 35, 10, 2, C_SLEEPY); // Med z
-  if(z >= 2) _rtft->fillRect(185, 15, 14, 3, C_SLEEPY); // Big Z
+  if (z >= 0) _rtft->fillRect(150, 50, 6, 2, C_SLEEPY); // Tiny z
+  if (z >= 1) _rtft->fillRect(165, 35, 10, 2, C_SLEEPY); // Med z
+  if (z >= 2) _rtft->fillRect(185, 15, 14, 3, C_SLEEPY); // Big Z
 }
 
 static void draw_face_thinking(int frame) {
   // Left eye squint
   int hL = (int)(14 * anim_blink_scale);
-  int yL = 100 + (14 - hL)/2;
+  int yL = 100 + (14 - hL) / 2;
   _rtft->fillRoundRect(60, yL, 40, hL, 4, C_THINKING);
-  if(hL > 6) _rtft->fillRect(76 + anim_look_x, yL + hL/2 - 3, 6, 6, C_BLACK);
-  
+  if (hL > 6) _rtft->fillRect(76 + anim_look_x, yL + hL / 2 - 3, 6, 6, C_BLACK);
+
   // Right eye open
   int hR = (int)(32 * anim_blink_scale);
-  int yR = 90 + (32 - hR)/2;
+  int yR = 90 + (32 - hR) / 2;
   _rtft->fillRoundRect(140, yR, 40, hR, 6, C_THINKING);
-  if(hR > 10) _rtft->fillRect(156 + anim_look_x, yR + hR/2 - 4, 8, 8, C_BLACK);
-  
+  if (hR > 10) _rtft->fillRect(156 + anim_look_x, yR + hR / 2 - 4, 8, 8, C_BLACK);
+
   // Offset mouth
   _rtft->fillRect(130, 160, 20, 6, C_THINKING);
-  
+
   // Thinking dots
-  if(frame % 12 < 6) _rtft->fillRect(40, 50, 6, 6, C_THINKING);
+  if (frame % 12 < 6) _rtft->fillRect(40, 50, 6, 6, C_THINKING);
 }
 
 static void draw_face_sad(int frame) {
   int h = (int)(36 * anim_blink_scale);
-  int y = 90 + (36 - h)/2;
-  
+  int y = 90 + (36 - h) / 2;
+
   _rtft->fillRoundRect(60, y, 36, h, 4, C_SAD);
-  if(h > 10) _rtft->fillRect(74, y + 8, 8, 8, C_BLACK);
-  
+  if (h > 10) _rtft->fillRect(74, y + 8, 8, 8, C_BLACK);
+
   _rtft->fillRoundRect(144, y, 36, h, 4, C_SAD);
-  if(h > 10) _rtft->fillRect(158, y + 8, 8, 8, C_BLACK);
-  
+  if (h > 10) _rtft->fillRect(158, y + 8, 8, 8, C_BLACK);
+
   // Tears
-  if((frame / 5) % 2 == 0) {
+  if ((frame / 5) % 2 == 0) {
     _rtft->fillRect(76, y + h + 10, 4, 12, C_SAD);
     _rtft->fillRect(160, y + h + 10, 4, 12, C_SAD);
   }
-  
+
   draw_dotted_frown(120, 160, 40, 10, C_SAD);
 }
 
 static void draw_face_alert(int frame) {
   int h = (int)(32 * anim_blink_scale);
-  int y = 94 + (32 - h)/2;
-  
+  int y = 94 + (32 - h) / 2;
+
   _rtft->fillRoundRect(60, y, 40, h, 4, C_ALERT);
-  if(h > 10) _rtft->fillRect(76, y + 10, 8, 8, C_BLACK);
+  if (h > 10) _rtft->fillRect(76, y + 10, 8, 8, C_BLACK);
   // Left eyebrow
   _rtft->fillTriangle(50, 74, 100, 84, 100, 78, C_ALERT);
-  
+
   _rtft->fillRoundRect(140, y, 40, h, 4, C_ALERT);
-  if(h > 10) _rtft->fillRect(156, y + 10, 8, 8, C_BLACK);
+  if (h > 10) _rtft->fillRect(156, y + 10, 8, 8, C_BLACK);
   // Right eyebrow
   _rtft->fillTriangle(190, 74, 140, 84, 140, 78, C_ALERT);
-  
+
   _rtft->fillRect(100, 160, 40, 6, C_ALERT);
 }
 
 static void draw_face_love(int frame) {
   int h = (int)(32 * anim_blink_scale);
-  int y = 90 + (32 - h)/2;
-  
+  int y = 90 + (32 - h) / 2;
+
   // Pink rounded rect eyes
   _rtft->fillRoundRect(60, y, 40, h, 6, C_LOVE);
   _rtft->fillRoundRect(140, y, 40, h, 6, C_LOVE);
-  
-  if(h > 15) {
+
+  if (h > 15) {
     if ((frame / 15) % 2 == 0) {
       uint16_t c_dark = 0xA004; // Dark red/pink
-      _rtft->fillRect(80 - 10, y + h/2 - 10, 20, 20, c_dark);
-      _rtft->fillRect(160 - 10, y + h/2 - 10, 20, 20, c_dark);
+      _rtft->fillRect(80 - 10, y + h / 2 - 10, 20, 20, c_dark);
+      _rtft->fillRect(160 - 10, y + h / 2 - 10, 20, 20, c_dark);
     }
   }
-  
+
   // Solid crescent smile
   _rtft->fillCircle(120, 155, 12, C_LOVE);
   _rtft->fillCircle(120, 151, 12, C_BG);
-  
-  if(frame % 10 < 5) {
+
+  if (frame % 10 < 5) {
     _rtft->fillRect(40, 60, 4, 4, C_LOVE);
     _rtft->fillRect(196, 60, 4, 4, C_LOVE);
   }
@@ -282,21 +282,21 @@ static void draw_face_love(int frame) {
 
 static void draw_face_startup(int frame) {
   int h = (int)(36 * anim_blink_scale);
-  int y = 90 + (36 - h)/2;
-  
-  if(h > 20) {
+  int y = 90 + (36 - h) / 2;
+
+  if (h > 20) {
     _rtft->fillRect(60, y, 40, 8, C_STARTUP);
-    _rtft->fillRect(60, y+14, 40, 8, C_STARTUP);
-    _rtft->fillRect(60, y+28, 40, 8, C_STARTUP);
-    
+    _rtft->fillRect(60, y + 14, 40, 8, C_STARTUP);
+    _rtft->fillRect(60, y + 28, 40, 8, C_STARTUP);
+
     _rtft->fillRect(140, y, 40, 8, C_STARTUP);
-    _rtft->fillRect(140, y+14, 40, 8, C_STARTUP);
-    _rtft->fillRect(140, y+28, 40, 8, C_STARTUP);
+    _rtft->fillRect(140, y + 14, 40, 8, C_STARTUP);
+    _rtft->fillRect(140, y + 28, 40, 8, C_STARTUP);
   } else {
     _rtft->fillRect(60, y, 40, h, C_STARTUP);
     _rtft->fillRect(140, y, 40, h, C_STARTUP);
   }
-  
+
   // Progress bar mouth
   _rtft->fillRect(80, 160, 80, 8, 0x0328); // Dark cyan
   int prog = (frame % 20) * 4;
@@ -305,19 +305,19 @@ static void draw_face_startup(int frame) {
 
 static void draw_face_surprised(int frame) {
   int h = (int)(50 * anim_blink_scale);
-  int y = 84 + (50 - h)/2;
-  
-  if(h > 30) {
-    _rtft->fillCircle(80, y + h/2, h/2, C_SURPRISED);
-    _rtft->fillCircle(160, y + h/2, h/2, C_SURPRISED);
-    
-    _rtft->fillCircle(80, y + h/2, 8, C_BLACK);
-    _rtft->fillCircle(160, y + h/2, 8, C_BLACK);
+  int y = 84 + (50 - h) / 2;
+
+  if (h > 30) {
+    _rtft->fillCircle(80, y + h / 2, h / 2, C_SURPRISED);
+    _rtft->fillCircle(160, y + h / 2, h / 2, C_SURPRISED);
+
+    _rtft->fillCircle(80, y + h / 2, 8, C_BLACK);
+    _rtft->fillCircle(160, y + h / 2, 8, C_BLACK);
   } else {
     _rtft->fillRoundRect(55, y, 50, h, 8, C_SURPRISED);
     _rtft->fillRoundRect(135, y, 50, h, 8, C_SURPRISED);
   }
-  
+
   _rtft->fillCircle(120, 164, 12, C_EXCITED);
   _rtft->fillCircle(120, 164, 6, C_BG);
 }
@@ -344,14 +344,14 @@ static FaceDrawFn face_fns[FACE_COUNT] = {
 // ================================================================
 static void draw_status_bar() {
   _rtft->fillRect(0, 200, TFT_W, 40, C_BG);
-  
+
   if (strlen(pc_status) > 0) {
     _rtft->setTextColor(0x7BEF); // Light grey
     _rtft->setTextSize(1);
-    _rtft->setCursor((TFT_W - strlen(pc_status)*6) / 2, 206);
+    _rtft->setCursor((TFT_W - strlen(pc_status) * 6) / 2, 206);
     _rtft->print(pc_status);
   }
-  
+
   if (strlen(pc_app) > 0) {
     _rtft->setTextColor(0x4208); // Dark grey
     _rtft->setCursor(4, 222);
@@ -362,65 +362,60 @@ static void draw_status_bar() {
 // ================================================================
 //  SERIAL PARSER
 // ================================================================
-static void pet_parse_serial() {
-  while (Serial.available()) {
-    String line = Serial.readStringUntil('\n');
-    line.trim();
+static void pet_handle_command(String line) {
+  line.trim();
 
-    if (line.startsWith("FACE:")) {
-      String faceStr = line.substring(5);
-      const char* names[] = {
-        "IDLE","HAPPY","EXCITED","SLEEPY","THINKING",
-        "SAD_ERROR","ALERT_WARNING","LOVE_BONDING",
-        "STARTUP_BOOT","SURPRISED"
-      };
-      for (int i = 0; i < FACE_COUNT; i++) {
-        if (faceStr == names[i]) {
-          if (face_current != (RobotFace)i) {
-            face_current = (RobotFace)i;
-            face_dirty   = true;
-            last_active_ms = millis();
+  if (line.startsWith("FACE:")) {
+    String faceStr = line.substring(5);
+    const char* names[] = {
+      "IDLE", "HAPPY", "EXCITED", "SLEEPY", "THINKING",
+      "SAD_ERROR", "ALERT_WARNING", "LOVE_BONDING",
+      "STARTUP_BOOT", "SURPRISED"
+    };
+    for (int i = 0; i < FACE_COUNT; i++) {
+      if (faceStr == names[i]) {
+        if (face_current != (RobotFace)i) {
+          face_current = (RobotFace)i;
+          face_dirty   = true;
+          last_active_ms = millis();
+        }
+        break;
+      }
+    }
+  } else if (line.startsWith("STATUS:")) {
+    strncpy(pc_status, line.substring(7).c_str(), sizeof(pc_status) - 1);
+    face_dirty = true;
+  } else if (line.startsWith("APP:")) {
+    strncpy(pc_app, line.substring(4).c_str(), sizeof(pc_app) - 1);
+    face_dirty = true;
+  } else if (line.startsWith("PARTICLE:")) {
+    String pType = line.substring(9);
+    ParticleType pt = PT_NONE;
+    if (pType == "MUSIC") pt = PT_MUSIC;
+    else if (pType == "SWEAT") pt = PT_SWEAT;
+    else if (pType == "HEART") pt = PT_HEART;
+
+    if (pt != PT_NONE) {
+      for (int i = 0; i < MAX_PARTICLES; i++) {
+        if (active_particles[i].type == PT_NONE || active_particles[i].life <= 0) {
+          active_particles[i].type = pt;
+          active_particles[i].life = 1.0f;
+          if (pt == PT_MUSIC) {
+            active_particles[i].x = random(30, 210);
+            active_particles[i].y = 160;
+            active_particles[i].color = 0x07FF; // Cyan
+          } else if (pt == PT_SWEAT) {
+            active_particles[i].x = random(180, 210);
+            active_particles[i].y = 50;
+            active_particles[i].color = 0x05FF; // Blue
+          } else if (pt == PT_HEART) {
+            active_particles[i].x = random(30, 210);
+            active_particles[i].y = 150;
+            active_particles[i].color = C_LOVE;
           }
           break;
         }
       }
-    } else if (line.startsWith("STATUS:")) {
-      strncpy(pc_status, line.substring(7).c_str(), sizeof(pc_status)-1);
-      face_dirty = true;
-    } else if (line.startsWith("APP:")) {
-      strncpy(pc_app, line.substring(4).c_str(), sizeof(pc_app)-1);
-      face_dirty = true;
-    } else if (line.startsWith("PARTICLE:")) {
-      String pType = line.substring(9);
-      ParticleType pt = PT_NONE;
-      if (pType == "MUSIC") pt = PT_MUSIC;
-      else if (pType == "SWEAT") pt = PT_SWEAT;
-      else if (pType == "HEART") pt = PT_HEART;
-      
-      if (pt != PT_NONE) {
-        for (int i=0; i<MAX_PARTICLES; i++) {
-          if (active_particles[i].type == PT_NONE || active_particles[i].life <= 0) {
-            active_particles[i].type = pt;
-            active_particles[i].life = 1.0f;
-            if (pt == PT_MUSIC) {
-               active_particles[i].x = random(30, 210);
-               active_particles[i].y = 160;
-               active_particles[i].color = 0x07FF; // Cyan
-            } else if (pt == PT_SWEAT) {
-               active_particles[i].x = random(180, 210);
-               active_particles[i].y = 50;
-               active_particles[i].color = 0x05FF; // Blue
-            } else if (pt == PT_HEART) {
-               active_particles[i].x = random(30, 210);
-               active_particles[i].y = 150;
-               active_particles[i].color = C_LOVE;
-            }
-            break;
-          }
-        }
-      }
-    } else if (line.startsWith("PING")) {
-      Serial.println("{\"pong\":1}");
     }
   }
 }
@@ -438,16 +433,16 @@ void pet_setup(TFT_eSPI* tft) {
   anim_is_blinking = false;
   anim_blink_next  = millis() + 3000;
   anim_look_next   = millis() + 2000;
-  
+
   memset(pc_status, 0, sizeof(pc_status));
   memset(pc_app,    0, sizeof(pc_app));
-  for(int i=0; i<MAX_PARTICLES; i++) {
+  for (int i = 0; i < MAX_PARTICLES; i++) {
     active_particles[i].type = PT_NONE;
     active_particles[i].life = 0;
   }
 
   _rtft->fillScreen(C_BG);
-  
+
   Serial.begin(115200);
   Serial.println("{\"ready\":1,\"mode\":\"pet\"}");
 }
@@ -466,17 +461,15 @@ void pet_core1_task() {
   uint32_t now = millis();
   frame++;
 
-  pet_parse_serial();
-  
   // ── Animation Logic ───────────────────────────────────────────
   bool anim_changed = false;
-  
+
   // Blinking physics
   if (now > anim_blink_next && !anim_is_blinking) {
     anim_is_blinking = true;
     anim_blink_scale = 1.0f;
   }
-  
+
   if (anim_is_blinking) {
     // Snap close, ease open
     if (anim_blink_scale > 0.1f && frame % 2 == 0) {
@@ -484,14 +477,14 @@ void pet_core1_task() {
     } else if (anim_blink_scale <= 0.1f) {
       anim_blink_scale = 0.0f;
     }
-    
+
     // If closed, start opening
     if (anim_blink_scale <= 0.0f && frame % 3 == 0) {
       anim_blink_scale = 0.1f; // start open
     } else if (anim_blink_scale > 0.0f && anim_blink_scale < 1.0f) {
       anim_blink_scale += 0.2f; // open slower
     }
-    
+
     if (anim_blink_scale >= 1.0f) {
       anim_blink_scale = 1.0f;
       anim_is_blinking = false;
@@ -499,7 +492,7 @@ void pet_core1_task() {
     }
     anim_changed = true;
   }
-  
+
   // Look around (Idle/Thinking only)
   if (now > anim_look_next) {
     if (face_current == FACE_IDLE || face_current == FACE_THINKING) {
@@ -520,13 +513,13 @@ void pet_core1_task() {
   }
 
   // ── Render ────────────────────────────────────────────────────
-  bool needs_anim = (face_current == FACE_EXCITED || face_current == FACE_SAD || 
+  bool needs_anim = (face_current == FACE_EXCITED || face_current == FACE_SAD ||
                      face_current == FACE_STARTUP || face_current == FACE_THINKING ||
                      face_current == FACE_LOVE    || face_current == FACE_SLEEPY);
-                     
+
   bool has_particles = false;
-  for(int i=0; i<MAX_PARTICLES; i++) {
-    if(active_particles[i].type != PT_NONE && active_particles[i].life > 0) {
+  for (int i = 0; i < MAX_PARTICLES; i++) {
+    if (active_particles[i].type != PT_NONE && active_particles[i].life > 0) {
       has_particles = true;
       break;
     }
@@ -534,39 +527,39 @@ void pet_core1_task() {
 
   if (face_dirty || face_current != face_last || anim_changed || has_particles || (needs_anim && frame % 3 == 0)) {
     // Overdraw background to erase previous frame
-    _rtft->fillRect(0, 40, TFT_W, 160, C_BG); 
-    
+    _rtft->fillRect(0, 40, TFT_W, 160, C_BG);
+
     face_dirty = false;
     face_last = face_current;
-    
+
     if (face_current < FACE_COUNT) {
       face_fns[face_current](frame);
     }
-    
+
     // Draw particles over face
     if (has_particles) {
-      for(int i=0; i<MAX_PARTICLES; i++) {
-        if(active_particles[i].type != PT_NONE && active_particles[i].life > 0) {
-           active_particles[i].life -= 0.05f; // decay
-           
-           if (active_particles[i].type == PT_MUSIC) {
-              active_particles[i].y -= 2.0f; // float up
-              draw_music_note((int)active_particles[i].x, (int)active_particles[i].y, active_particles[i].color);
-           } else if (active_particles[i].type == PT_SWEAT) {
-              active_particles[i].y += 3.0f; // slide down
-              draw_sweat((int)active_particles[i].x, (int)active_particles[i].y, active_particles[i].color);
-           } else if (active_particles[i].type == PT_HEART) {
-              active_particles[i].y -= 2.0f; // float up
-              draw_heart((int)active_particles[i].x, (int)active_particles[i].y, 14, active_particles[i].color);
-           }
-           
-           if(active_particles[i].life <= 0) {
-              active_particles[i].type = PT_NONE;
-           }
+      for (int i = 0; i < MAX_PARTICLES; i++) {
+        if (active_particles[i].type != PT_NONE && active_particles[i].life > 0) {
+          active_particles[i].life -= 0.05f; // decay
+
+          if (active_particles[i].type == PT_MUSIC) {
+            active_particles[i].y -= 2.0f; // float up
+            draw_music_note((int)active_particles[i].x, (int)active_particles[i].y, active_particles[i].color);
+          } else if (active_particles[i].type == PT_SWEAT) {
+            active_particles[i].y += 3.0f; // slide down
+            draw_sweat((int)active_particles[i].x, (int)active_particles[i].y, active_particles[i].color);
+          } else if (active_particles[i].type == PT_HEART) {
+            active_particles[i].y -= 2.0f; // float up
+            draw_heart((int)active_particles[i].x, (int)active_particles[i].y, 14, active_particles[i].color);
+          }
+
+          if (active_particles[i].life <= 0) {
+            active_particles[i].type = PT_NONE;
+          }
         }
       }
     }
-    
+
     // Only redraw status bar if it was dirty
     if (anim_changed == false || frame % 15 == 0) {
       draw_status_bar();

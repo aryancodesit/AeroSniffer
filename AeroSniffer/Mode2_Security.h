@@ -136,10 +136,7 @@ static void sec_hop_channel() {
 //  SERIAL COMMAND PROTOCOL  (CMD → RES / EVT)
 //  Used by the companion web app over USB Serial
 // ================================================================
-static void sec_handle_serial() {
-  if (!Serial.available()) return;
-
-  String line = Serial.readStringUntil('\n');
+static void security_handle_command(String line) {
   line.trim();
   if (!line.startsWith("CMD:")) return;
   String cmd = line.substring(4);
@@ -532,8 +529,7 @@ void security_core1_task() {
   // Handle web clients
   if (_webserver) _webserver->handleClient();
 
-  // Handle serial commands from companion app
-  sec_handle_serial();
+  // Handle serial commands from companion app (routed globally now)
 
   // Stream async events
   sec_stream_events();
@@ -554,6 +550,10 @@ void security_core1_task() {
 //  DEVKITC — ORIGINAL SECURITY INTEGRATION WRAPPER
 // ================================================================
 #elif defined(HW_DEVKITC)
+
+static void security_handle_command(String line) {
+  // Legacy / DevKitC target command handler - no-op
+}
 
 extern void security_engine_setup(TFT_eSPI* tft) __attribute__((weak));
 extern void security_engine_loop() __attribute__((weak));

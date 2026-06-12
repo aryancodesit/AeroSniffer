@@ -53,9 +53,9 @@ arduino-cli lib install "AnimatedGIF"
 echo.
 echo [>] Copying TFT_eSPI User_Setup.h...
 set LIB_PATH=%USERPROFILE%\Documents\Arduino\libraries\TFT_eSPI\User_Setup.h
-if exist MultiBoot_DeskGadget\TFT_eSPI_UserSetup.h (
+if exist AeroSniffer\TFT_eSPI_UserSetup.h (
   if exist "%USERPROFILE%\Documents\Arduino\libraries\TFT_eSPI\" (
-    copy /Y "MultiBoot_DeskGadget\TFT_eSPI_UserSetup.h" "%LIB_PATH%"
+    copy /Y "AeroSniffer\TFT_eSPI_UserSetup.h" "%LIB_PATH%"
     echo [OK] Copied to %LIB_PATH%
   )
 )
@@ -64,7 +64,7 @@ echo.
 echo ====================================================
 echo [OK] All done!
 echo.
-echo Next: Edit MultiBoot_DeskGadget\Config.h
+echo Next: Edit AeroSniffer\Config.h
 echo       Set your WIFI_SSID and WIFI_PASSWORD
 echo       Then open the .ino in Arduino IDE and flash.
 echo ====================================================

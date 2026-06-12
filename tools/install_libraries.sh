@@ -57,7 +57,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "✅  All libraries installed."
 echo ""
 echo "⚠️  IMPORTANT — Final manual step:"
-echo "    Copy MultiBoot_DeskGadget/TFT_eSPI_UserSetup.h"
+echo "    Copy AeroSniffer/TFT_eSPI_UserSetup.h"
 echo "    into your Arduino libraries folder:"
 echo ""
 
@@ -72,15 +72,15 @@ echo "    $LIB_PATH"
 echo ""
 
 # Auto-copy if path exists
-if [ -f "MultiBoot_DeskGadget/TFT_eSPI_UserSetup.h" ]; then
+if [ -f "AeroSniffer/TFT_eSPI_UserSetup.h" ]; then
   LIB_DIR=$(dirname "$LIB_PATH")
   if [ -d "$LIB_DIR" ]; then
-    cp MultiBoot_DeskGadget/TFT_eSPI_UserSetup.h "$LIB_PATH"
+    cp AeroSniffer/TFT_eSPI_UserSetup.h "$LIB_PATH"
     echo "    ✅  Auto-copied TFT_eSPI_UserSetup.h → User_Setup.h"
   fi
 fi
 
 echo ""
-echo "Next step: Edit MultiBoot_DeskGadget/Config.h with your WiFi credentials."
-echo "Then open MultiBoot_DeskGadget/MultiBoot_DeskGadget.ino in Arduino IDE."
+echo "Next step: Edit AeroSniffer/Config.h with your WiFi credentials."
+echo "Then open AeroSniffer/AeroSniffer.ino in Arduino IDE."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
