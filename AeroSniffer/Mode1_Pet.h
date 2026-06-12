@@ -51,6 +51,7 @@ static RobotFace face_current    = FACE_IDLE;
 static RobotFace face_last       = FACE_COUNT;
 static uint32_t  last_active_ms  = 0;
 static bool      face_dirty      = true;
+static uint32_t  _manual_face_override_ms = 0;
 
 // ── Animation state ───────────────────────────────────────────────
 static float     anim_blink_scale = 1.0f; // 1.0 = open, 0.0 = closed
@@ -364,8 +365,17 @@ static void draw_status_bar() {
 // ================================================================
 static void pet_handle_command(String line) {
   line.trim();
+  if (line.startsWith("CMD:")) {
+    line = line.substring(4);
+  }
+
+  // Any command received from serial counts as user activity to keep pet awake
+  last_active_ms = millis();
 
   if (line.startsWith("FACE:")) {
+    if (millis() < _manual_face_override_ms) {
+      return; // Ignore PC agent during manual override preview
+    }
     String faceStr = line.substring(5);
     const char* names[] = {
       "IDLE", "HAPPY", "EXCITED", "SLEEPY", "THINKING",
@@ -460,6 +470,19 @@ void pet_core1_task() {
   static int frame = 0;
   uint32_t now = millis();
   frame++;
+
+  // Handle capacitive touch interaction — cycle through faces on single tap
+  extern volatile bool g_touch_tap;
+  if (g_touch_tap) {
+    g_touch_tap = false;
+    face_current = (RobotFace)((face_current + 1) % FACE_COUNT);
+    if (face_current == FACE_STARTUP) {
+      face_current = (RobotFace)((face_current + 1) % FACE_COUNT); // Skip boot animation
+    }
+    face_dirty = true;
+    last_active_ms = now;
+    _manual_face_override_ms = now + 8000; // Lock manual selection for 8 seconds
+  }
 
   // ── Animation Logic ───────────────────────────────────────────
   bool anim_changed = false;

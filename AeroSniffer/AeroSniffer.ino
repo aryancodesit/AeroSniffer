@@ -80,8 +80,16 @@ static bool     _touch_active  = false;
 static uint32_t _touch_last_change = 0;
 
 static void poll_touch_input() {
-  bool pressed = (digitalRead(TOUCH_PIN) == LOW);
+  bool pressed = (digitalRead(TOUCH_PIN) == HIGH);
   uint32_t now = millis();
+
+  // Debug print every 1000ms to see touch pin status
+  static uint32_t last_debug = 0;
+  if (now - last_debug > 1000) {
+    last_debug = now;
+    Serial.printf("[DEBUG] Touch pin %d reads: %d (%s)\n", 
+                  TOUCH_PIN, digitalRead(TOUCH_PIN), pressed ? "PRESSED" : "IDLE");
+  }
 
   // Debounce: ignore state changes within TOUCH_DEBOUNCE_MS
   if (pressed != _touch_active) {
@@ -104,7 +112,7 @@ static void poll_touch_input() {
       // LONG PRESS → Switch mode
       g_mode       = (g_mode + 1) % TOTAL_MODES;
       g_mode_dirty = true;
-    } else if (duration > 50) {
+    } else if (duration > 20) {
       // SHORT TAP → Context interaction (pet pat, etc.)
       g_touch_tap = true;
     }
@@ -402,7 +410,7 @@ void setup() {
 
   // ── TFT init ──────────────────────────────────────────────────
   tft.init();
-  tft.setRotation(0);        // Portrait — adjust 0-3 for your mount
+  tft.setRotation(1);        // Rotate 90 degrees clockwise to make upright
   tft.fillScreen(TFT_BLACK);
 
   // ── Load Mode & Settings ───────────────────────────────────────────
@@ -434,8 +442,8 @@ void setup() {
 
   // ── Input setup ───────────────────────────────────────────────
   #if HAS_TOUCH
-    // Capacitive touch — digital input with pull-up
-    pinMode(TOUCH_PIN, INPUT_PULLUP);
+    // Capacitive touch — digital input with pull-down
+    pinMode(TOUCH_PIN, INPUT_PULLDOWN);
     Serial.println("[INPUT] Capacitive touch on GPIO " + String(TOUCH_PIN));
     Serial.println("[INPUT] Short tap = interact | Long press = mode switch");
   #endif

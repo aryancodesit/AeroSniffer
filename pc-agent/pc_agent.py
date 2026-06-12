@@ -447,8 +447,13 @@ class MoodEngine:
         
         self.last_face   = None
         self.last_app    = ""
+        self.last_status = None
         self.last_update = time.time()
         self.last_particle_time = 0
+        self.notif_alert_until  = 0.0
+        self.notif_app_name     = ""
+        self.override_face      = None
+        self.last_battery_state = None
 
     def update(self, window_title: str, typing: bool, sys_mon: SystemMonitor):
         now = time.time()
@@ -494,16 +499,40 @@ class MoodEngine:
             self.energy -= dt * 2.0
             self.happiness -= dt * 2.0
 
+        # Detect battery charger changes (plug in / out)
+        if self.last_battery_state is not None and bat != self.last_battery_state:
+            # Charger plugged in
+            if bat in ("BAT_CHARGING", "BAT_FULL") and self.last_battery_state not in ("BAT_CHARGING", "BAT_FULL"):
+                self.notif_alert_until = now + 5.0
+                self.notif_app_name = "Charger Connected"
+                self.override_face = "EXCITED"
+            # Charger unplugged
+            elif self.last_battery_state in ("BAT_CHARGING", "BAT_FULL") and bat not in ("BAT_CHARGING", "BAT_FULL"):
+                self.notif_alert_until = now + 5.0
+                self.notif_app_name = "Charger Disconnected"
+                self.override_face = "SURPRISED"
+        self.last_battery_state = bat
+
         # Clamp stats 0-100
         self.happiness = max(0, min(100, self.happiness))
         self.energy = max(0, min(100, self.energy))
         self.focus = max(0, min(100, self.focus))
 
-        # ── Determine Face based on Stats ──────────────────
+        # ── Determine Face based on Stats & Active App ─────
         new_face = "IDLE"
         reason = "balanced"
+
+        # Check if active app has a mapped face
+        app_face = None
+        for keyword, face in CONFIG["app_faces"].items():
+            if keyword in title_lower:
+                app_face = face
+                break
         
-        if self.energy < 20:
+        if now < self.notif_alert_until:
+            new_face = self.override_face if self.override_face else "ALERT_WARNING"
+            reason = f"override: {self.notif_app_name}"
+        elif self.energy < 20:
             new_face = "SLEEPY"
             reason = f"energy={self.energy:.0f}"
         elif bat == "BAT_LOW":
@@ -513,11 +542,14 @@ class MoodEngine:
             new_face = "ALERT_WARNING"
             reason = "cpu panic"
         elif self.focus > 80:
-            new_face = "THINKING"  # Repurposed as Focused
+            new_face = "THINKING"
             reason = f"focus={self.focus:.0f}"
         elif self.happiness > 80:
             new_face = "LOVE_BONDING"
             reason = f"happy={self.happiness:.0f}"
+        elif app_face:
+            new_face = app_face
+            reason = f"app: {short_app}"
         elif is_gaming:
             new_face = "EXCITED"
             reason = "gaming mode"
@@ -537,15 +569,25 @@ class MoodEngine:
                 self.serial.send("PARTICLE:HEART")
                 self.last_particle_time = now
 
+        # ── Determine Status ───────────────────────────────
+        status = CONFIG["face_status"].get(new_face, "")
+        if now < self.notif_alert_until:
+            status = self.notif_app_name
+        elif bat == "BAT_CHARGING":
+            status = "Charging..."
+        elif bat == "BAT_FULL":
+            status = "Fully Charged!"
+
         # ── Send to ESP32 ──────────────────────────────────
         if new_face != self.last_face:
             log(f"  stats → H:{self.happiness:.0f} E:{self.energy:.0f} F:{self.focus:.0f}", DIM)
             log_face(new_face, reason)
-            status = CONFIG["face_status"].get(new_face, "")
             self.serial.send(f"FACE:{new_face}")
-            if status:
-                self.serial.send(f"STATUS:{status}")
             self.last_face = new_face
+            
+        if status != self.last_status:
+            self.serial.send(f"STATUS:{status}")
+            self.last_status = status
             
         if short_app != self.last_app:
             self.serial.send(f"APP:{short_app}")
@@ -575,8 +617,9 @@ class NotificationWatcher:
         "whatsapp", "discord"
     ]
 
-    def __init__(self, serial_mgr: SerialManager):
+    def __init__(self, serial_mgr: SerialManager, mood_engine: MoodEngine):
         self.serial = serial_mgr
+        self.mood = mood_engine
         self._known = set()
 
     def check(self):
@@ -588,8 +631,11 @@ class NotificationWatcher:
         for proc in new_procs:
             for keyword in self.ALERT_PROCS:
                 if keyword in proc:
+                    app_name = proc.replace(".exe", "").title()
                     log(f"Notification process: {proc}", YELLOW)
-                    # Don't override — just announce
+                    self.mood.notif_alert_until = time.time() + 8.0
+                    self.mood.notif_app_name = app_name
+                    self.mood.override_face = "ALERT_WARNING"
                     break
 
 # ==============================================================
@@ -606,7 +652,7 @@ class PCAgent:
         self.kbd_mon    = KeyboardMonitor()
         self.sys_mon    = SystemMonitor()
         self.mood_engine = MoodEngine(self.serial)
-        self.notif_mon  = NotificationWatcher(self.serial)
+        self.notif_mon  = NotificationWatcher(self.serial, self.mood_engine)
         self._running   = False
 
         # Start keyboard listener

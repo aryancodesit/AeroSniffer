@@ -38,9 +38,9 @@
 // ── SPI Pin Mapping (XIAO ESP32S3 hardware SPI) ────────────────
 #define TFT_MOSI     9      // D10 → GPIO 9
 #define TFT_SCLK     7      // D8  → GPIO 7
-#define TFT_CS       4      // D3  → GPIO 4
+#define TFT_CS      -1      // No CS pin (display has no CS pin)
 #define TFT_DC       3      // D2  → GPIO 3
-#define TFT_RST      8      // D9  → GPIO 8
+#define TFT_RST      4      // D3  → GPIO 4
 
 // Backlight is wired to VCC on DeskBuddy carrier — always on
 // No BL pin defined (saves a GPIO)
@@ -90,7 +90,7 @@
 // ── SPI Bus Speed ────────────────────────────────────────────────
 // ESP32-S3 can sustain 80 MHz on SPI2; 40 MHz is a safe default.
 // Increase to 80000000 if you see no display glitches.
-#define SPI_FREQUENCY        40000000
+#define SPI_FREQUENCY        27000000
 #define SPI_READ_FREQUENCY   20000000
 #define SPI_TOUCH_FREQUENCY   2500000
 
@@ -103,3 +103,8 @@
 // ── Transactions ─────────────────────────────────────────────────
 // Enables SPI transaction support — required for ESP32 multi-device SPI
 #define SUPPORT_TRANSACTIONS
+
+// ── SPI Port Selection ───────────────────────────────────────────
+// ESP32-S3 does not have VSPI (SPI3) registers. Defining this forces
+// the library to use HSPI (SPI2) to prevent a StoreProhibited crash.
+#define USE_HSPI_PORT

@@ -27,10 +27,10 @@
 //    XIAO ESP32S3 hardware SPI pins + 2 control GPIOs
 #define TFT_MOSI         9      // D10 → GPIO 9  (XIAO hardware SPI MOSI)
 #define TFT_SCLK         7      // D8  → GPIO 7  (XIAO hardware SPI SCK)
-#define TFT_CS           4      // D3  → GPIO 4
+#define TFT_CS          -1      // No CS pin (display has no CS pin)
 #define TFT_DC           3      // D2  → GPIO 3
-#define TFT_RST          8      // D9  → GPIO 8
-#define TFT_BL          -1      // Backlight always-on (wired to VCC on carrier)
+#define TFT_RST          4      // D3  → GPIO 4
+#define TFT_BL          -1      // Backlight always-on (wired to 3V3)
 
 // ── Display Resolution ───────────────────────────────────────────
 #define TFT_W           240
@@ -38,8 +38,8 @@
 
 // ── Capacitive Touch Switch (DeskBuddy 2.0 Red Touch Module) ────
 //    Digital input: LOW when touched, HIGH when released
-#define TOUCH_PIN         1      // D0 → GPIO 1
-#define TOUCH_DEBOUNCE_MS 200    // Software debounce (ms)
+#define TOUCH_PIN        43      // D6 → GPIO 43
+#define TOUCH_DEBOUNCE_MS 30     // Software debounce (ms)
 
 // ── Mode-Select — Long-Press on Touch Sensor ────────────────────
 //    Short tap  (<1.5s) = pet interaction / context action
@@ -189,7 +189,7 @@ extern uint16_t sys_weather_color;
 
 // ── Security Mode Web UI (DeskBuddy 2.0) ────────────────────────
 #define SEC_AP_SSID    "AeroSniffer-SEC"
-#define SEC_AP_PASS    "sniff1234"
+#define SEC_AP_PASS    ""
 #define SEC_WEB_PORT   80
 
 // ── Aviation Mode Timings (Mode 3) ──────────────────────────────
