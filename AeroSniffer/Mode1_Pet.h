@@ -371,6 +371,7 @@ static void pet_handle_command(String line) {
 
   // Any command received from serial counts as user activity to keep pet awake
   last_active_ms = millis();
+  last_serial_rx_ms = millis();
 
   if (line.startsWith("FACE:")) {
     if (millis() < _manual_face_override_ms) {
@@ -461,8 +462,70 @@ void pet_teardown() {
   _rtft = nullptr;
 }
 
+static uint32_t last_serial_rx_ms = 0;
+static uint32_t last_standalone_weather_fetch = 0;
+
+static void pet_fetch_standalone_weather() {
+  if (sys_wifi_ssid.length() == 0 || sys_wifi_ssid == "YOUR_WIFI_SSID") return;
+
+  g_block_touch = true;
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(sys_wifi_ssid.c_str(), sys_wifi_pass.c_str());
+
+  int tries = 0;
+  while (WiFi.status() != WL_CONNECTED && tries < 20) {
+    vTaskDelay(pdMS_TO_TICKS(500));
+    tries++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    configTime(19800, 0, "pool.ntp.org", "time.nist.gov"); // IST (UTC+5:30)
+
+    struct tm timeinfo;
+    int ntp_tries = 0;
+    while (!getLocalTime(&timeinfo) && ntp_tries < 6) {
+      vTaskDelay(pdMS_TO_TICKS(500));
+      ntp_tries++;
+    }
+
+    HTTPClient http;
+    http.begin("http://wttr.in/Nalco,Angul?format=%c%t");
+    http.setTimeout(8000);
+    int httpCode = http.GET();
+    if (httpCode == 200) {
+      String payload = http.getString();
+      payload.replace("+", " ");
+      payload.trim();
+      if (payload.length() > 0 && payload.length() < 24) {
+        char time_str[12] = "";
+        if (getLocalTime(&timeinfo)) {
+          strftime(time_str, sizeof(time_str), "%H:%M", &timeinfo);
+          snprintf(pc_status, sizeof(pc_status), "%s | %s", time_str, payload.c_str());
+        } else {
+          snprintf(pc_status, sizeof(pc_status), "%s", payload.c_str());
+        }
+        strncpy(pc_app, "Wireless Mode", sizeof(pc_app) - 1);
+      }
+    }
+    http.end();
+  }
+
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  g_block_touch = false;
+  face_dirty = true;
+}
+
 void pet_core0_task() {
-  vTaskDelay(pdMS_TO_TICKS(50));
+  uint32_t now = millis();
+  if (now - last_serial_rx_ms > 15000) {
+    if (last_standalone_weather_fetch == 0 || now - last_standalone_weather_fetch > 900000) {
+      last_standalone_weather_fetch = now;
+      pet_fetch_standalone_weather();
+    }
+  }
+  vTaskDelay(pdMS_TO_TICKS(1000));
 }
 
 void pet_core1_task() {

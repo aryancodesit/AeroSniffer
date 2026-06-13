@@ -48,6 +48,7 @@ uint16_t sys_weather_color;
 
 // ── State machine ────────────────────────────────────────────────
 volatile uint8_t  g_mode       = 0;      // 0=Pet  1=Security  2=Aviation
+volatile uint8_t  g_active_mode = 0;
 volatile bool     g_mode_dirty = false;  // Set by ISR/touch, consumed by Core 1
 volatile uint32_t g_last_btn   = 0;      // Debounce timestamp
 
@@ -384,8 +385,7 @@ void task_core1(void*) {
     if (g_mode_dirty) {
       g_mode_dirty  = false;
       prefs.putUInt("mode", g_mode);
-      uint8_t prev  = (g_mode + TOTAL_MODES - 1) % TOTAL_MODES;
-      teardown_mode(prev);
+      teardown_mode(g_active_mode);
 
       // Mode transition splash
       tft.fillScreen(TFT_BLACK);
@@ -398,6 +398,7 @@ void task_core1(void*) {
       tft.print(mnames[g_mode]);
       delay(600);
 
+      g_active_mode = g_mode;
       setup_mode(g_mode);
     }
 

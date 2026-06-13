@@ -213,7 +213,7 @@ function Index() {
           {mode === 1 && <LiveRadarPanel />}
           {mode === 2 && <FlightPanel />}
           {mode === 0 && <PetPanel />}
-          {mode === 3 && <PayloadPanel />}
+          {mode === 3 && <PayloadPanel isConnected={isConnected} />}
           {mode === 4 && <TutorialPanel />}
         </section>
 
@@ -847,7 +847,8 @@ function PetPanel() {
   );
 }
 
-function PayloadPanel() {
+function PayloadPanel({ isConnected }: { isConnected: boolean }) {
+  const [runningAttack, setRunningAttack] = useState<string | null>(null);
   const attacks = [
     {
       name: "Beacon Spam",
@@ -880,8 +881,13 @@ function PayloadPanel() {
               onClick={async () => {
                 if (isConnected) {
                   try {
-                    await serialAPI.sendCommand(`ATTACK:${atk.name.toUpperCase().replace(" ", "_")}`);
-                    alert(`Payload executed: ${atk.name}`);
+                    if (runningAttack === atk.name) {
+                      await serialAPI.sendCommand("ATTACK:STOP");
+                      setRunningAttack(null);
+                    } else {
+                      await serialAPI.sendCommand(`ATTACK:${atk.name.toUpperCase().replace(" ", "_")}`);
+                      setRunningAttack(atk.name);
+                    }
                   } catch (e) {
                     console.error("Payload failed", e);
                   }
@@ -890,9 +896,13 @@ function PayloadPanel() {
                 }
               }}
               className="w-full pixel-btn pixel-btn-ghost text-[9px] py-2"
-              style={{ color: "var(--as-orange)", borderColor: "var(--as-orange)" }}
+              style={
+                runningAttack === atk.name
+                  ? { color: "var(--as-pink)", borderColor: "var(--as-pink)", boxShadow: "0 0 10px var(--as-pink)" }
+                  : { color: "var(--as-orange)", borderColor: "var(--as-orange)" }
+              }
             >
-              EXECUTE PAYLOAD
+              {runningAttack === atk.name ? "STOP PAYLOAD" : "EXECUTE PAYLOAD"}
             </button>
           </div>
         ))}
