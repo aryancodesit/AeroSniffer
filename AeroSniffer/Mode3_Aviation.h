@@ -374,7 +374,9 @@ void aviation_core0_task() {
   uint32_t now = millis();
   if (now - last_fetch > FETCH_INTERVAL_MS) {
     last_fetch = now;
+    g_block_touch = true;
     avi_fetch_flights();
+    g_block_touch = false;
   }
   vTaskDelay(pdMS_TO_TICKS(500));
 }

@@ -347,6 +347,13 @@ static void security_handle_command(String line) {
     }
     Serial.println("RES:{\"ok\":true,\"action\":\"scan_stop\"}");
   }
+  else if (cmd.startsWith("ATTACK:")) {
+    String attack_type = cmd.substring(7);
+    pkt_deauth += 20; // Simulate a deauth burst to trigger red alert
+    _deauth_evt_pending = true;
+    snprintf(evil_twin_attacker_bssid, sizeof(evil_twin_attacker_bssid), "PAYLOAD:%s", attack_type.c_str());
+    Serial.printf("RES:{\"ok\":true,\"action\":\"attack\",\"type\":\"%s\"}\n", attack_type.c_str());
+  }
   else if (cmd.startsWith("SET_CH:")) {
     int ch = cmd.substring(7).toInt();
     if (ch >= 1 && ch <= 13) {
@@ -494,257 +501,511 @@ static void sec_stream_events() {
 
 // ── Web server routes ───────────────────────────────────────────
 static void sec_handle_root() {
-  String html = R"rawliteral(
-<!DOCTYPE html><html><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  String html = R"rawliteral(<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AeroSniffer // SOC</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#080b11;color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:20px;line-height:1.5}
-header{text-align:center;margin-bottom:24px;position:relative}
-h1{color:#00ffcc;font-size:1.8em;font-weight:700;letter-spacing:1px;display:flex;align-items:center;justify-content:center;gap:8px}
-.status-dot{width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block;animation:blink 1s infinite alternate}
-.status-dot.active{background:#00ffcc}
-@keyframes blink{from{opacity:0.3}to{opacity:1}}
-.nav-tabs{display:flex;overflow-x:auto;gap:8px;margin-bottom:20px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px}
-.tab-btn{background:transparent;border:none;color:#94a3b8;padding:8px 16px;font-size:0.95em;cursor:pointer;border-radius:6px;transition:all .2s;white-space:nowrap;font-family:inherit}
-.tab-btn:hover{color:#f1f5f9;background:rgba(255,255,255,0.05)}
-.tab-btn.active{color:#00ffcc;background:rgba(0,255,204,0.1);font-weight:bold}
-.tab-btn.ble-tab.active{color:#a855f7;background:rgba(168,85,247,0.1)}
-.tab-content{display:none}
-.tab-content.active{display:block}
-.card{background:rgba(20,27,45,0.75);border:1px solid rgba(30,58,95,0.5);border-radius:12px;padding:18px;margin-bottom:16px;backdrop-filter:blur(10px)}
-.card-title{color:#94a3b8;font-size:0.9em;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;font-weight:bold}
-.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
-.stat-card{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:12px;display:flex;flex-direction:column}
-.stat-label{font-size:0.8em;color:#64748b}
-.stat-value{font-size:1.4em;font-weight:bold;color:#f1f5f9;margin-top:4px;font-family:monospace}
-.stat-value.cyan{color:#00ffcc}
-.stat-value.purple{color:#a855f7}
-.stat-value.red{color:#ef4444}
-.btn{display:inline-block;padding:10px 18px;background:transparent;border:1px solid #00ffcc;color:#00ffcc;font-size:0.9em;font-weight:bold;border-radius:6px;cursor:pointer;transition:all .2s;text-align:center;font-family:inherit}
-.btn:hover{background:rgba(0,255,204,0.1)}
-.btn.danger{border-color:#ef4444;color:#ef4444}
-.btn.danger:hover{background:rgba(239,68,68,0.1)}
-.btn.action-btn{padding:4px 8px;font-size:0.8em}
-.btn-group{display:flex;gap:8px;margin-top:10px}
-.alarm-banner{display:none;background:rgba(239,68,68,0.15);border:2px solid #ef4444;border-radius:12px;padding:16px;text-align:center;margin-bottom:16px;animation:pulse 1.5s infinite alternate}
-@keyframes pulse{from{border-color:#ef4444;box-shadow:0 0 5px rgba(239,68,68,0.3)}to{border-color:#f87171;box-shadow:0 0 15px rgba(239,68,68,0.6)}}
-.alarm-title{color:#ef4444;font-size:1.3em;font-weight:bold;margin-bottom:6px}
-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:0.9em;text-align:left}
-th{color:#64748b;font-weight:bold;padding:8px;border-bottom:1px solid rgba(255,255,255,0.1)}
-td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.05);color:#e2e8f0;font-family:monospace}
-tr:hover td{background:rgba(255,255,255,0.02)}
-.scrollable-table{max-height:250px;overflow-y:auto}
-footer{text-align:center;color:#475569;font-size:0.8em;margin-top:30px}
-</style></head><body>
-<header>
-  <h1>🛡️ AeroSniffer // SOC</h1>
-  <div style="font-size:0.85em;color:#64748b;margin-top:4px">
-    Device Status: <span id="device-status-lbl">Idle</span>
-    <span class="status-dot" id="status-indicator"></span>
-  </div>
-</header>
-<div class="alarm-banner" id="evil-twin-banner">
-  <div class="alarm-title">⚠️ ROGUE ACCESS POINT DETECTED!</div>
-  <p id="alarm-details" style="font-size:0.9em;margin-bottom:12px;white-space:pre-line"></p>
-  <button class="btn danger action-btn" onclick="clearEvilTwinAlarm()">Dismiss / Reset Alarm</button>
-</div>
-<div class="nav-tabs">
-  <button class="tab-btn active" onclick="switchTab('tab-dashboard')">Dashboard</button>
-  <button class="tab-btn" onclick="switchTab('tab-twin')">Evil Twin Guard</button>
-  <button class="tab-btn" onclick="switchTab('tab-probes')">Probe Monitor</button>
-  <button class="tab-btn ble-tab" onclick="switchTab('tab-ble')">BLE Tracker Guard</button>
-</div>
-<div class="tab-content active" id="tab-dashboard">
-  <div class="card">
-    <div class="card-title">Console Controls</div>
-    <div class="btn-group">
-      <button class="btn" onclick="startScan()">▶ Start Wi-Fi Scan</button>
-      <button class="btn danger" onclick="stopScan()">■ Stop Wi-Fi Scan</button>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-title">Packet Capture Statistics</div>
-    <div class="stat-grid">
-      <div class="stat-card"><span class="stat-label">PPS</span><span class="stat-value cyan" id="stat-pps">0</span></div>
-      <div class="stat-card"><span class="stat-label">Total</span><span class="stat-value" id="stat-total">0</span></div>
-      <div class="stat-card"><span class="stat-label">Beacons</span><span class="stat-value" id="stat-beacons">0</span></div>
-      <div class="stat-card"><span class="stat-label">Probes</span><span class="stat-value" id="stat-probes">0</span></div>
-      <div class="stat-card"><span class="stat-label">Deauths</span><span class="stat-value red" id="stat-deauths">0</span></div>
-    </div>
-  </div>
-</div>
-<div class="tab-content" id="tab-twin">
-  <div class="card">
-    <div class="card-title">Active Protection Whitelist</div>
-    <div class="stat-grid" style="margin-bottom:12px">
-      <div class="stat-card"><span class="stat-label">Protected SSID</span><span class="stat-value cyan" id="protected-ssid-lbl">None</span></div>
-      <div class="stat-card"><span class="stat-label">Trusted BSSID</span><span class="stat-value" id="protected-bssid-lbl">00:00:00:00:00:00</span></div>
-    </div>
-    <p style="font-size:0.8em;color:#64748b">Select any detected Access Point from the list below to set it as your trusted protected network.</p>
-  </div>
-  <div class="card">
-    <div class="card-title">Detected Access Points</div>
-    <div class="scrollable-table">
-      <table>
-        <thead>
-          <tr>
-            <th>SSID</th>
-            <th>BSSID</th>
-            <th>Ch</th>
-            <th>RSSI</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody id="ap-list-body">
-          <tr><td colspan="5" style="text-align:center;color:#64748b">No networks detected yet. Start scanning.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-<div class="tab-content" id="tab-probes">
-  <div class="card">
-    <div class="card-title">Probe Request Leaks (Nearby Devices)</div>
-    <p style="font-size:0.8em;color:#64748b;margin-bottom:12px">Shows nearby devices (phones, tablets) broadcasting SSIDs of networks they have previously connected to.</p>
-    <div class="scrollable-table">
-      <table>
-        <thead>
-          <tr>
-            <th>Client MAC</th>
-            <th>Leaked Network SSID</th>
-            <th>Last Seen</th>
-          </tr>
-        </thead>
-        <tbody id="probe-list-body">
-          <tr><td colspan="3" style="text-align:center;color:#64748b">No probe requests captured yet.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-<div class="tab-content" id="tab-ble">
-  <div class="card" style="border-color:rgba(168,85,247,0.4)">
-    <div class="card-title" style="color:#a855f7">BLE Beacon Tracking</div>
-    <p style="font-size:0.8em;color:#64748b;margin-bottom:12px">Scans for proximity signals matching commercial stalker tags (AirTags, Tiles, Samsung SmartTags).</p>
-    <div class="scrollable-table">
-      <table>
-        <thead>
-          <tr>
-            <th>Tracker Type</th>
-            <th>Bluetooth Address</th>
-            <th>Last RSSI</th>
-            <th>Last Seen</th>
-            <th>Hits</th>
-          </tr>
-        </thead>
-        <tbody id="ble-list-body">
-          <tr><td colspan="5" style="text-align:center;color:#64748b">No tracker beacons detected yet.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-<footer>AeroSniffer v2.0 | DeskBuddy 2.0 SOC</footer>
-<script>
-function switchTab(tabId){
-  document.querySelectorAll('.tab-btn').forEach(btn=>btn.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(cont=>cont.classList.remove('active'));
-  const tabEl=document.getElementById(tabId);
-  tabEl.classList.add('active');
-  const buttons=document.querySelectorAll('.tab-btn');
-  if(tabId==='tab-dashboard')buttons[0].classList.add('active');
-  else if(tabId==='tab-twin')buttons[1].classList.add('active');
-  else if(tabId==='tab-probes')buttons[2].classList.add('active');
-  else if(tabId==='tab-ble')buttons[3].classList.add('active');
-  loadTabData(tabId);
-}
-function startScan(){fetch('/api/scan/start')}
-function stopScan(){fetch('/api/scan/stop')}
-function setProtected(ssid,bssid){
-  fetch(`/api/set_protected?ssid=${encodeURIComponent(ssid)}&bssid=${encodeURIComponent(bssid)}`).then(()=>alert(`Protected target set: ${ssid}`));
-}
-function clearEvilTwinAlarm(){fetch('/api/clear_evil_twin')}
-function loadTabData(tabId){
-  if(tabId==='tab-twin'){
-    fetch('/api/aps').then(r=>r.json()).then(d=>{
-      let html='';
-      if(!d.aps||d.aps.length===0){
-        html='<tr><td colspan="5" style="text-align:center;color:#64748b">No networks detected yet.</td></tr>';
-      }else{
-        d.aps.forEach(ap=>{
-          html+=`<tr>
-            <td>${ap.ssid||'<i>Hidden SSID</i>'}</td>
-            <td>${ap.bssid}</td>
-            <td>${ap.ch}</td>
-            <td>${ap.rssi} dBm</td>
-            <td><button class="btn action-btn" onclick="setProtected('${ap.ssid}','${ap.bssid}')">Protect</button></td>
-          </tr>`;
-        });
-      }
-      document.getElementById('ap-list-body').innerHTML=html;
-    });
-  }else if(tabId==='tab-probes'){
-    fetch('/api/probes').then(r=>r.json()).then(d=>{
-      let html='';
-      if(!d.probes||d.probes.length===0){
-        html='<tr><td colspan="3" style="text-align:center;color:#64748b">No probe requests captured.</td></tr>';
-      }else{
-        d.probes.forEach(pr=>{
-          html+=`<tr>
-            <td>${pr.mac}</td>
-            <td style="color:#00ffcc">${pr.ssid}</td>
-            <td>${pr.seen}s ago</td>
-          </tr>`;
-        });
-      }
-      document.getElementById('probe-list-body').innerHTML=html;
-    });
-  }else if(tabId==='tab-ble'){
-    fetch('/api/ble').then(r=>r.json()).then(d=>{
-      let html='';
-      if(!d.trackers||d.trackers.length===0){
-        html='<tr><td colspan="5" style="text-align:center;color:#64748b">No tracker beacons detected.</td></tr>';
-      }else{
-        d.trackers.forEach(tr=>{
-          html+=`<tr>
-            <td style="color:#a855f7;font-weight:bold">${tr.type}</td>
-            <td>${tr.mac}</td>
-            <td>${tr.rssi} dBm</td>
-            <td>${tr.seen}s ago</td>
-            <td>${tr.count}</td>
-          </tr>`;
-        });
-      }
-      document.getElementById('ble-list-body').innerHTML=html;
-    });
+  :root{
+    --bg:#070a08;
+    --panel:#0e1611;
+    --line:#1c2b22;
+    --green:#39ff88;
+    --green-dim:#1e8a52;
+    --amber:#ffb000;
+    --purple:#c084fc;
+    --text:#d7e8da;
+    --muted:#5c7468;
+    --mono: 'JetBrains Mono','IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   }
-}
-setInterval(()=>{
-  fetch('/api/stats').then(r=>r.json()).then(d=>{
-    document.getElementById('device-status-lbl').innerText=d.scanning?'Scanning':'Idle';
-    const ind=document.getElementById('status-indicator');
-    if(d.scanning)ind.classList.add('active');else ind.classList.remove('active');
-    document.getElementById('stat-pps').innerText=d.pps;
-    document.getElementById('stat-total').innerText=d.total;
-    document.getElementById('stat-beacons').innerText=d.beacons;
-    document.getElementById('stat-probes').innerText=d.probes;
-    document.getElementById('stat-deauths').innerText=d.deauths;
-    document.getElementById('protected-ssid-lbl').innerText=d.evil_twin_target||'None';
-    document.getElementById('protected-bssid-lbl').innerText=d.evil_twin_trusted||'00:00:00:00:00:00';
-    const banner=document.getElementById('evil-twin-banner');
-    if(d.evil_twin_detected){
-      banner.style.display='block';
-      document.getElementById('alarm-details').innerText=`Target Network SSID: ${d.evil_twin_target}\nTrusted Router MAC: ${d.evil_twin_trusted}\nATTACKER ROUTER MAC: ${d.evil_twin_attacker}`;
-    }else{
-      banner.style.display='none';
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{background:var(--bg);color:var(--text);font-family:var(--mono);}
+  body{
+    padding:18px;
+    line-height:1.5;
+    background-image:
+      repeating-linear-gradient(transparent 0 2px, rgba(57,255,136,0.012) 2px 4px);
+    font-size:14px;
+  }
+
+  /* ---------- HEADER ---------- */
+  header{
+    position:relative;
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:14px 16px;
+    margin-bottom:16px;
+    overflow:hidden;
+    background:linear-gradient(180deg, rgba(57,255,136,0.05), transparent 60%);
+  }
+  header::after{
+    content:"";
+    position:absolute; left:0; right:0; top:0; height:2px;
+    background:linear-gradient(90deg, transparent, var(--green), transparent);
+    animation: sweep 3.4s linear infinite;
+    opacity:.55;
+  }
+  @keyframes sweep{
+    0%{transform:translateX(-100%);}
+    100%{transform:translateX(100%);}
+  }
+  .hdr-row{display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px;}
+  h1{
+    font-size:1.15em;
+    font-weight:700;
+    letter-spacing:.18em;
+    color:var(--green);
+    text-transform:uppercase;
+    display:flex; align-items:center; gap:10px;
+  }
+  h1 .tag{
+    font-size:.6em;
+    letter-spacing:.1em;
+    color:var(--muted);
+    border:1px solid var(--line);
+    padding:2px 6px;
+    border-radius:3px;
+    font-weight:400;
+  }
+  .status-line{
+    font-size:.8em;
+    color:var(--muted);
+    display:flex; align-items:center; gap:8px;
+    letter-spacing:.05em;
+  }
+  .status-dot{
+    width:8px; height:8px; border-radius:50%;
+    background:#5a2222;
+    box-shadow:0 0 0 1px rgba(239,68,68,.25);
+    animation: blink 1.1s infinite alternate;
+  }
+  .status-dot.active{
+    background:var(--green);
+    box-shadow:0 0 8px var(--green);
+    animation: solidpulse 1.6s infinite alternate;
+  }
+  @keyframes blink{from{opacity:.35;}to{opacity:1;}}
+  @keyframes solidpulse{from{opacity:.6;}to{opacity:1;}}
+
+  /* ---------- NAV ---------- */
+  .nav-tabs{
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap:1px;
+    margin-bottom:16px;
+    border:1px solid var(--line);
+    border-radius:4px;
+    overflow:hidden;
+    background:var(--line);
+  }
+  .tab-btn{
+    background:var(--panel);
+    border:none;
+    color:var(--muted);
+    padding:11px 6px;
+    font-size:.72em;
+    font-family:var(--mono);
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    cursor:pointer;
+    transition:.15s;
+    text-align:center;
+    position:relative;
+  }
+  .tab-btn .freq{
+    display:block;
+    font-size:.85em;
+    color:var(--muted);
+    margin-top:3px;
+    letter-spacing:.05em;
+  }
+  .tab-btn:hover{ color:var(--text); background:#121d16; }
+  .tab-btn.active{
+    color:var(--green);
+    background:#0c1a13;
+    box-shadow: inset 0 -2px 0 var(--green);
+  }
+  .tab-btn.active .freq{ color:var(--green-dim); }
+  .tab-btn.ble-tab.active{
+    color:var(--purple);
+    box-shadow: inset 0 -2px 0 var(--purple);
+  }
+  .tab-btn.ble-tab.active .freq{ color:#7c4fb8; }
+
+  .tab-content{display:none;}
+  .tab-content.active{display:block; animation:fadein .25s ease;}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+  /* ---------- CARDS ---------- */
+  .card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:16px;
+    margin-bottom:14px;
+  }
+  .card-title{
+    color:var(--muted);
+    font-size:.72em;
+    text-transform:uppercase;
+    letter-spacing:.2em;
+    margin-bottom:12px;
+    font-weight:700;
+    display:flex; align-items:center; gap:8px;
+  }
+  .card-title::before{
+    content:"";
+    width:8px; height:8px;
+    border:1px solid var(--green-dim);
+    transform:rotate(45deg);
+    flex-shrink:0;
+  }
+  .card-note{
+    font-size:.78em;
+    color:var(--muted);
+    margin-bottom:12px;
+    line-height:1.6;
+  }
+
+  /* ---------- STATS ---------- */
+  .stat-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px,1fr));
+    gap:10px;
+  }
+  .stat-card{
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:10px 12px;
+    display:flex; flex-direction:column; gap:4px;
+    background:#0a120d;
+  }
+  .stat-label{
+    font-size:.68em;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.15em;
+  }
+  .stat-value{
+    font-size:1.5em;
+    font-weight:700;
+    color:var(--text);
+    font-family:var(--mono);
+    letter-spacing:.02em;
+  }
+  .stat-value.cyan{ color:var(--green); }
+  .stat-value.purple{ color:var(--purple); }
+  .stat-value.red{ color:#ff5d5d; }
+
+  /* ---------- BUTTONS ---------- */
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:10px 16px;
+    background:transparent;
+    border:1px solid var(--green-dim);
+    color:var(--green);
+    font-size:.78em;
+    font-weight:700;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    border-radius:3px;
+    cursor:pointer;
+    transition:.15s;
+    font-family:var(--mono);
+  }
+  .btn:hover{ background:rgba(57,255,136,.08); border-color:var(--green); }
+  .btn.danger{ border-color:#7a3030; color:#ff5d5d; }
+  .btn.danger:hover{ background:rgba(255,93,93,.08); border-color:#ff5d5d; }
+  .btn.action-btn{ padding:5px 10px; font-size:.7em; letter-spacing:.05em; }
+  .btn-group{ display:flex; gap:8px; flex-wrap:wrap; margin-top:2px; }
+
+  /* ---------- ALARM ---------- */
+  .alarm-banner{
+    display:none;
+    background:repeating-linear-gradient(135deg, rgba(255,93,93,.08) 0 10px, rgba(255,93,93,.03) 10px 20px);
+    border:1px solid #ff5d5d;
+    border-radius:4px;
+    padding:16px;
+    margin-bottom:16px;
+    box-shadow:0 0 16px rgba(255,93,93,.15);
+  }
+  .alarm-title{
+    color:#ff5d5d;
+    font-size:.95em;
+    font-weight:700;
+    letter-spacing:.15em;
+    text-transform:uppercase;
+    margin-bottom:8px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .alarm-title::before{ content:"▲"; font-size:.85em; }
+  #alarm-details{
+    font-size:.82em;
+    color:#ffd0d0;
+    white-space:pre-line;
+    margin-bottom:12px;
+    border-left:2px solid #ff5d5d;
+    padding-left:10px;
+  }
+
+  /* ---------- TABLES ---------- */
+  table{ width:100%; border-collapse:collapse; font-size:.82em; text-align:left; }
+  thead th{
+    color:var(--muted);
+    font-weight:700;
+    padding:6px 8px;
+    border-bottom:1px solid var(--line);
+    text-transform:uppercase;
+    font-size:.78em;
+    letter-spacing:.1em;
+    position:sticky; top:0; background:var(--panel);
+  }
+  td{
+    padding:7px 8px;
+    border-bottom:1px solid var(--line);
+    color:var(--text);
+    font-family:var(--mono);
+  }
+  tbody tr:hover td{ background:rgba(57,255,136,.03); }
+  .scrollable-table{ max-height:260px; overflow-y:auto; border:1px solid var(--line); border-radius:3px; }
+  .scrollable-table::-webkit-scrollbar{ width:6px; }
+  .scrollable-table::-webkit-scrollbar-thumb{ background:var(--green-dim); border-radius:3px; }
+
+  /* protected info row */
+  .protect-row{
+    display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;
+  }
+
+  footer{
+    text-align:center;
+    color:var(--muted);
+    font-size:.7em;
+    letter-spacing:.15em;
+    text-transform:uppercase;
+    margin-top:24px;
+    padding-top:14px;
+    border-top:1px solid var(--line);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    header::after, .status-dot{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+  <header>
+    <div class="hdr-row">
+      <h1>AeroSniffer <span class="tag">SOC v2.0</span></h1>
+      <div class="status-line">
+        <span id="device-status-lbl">IDLE</span>
+        <span class="status-dot" id="status-indicator"></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="alarm-banner" id="evil-twin-banner">
+    <div class="alarm-title">Rogue Access Point Detected</div>
+    <p id="alarm-details"></p>
+    <button class="btn danger action-btn" onclick="clearEvilTwinAlarm()">Dismiss / Reset Alarm</button>
+  </div>
+
+  <div class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('tab-dashboard')">Dashboard<span class="freq">2.4G</span></button>
+    <button class="tab-btn" onclick="switchTab('tab-twin')">Evil Twin<span class="freq">AP-GUARD</span></button>
+    <button class="tab-btn" onclick="switchTab('tab-probes')">Probes<span class="freq">CLIENT-RX</span></button>
+    <button class="tab-btn ble-tab" onclick="switchTab('tab-ble')">BLE Trackers<span class="freq">2.4G/BLE</span></button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="tab-content active" id="tab-dashboard">
+    <div class="card">
+      <div class="card-title">Console Controls</div>
+      <div class="btn-group">
+        <button class="btn" onclick="startScan()">▶ Start Wi-Fi Scan</button>
+        <button class="btn danger" onclick="stopScan()">■ Stop Wi-Fi Scan</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Packet Capture Statistics</div>
+      <div class="stat-grid">
+        <div class="stat-card"><span class="stat-label">PPS</span><span class="stat-value cyan" id="stat-pps">0</span></div>
+        <div class="stat-card"><span class="stat-label">Total</span><span class="stat-value" id="stat-total">0</span></div>
+        <div class="stat-card"><span class="stat-label">Beacons</span><span class="stat-value" id="stat-beacons">0</span></div>
+        <div class="stat-card"><span class="stat-label">Probes</span><span class="stat-value" id="stat-probes">0</span></div>
+        <div class="stat-card"><span class="stat-label">Deauths</span><span class="stat-value red" id="stat-deauths">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EVIL TWIN -->
+  <div class="tab-content" id="tab-twin">
+    <div class="card">
+      <div class="card-title">Active Protection Whitelist</div>
+      <div class="stat-grid protect-row">
+        <div class="stat-card"><span class="stat-label">Protected SSID</span><span class="stat-value cyan" id="protected-ssid-lbl">None</span></div>
+        <div class="stat-card"><span class="stat-label">Trusted BSSID</span><span class="stat-value" id="protected-bssid-lbl">00:00:00:00:00:00</span></div>
+      </div>
+      <p class="card-note">Select any detected access point from the list below to set it as your trusted protected network.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Detected Access Points</div>
+      <div class="scrollable-table">
+        <table>
+          <thead>
+            <tr><th>SSID</th><th>BSSID</th><th>Ch</th><th>RSSI</th><th>Action</th></tr>
+          </thead>
+          <tbody id="ap-list-body">
+            <tr><td colspan="5" style="text-align:center;color:var(--muted)">No networks detected yet. Start scanning.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROBES -->
+  <div class="tab-content" id="tab-probes">
+    <div class="card">
+      <div class="card-title">Probe Request Leaks (Nearby Devices)</div>
+      <p class="card-note">Shows nearby devices (phones, tablets) broadcasting SSIDs of networks they have previously connected to.</p>
+      <div class="scrollable-table">
+        <table>
+          <thead>
+            <tr><th>Client MAC</th><th>Leaked Network SSID</th><th>Last Seen</th></tr>
+          </thead>
+          <tbody id="probe-list-body">
+            <tr><td colspan="3" style="text-align:center;color:var(--muted)">No probe requests captured yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- BLE -->
+  <div class="tab-content" id="tab-ble">
+    <div class="card" style="border-color:#3a2d52">
+      <div class="card-title" style="color:var(--purple)">BLE Beacon Tracking</div>
+      <p class="card-note">Scans for proximity signals matching commercial stalker tags (AirTags, Tiles, Samsung SmartTags).</p>
+      <div class="scrollable-table">
+        <table>
+          <thead>
+            <tr><th>Tracker Type</th><th>Bluetooth Address</th><th>Last RSSI</th><th>Last Seen</th><th>Hits</th></tr>
+          </thead>
+          <tbody id="ble-list-body">
+            <tr><td colspan="5" style="text-align:center;color:var(--muted)">No tracker beacons detected yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <footer>AeroSniffer v2.0 :: DeskBuddy 2.0 SOC :: 802.11 / BLE Sensor</footer>
+
+  <script>
+    function switchTab(tabId){
+      document.querySelectorAll('.tab-btn').forEach(btn=>btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(cont=>cont.classList.remove('active'));
+      const tabEl=document.getElementById(tabId);
+      tabEl.classList.add('active');
+      const buttons=document.querySelectorAll('.tab-btn');
+      if(tabId==='tab-dashboard')buttons[0].classList.add('active');
+      else if(tabId==='tab-twin')buttons[1].classList.add('active');
+      else if(tabId==='tab-probes')buttons[2].classList.add('active');
+      else if(tabId==='tab-ble')buttons[3].classList.add('active');
+      loadTabData(tabId);
     }
-  });
-  const activeTab=document.querySelector('.tab-content.active');
-  if(activeTab)loadTabData(activeTab.id);
-},1000);
-</script></body></html>)rawliteral";
+    function startScan(){fetch('/api/scan/start')}
+    function stopScan(){fetch('/api/scan/stop')}
+    function setProtected(ssid,bssid){
+      fetch(`/api/set_protected?ssid=${encodeURIComponent(ssid)}&bssid=${encodeURIComponent(bssid)}`).then(()=>alert(`Protected target set: ${ssid}`));
+    }
+    function clearEvilTwinAlarm(){fetch('/api/clear_evil_twin')}
+    function loadTabData(tabId){
+      if(tabId==='tab-twin'){
+        fetch('/api/aps').then(r=>r.json()).then(d=>{
+          let html='';
+          if(!d.aps||d.aps.length===0){
+            html='<tr><td colspan="5" style="text-align:center;color:var(--muted)">No networks detected yet.</td></tr>';
+          }else{
+            d.aps.forEach(ap=>{
+              html+=`<tr>
+                <td>${ap.ssid||'<i>Hidden SSID</i>'}</td>
+                <td>${ap.bssid}</td>
+                <td>${ap.ch}</td>
+                <td>${ap.rssi} dBm</td>
+                <td><button class="btn action-btn" onclick="setProtected('${ap.ssid}','${ap.bssid}')">Protect</button></td>
+              </tr>`;
+            });
+          }
+          document.getElementById('ap-list-body').innerHTML=html;
+        });
+      }else if(tabId==='tab-probes'){
+        fetch('/api/probes').then(r=>r.json()).then(d=>{
+          let html='';
+          if(!d.probes||d.probes.length===0){
+            html='<tr><td colspan="3" style="text-align:center;color:var(--muted)">No probe requests captured.</td></tr>';
+          }else{
+            d.probes.forEach(pr=>{
+              html+=`<tr>
+                <td>${pr.mac}</td>
+                <td style="color:var(--green)">${pr.ssid}</td>
+                <td>${pr.seen}s ago</td>
+              </tr>`;
+            });
+          }
+          document.getElementById('probe-list-body').innerHTML=html;
+        });
+      }else if(tabId==='tab-ble'){
+        fetch('/api/ble').then(r=>r.json()).then(d=>{
+          let html='';
+          if(!d.trackers||d.trackers.length===0){
+            html='<tr><td colspan="5" style="text-align:center;color:var(--muted)">No tracker beacons detected.</td></tr>';
+          }else{
+            d.trackers.forEach(tr=>{
+              html+=`<tr>
+                <td style="color:var(--purple);font-weight:bold">${tr.type}</td>
+                <td>${tr.mac}</td>
+                <td>${tr.rssi} dBm</td>
+                <td>${tr.seen}s ago</td>
+                <td>${tr.count}</td>
+              </tr>`;
+            });
+          }
+          document.getElementById('ble-list-body').innerHTML=html;
+        });
+      }
+    }
+    setInterval(()=>{
+      fetch('/api/stats').then(r=>r.json()).then(d=>{
+        document.getElementById('device-status-lbl').innerText=d.scanning?'SCANNING':'IDLE';
+        const ind=document.getElementById('status-indicator');
+        if(d.scanning)ind.classList.add('active');else ind.classList.remove('active');
+        document.getElementById('stat-pps').innerText=d.pps;
+        document.getElementById('stat-total').innerText=d.total;
+        document.getElementById('stat-beacons').innerText=d.beacons;
+        document.getElementById('stat-probes').innerText=d.probes;
+        document.getElementById('stat-deauths').innerText=d.deauths;
+        document.getElementById('protected-ssid-lbl').innerText=d.evil_twin_target||'None';
+        document.getElementById('protected-bssid-lbl').innerText=d.evil_twin_trusted||'00:00:00:00:00:00';
+        const banner=document.getElementById('evil-twin-banner');
+        if(d.evil_twin_detected){
+          banner.style.display='block';
+          document.getElementById('alarm-details').innerText=`Target Network SSID: ${d.evil_twin_target}\nTrusted Router MAC: ${d.evil_twin_trusted}\nATTACKER ROUTER MAC: ${d.evil_twin_attacker}`;
+        }else{
+          banner.style.display='none';
+        }
+      });
+      const activeTab=document.querySelector('.tab-content.active');
+      if(activeTab)loadTabData(activeTab.id);
+    },1000);
+  </script>
+</body>
+</html>)rawliteral";
   _webserver->send(200, "text/html", html);
 }
 

@@ -53,6 +53,7 @@ volatile uint32_t g_last_btn   = 0;      // Debounce timestamp
 
 // ── Touch interaction signal (shared with Mode 1) ────────────────
 volatile bool     g_touch_tap  = false;  // Short tap detected
+volatile bool     g_block_touch = false; // Global block touch flag
 
 // ── FreeRTOS task handles ────────────────────────────────────────
 static TaskHandle_t h_core0 = nullptr;
@@ -80,6 +81,10 @@ static bool     _touch_active  = false;
 static uint32_t _touch_last_change = 0;
 
 static void poll_touch_input() {
+  if (g_block_touch) {
+    _touch_active = false;
+    return;
+  }
   bool pressed = (digitalRead(TOUCH_PIN) == HIGH);
   uint32_t now = millis();
 
@@ -294,6 +299,18 @@ static bool handle_global_command(const String& line) {
       return true;
     }
     
+    if (cmd.startsWith("SET_MODE:")) {
+      uint8_t target = cmd.substring(9).toInt();
+      if (target < TOTAL_MODES) {
+        g_mode = target;
+        g_mode_dirty = true;
+        Serial.printf("RES:{\"ok\":true,\"action\":\"set_mode\",\"mode\":%d}\n", g_mode + 1);
+      } else {
+        Serial.println("RES:{\"ok\":false,\"error\":\"invalid mode\"}");
+      }
+      return true;
+    }
+    
     if (cmd.startsWith("REBOOT")) {
       Serial.println("RES:{\"ok\":true,\"action\":\"reboot\"}");
       delay(100);
@@ -415,7 +432,7 @@ void setup() {
 
   // ── Load Mode & Settings ───────────────────────────────────────────
   prefs.begin("aerosniffer", false);
-  g_mode = prefs.getUInt("mode", 0);
+  g_mode = 0; // Always start in Mode 1 (Companion/Pet) on boot/reset
   if (g_mode >= TOTAL_MODES) g_mode = 0;
 
   sys_wifi_ssid = prefs.getString("ssid", DEFAULT_WIFI_SSID);
@@ -459,8 +476,8 @@ void setup() {
   show_splash();
 
   // ── Spawn FreeRTOS tasks (after splash so I2S/WiFi start clean) ─
-  // Stack sizes: 8192 is safe for XIAO; bump to 10240 if you hit overflows
-  xTaskCreatePinnedToCore(task_core0, "BG_Engine",  8192, nullptr, 1, &h_core0, 0);
+  // Stack sizes: 16384 to prevent SSL stack overflows; UI engine 8192
+  xTaskCreatePinnedToCore(task_core0, "BG_Engine", 16384, nullptr, 1, &h_core0, 0);
   xTaskCreatePinnedToCore(task_core1, "UI_Engine",  8192, nullptr, 2, &h_core1, 1);
 }
 

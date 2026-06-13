@@ -176,6 +176,9 @@ extern float sys_sky_lomax;
 extern uint16_t sys_clock_color;
 extern uint16_t sys_weather_color;
 
+// Global block touch flag to prevent Wi-Fi RF interference from triggering touch sensor
+extern volatile bool g_block_touch;
+
 // ── FFT Parameters (Mode 1 — Music Reactive) ────────────────────
 #define FFT_SAMPLES       512     // Must be power of 2
 #define FFT_SAMPLE_RATE 22050     // Hz

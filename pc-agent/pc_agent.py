@@ -23,6 +23,9 @@ import json
 import re
 import platform
 import subprocess
+import sqlite3
+import shutil
+import tempfile
 from datetime import datetime
 
 # ── Platform detection ─────────────────────────────────────────
@@ -442,8 +445,9 @@ class SystemMonitor:
 #  MOOD ENGINE  — Advanced character state
 # ==============================================================
 class MoodEngine:
-    def __init__(self, serial_mgr: SerialManager):
+    def __init__(self, serial_mgr: SerialManager, agent):
         self.serial      = serial_mgr
+        self.agent       = agent
         self.happiness   = 50.0
         self.energy      = 80.0
         self.focus       = 50.0
@@ -453,10 +457,33 @@ class MoodEngine:
         self.last_status = None
         self.last_update = time.time()
         self.last_particle_time = 0
-        self.notif_alert_until  = 0.0
-        self.notif_app_name     = ""
-        self.override_face      = None
-        self.last_battery_state = None
+        
+        # Priority Event variables
+        self.event_type     = None      # e.g. "notif", "battery", "app_change", "typing"
+        self.event_priority = 0         # 1 to 5
+        self.event_end      = 0.0       # timestamp when it expires
+        self.event_face     = "IDLE"
+        self.event_status   = ""
+        
+        # State tracking for battery transitions
+        self.last_power_plugged = None
+        self.last_battery_percent = None
+        self.last_cpu_panic = False
+        self.last_short_app = ""
+
+    def trigger_event(self, event_type: str, priority: int, duration: float, face: str, status: str):
+        """Trigger an event if it has higher or equal priority to the current active event, or if current has expired."""
+        now = time.time()
+        if priority >= self.event_priority or now >= self.event_end:
+            self.event_type = event_type
+            self.event_priority = priority
+            self.event_end = now + duration
+            self.event_face = face
+            self.event_status = status
+            
+            # Print to local agent console table format
+            time_str = datetime.now().strftime("%H:%M:%S")
+            print(f"  {time_str:8}  {face:14}  {status[:20]:20}  {event_type.upper()}")
 
     def update(self, window_title: str, typing: bool, sys_mon: SystemMonitor):
         now = time.time()
@@ -496,75 +523,65 @@ class MoodEngine:
         if is_music:
             self.happiness += dt * 0.5
             
-        # ── Battery & CPU ──────────────────────────────────
-        bat = sys_mon.battery_status
-        if bat == "BAT_LOW":
-            self.energy -= dt * 5.0
-            self.happiness -= dt * 2.0
-        elif bat == "BAT_CHARGING":
-            self.energy += dt * 5.0
+        # ── Battery & CPU stats impact ──────────────────────
+        if hasattr(psutil, "sensors_battery"):
+            bat = psutil.sensors_battery()
+            if bat:
+                plugged = bat.power_plugged
+                percent = bat.percent
+                
+                # Check for changes in plug status (Priority 4)
+                if self.last_power_plugged is not None and plugged != self.last_power_plugged:
+                    if plugged:
+                        self.trigger_event("charging", 4, 10.0, "EXCITED", "Charger Connected")
+                    else:
+                        self.trigger_event("battery", 4, 10.0, "SURPRISED", "Battery Power")
+                
+                # Check for full / low transitions (Priority 4)
+                elif self.last_battery_percent is not None:
+                    if percent >= 99 and self.last_battery_percent < 99 and plugged:
+                        self.trigger_event("battery_full", 4, 10.0, "HAPPY", "Fully Charged!")
+                    elif percent < 20 and self.last_battery_percent >= 20:
+                        self.trigger_event("battery_low", 4, 10.0, "SAD_ERROR", f"Battery Low! ({percent}%)")
+                
+                self.last_power_plugged = plugged
+                self.last_battery_percent = percent
+                
+                # Apply continuous stat decay/buff
+                if not plugged and percent < 20:
+                    self.energy -= dt * 5.0
+                    self.happiness -= dt * 2.0
+                elif plugged:
+                    self.energy += dt * 5.0
             
         if sys_mon.cpu_panic:
             self.energy -= dt * 2.0
             self.happiness -= dt * 2.0
+            if not self.last_cpu_panic:
+                self.trigger_event("cpu_panic", 4, 8.0, "ALERT_WARNING", "CPU Hot!")
+            self.last_cpu_panic = True
+        else:
+            self.last_cpu_panic = False
 
-        # Detect battery charger changes (plug in / out)
-        if self.last_battery_state is not None and bat != self.last_battery_state:
-            # Charger plugged in
-            if bat in ("BAT_CHARGING", "BAT_FULL") and self.last_battery_state not in ("BAT_CHARGING", "BAT_FULL"):
-                self.notif_alert_until = now + 5.0
-                self.notif_app_name = "Charger Connected"
-                self.override_face = "EXCITED"
-            # Charger unplugged
-            elif self.last_battery_state in ("BAT_CHARGING", "BAT_FULL") and bat not in ("BAT_CHARGING", "BAT_FULL"):
-                self.notif_alert_until = now + 5.0
-                self.notif_app_name = "Charger Disconnected"
-                self.override_face = "SURPRISED"
-        self.last_battery_state = bat
+        # App focus changes (Priority 3)
+        if short_app != self.last_short_app and short_app != "":
+            app_face = None
+            for keyword, face in CONFIG["app_faces"].items():
+                if keyword in title_lower:
+                    app_face = face
+                    break
+            face = app_face if app_face else "HAPPY" if is_gaming else "IDLE"
+            self.trigger_event("app_change", 3, 8.0, face, f"Using {short_app}")
+            self.last_short_app = short_app
+
+        # Active typing (Priority 2)
+        if typing:
+            self.trigger_event("typing", 2, 3.0, "HAPPY", "Typing...")
 
         # Clamp stats 0-100
         self.happiness = max(0, min(100, self.happiness))
         self.energy = max(0, min(100, self.energy))
         self.focus = max(0, min(100, self.focus))
-
-        # ── Determine Face based on Stats & Active App ─────
-        new_face = "IDLE"
-        reason = "balanced"
-
-        # Check if active app has a mapped face
-        app_face = None
-        for keyword, face in CONFIG["app_faces"].items():
-            if keyword in title_lower:
-                app_face = face
-                break
-        
-        if now < self.notif_alert_until:
-            new_face = self.override_face if self.override_face else "ALERT_WARNING"
-            reason = f"override: {self.notif_app_name}"
-        elif self.energy < 20:
-            new_face = "SLEEPY"
-            reason = f"energy={self.energy:.0f}"
-        elif bat == "BAT_LOW":
-            new_face = "SAD_ERROR"
-            reason = "battery low"
-        elif sys_mon.cpu_panic:
-            new_face = "ALERT_WARNING"
-            reason = "cpu panic"
-        elif self.focus > 80:
-            new_face = "THINKING"
-            reason = f"focus={self.focus:.0f}"
-        elif self.happiness > 80:
-            new_face = "LOVE_BONDING"
-            reason = f"happy={self.happiness:.0f}"
-        elif app_face:
-            new_face = app_face
-            reason = f"app: {short_app}"
-        elif is_gaming:
-            new_face = "EXCITED"
-            reason = "gaming mode"
-        elif typing:
-            new_face = "HAPPY"
-            reason = "active"
 
         # ── Trigger Particles ──────────────────────────────
         if now - self.last_particle_time > 2.0:
@@ -578,14 +595,33 @@ class MoodEngine:
                 self.serial.send("PARTICLE:HEART")
                 self.last_particle_time = now
 
-        # ── Determine Status ───────────────────────────────
-        status = CONFIG["face_status"].get(new_face, "")
-        if now < self.notif_alert_until:
-            status = self.notif_app_name
-        elif bat == "BAT_CHARGING":
-            status = "Charging..."
-        elif bat == "BAT_FULL":
-            status = "Fully Charged!"
+        # ── Determine Face and Status based on Active Event ─
+        if now < self.event_end:
+            new_face = self.event_face
+            status = self.event_status
+            reason = f"event: {self.event_type}"
+        else:
+            # Clear expired events
+            self.event_type = None
+            self.event_priority = 0
+            
+            # Priority 1: Default / Idle state showing Time & Weather!
+            time_str = datetime.now().strftime("%I:%M %p")
+            if self.agent.weather_info:
+                status = f"{time_str} | {self.agent.weather_info}"
+            else:
+                status = time_str
+                
+            # Determine base face when idle
+            if self.energy < 20 or sys_mon.is_idle:
+                new_face = "SLEEPY"
+                reason = "idle sleep"
+            elif self.focus > 80:
+                new_face = "THINKING"
+                reason = "idle focus"
+            else:
+                new_face = "IDLE"
+                reason = "idle default"
 
         # ── Send to ESP32 ──────────────────────────────────
         if new_face != self.last_face:
@@ -614,38 +650,169 @@ class MoodEngine:
                 return w[:14].title()
         return ""
 
+
 # ==============================================================
-#  NOTIFICATION WATCHER  — watches process list for alert apps
+#  NOTIFICATION WATCHER  — watches process list & notifications
 # ==============================================================
 class NotificationWatcher:
-    """Detects notification-related processes popping up."""
-
-    ALERT_PROCS = [
-        "toast", "notification", "alert", "popup",
-        "teams", "slack", "telegram", "signal",
-        "whatsapp", "discord"
-    ]
-
-    def __init__(self, serial_mgr: SerialManager, mood_engine: MoodEngine):
-        self.serial = serial_mgr
+    def __init__(self, mood_engine: MoodEngine):
         self.mood = mood_engine
-        self._known = set()
+        self.last_check = 0.0
+        self.max_order = 0
+        self.last_unread_counts = {}
+        self.db_path = os.path.expandvars(r'%LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db')
+        
+        # Initialize max_order on startup so we only catch NEW notifications
+        if IS_WIN and os.path.exists(self.db_path):
+            try:
+                self.max_order = self._get_max_order()
+                log(f"Notification DB sniffer initialized (Base Order: {self.max_order})", GREEN)
+            except Exception as e:
+                log(f"Notification DB init failed: {e}", YELLOW)
+
+    def _get_max_order(self) -> int:
+        if not os.path.exists(self.db_path):
+            return 0
+        temp_dir = tempfile.gettempdir()
+        temp_copy = os.path.join(temp_dir, "wpn_init_poll.db")
+        shutil.copy2(self.db_path, temp_copy)
+        conn = sqlite3.connect(temp_copy)
+        cursor = conn.cursor()
+        cursor.execute("SELECT MAX([Order]) FROM Notification;")
+        val = cursor.fetchone()[0] or 0
+        conn.close()
+        try: os.remove(temp_copy)
+        except: pass
+        return val
+
+    def check_window_titles(self):
+        """Scan open windows to find background messaging apps with unread notification counters."""
+        unreads = []
+        if not IS_WIN:
+            return unreads
+            
+        def enum_cb(hwnd, lParam):
+            if ctypes.windll.user32.IsWindowVisible(hwnd):
+                length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+                if length > 0:
+                    buff = ctypes.create_unicode_buffer(length + 1)
+                    ctypes.windll.user32.GetWindowTextW(hwnd, buff, length + 1)
+                    title = buff.value
+                    if title:
+                        # Match pattern like (1) WhatsApp, (3) Discord, Gmail (2)
+                        match = re.search(r'\((\d+)\)', title)
+                        if match:
+                            count = match.group(1)
+                            t_lower = title.lower()
+                            app = None
+                            if "discord" in t_lower: app = "Discord"
+                            elif "whatsapp" in t_lower: app = "WhatsApp"
+                            elif "slack" in t_lower: app = "Slack"
+                            elif "teams" in t_lower: app = "Teams"
+                            elif "telegram" in t_lower: app = "Telegram"
+                            elif "gmail" in t_lower: app = "Gmail"
+                            elif "outlook" in t_lower: app = "Outlook"
+                            
+                            if app:
+                                unreads.append((app, int(count)))
+            return True
+            
+        try:
+            EnumWindows = ctypes.windll.user32.EnumWindows
+            EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_int)
+            EnumWindows(EnumWindowsProc(enum_cb), 0)
+        except Exception as e:
+            pass
+            
+        return unreads
 
     def check(self):
-        """Check for new notification processes."""
-        current = {p.name().lower() for p in psutil.process_iter(["name"])}
-        new_procs = current - self._known
-        self._known = current
+        now = time.time()
+        # Check notifications every 2.5 seconds to limit disk/CPU impact
+        if now - self.last_check < 2.5:
+            return
+        self.last_check = now
+        
+        # 1. Check Window Titles for unread badges
+        try:
+            unreads = self.check_window_titles()
+            for app, count in unreads:
+                last = self.last_unread_counts.get(app, 0)
+                if count > last:
+                    msg = f"{app}: {count} Unread Msg"
+                    face = "HAPPY" if app in ["Discord", "WhatsApp", "Telegram"] else "ALERT_WARNING"
+                    self.mood.trigger_event("notif", 5, 12.0, face, msg)
+                self.last_unread_counts[app] = count
+                
+            # Clear apps that no longer have unread counts
+            for app in list(self.last_unread_counts.keys()):
+                if not any(a == app for a, c in unreads):
+                    self.last_unread_counts[app] = 0
+        except Exception as e:
+            pass
 
-        for proc in new_procs:
-            for keyword in self.ALERT_PROCS:
-                if keyword in proc:
-                    app_name = proc.replace(".exe", "").title()
-                    log(f"Notification process: {proc}", YELLOW)
-                    self.mood.notif_alert_until = time.time() + 8.0
-                    self.mood.notif_app_name = app_name
-                    self.mood.override_face = "ALERT_WARNING"
-                    break
+        # 2. Check SQLite wpndatabase.db for new toast alerts
+        if IS_WIN and os.path.exists(self.db_path):
+            temp_dir = tempfile.gettempdir()
+            temp_copy = os.path.join(temp_dir, "wpn_check.db")
+            try:
+                shutil.copy2(self.db_path, temp_copy)
+                conn = sqlite3.connect(temp_copy)
+                cursor = conn.cursor()
+                
+                # Query apps mapping
+                cursor.execute("SELECT RecordId, PrimaryId FROM NotificationHandler;")
+                handlers = {r[0]: r[1] for r in cursor.fetchall()}
+                
+                # Query new toasts
+                cursor.execute(
+                    "SELECT [Order], HandlerId, Payload FROM Notification "
+                    "WHERE [Order] > ? AND Type = 'toast' ORDER BY [Order] ASC;",
+                    (self.max_order,)
+                )
+                rows = cursor.fetchall()
+                
+                for r in rows:
+                    order, handler_id, payload = r
+                    self.max_order = max(self.max_order, order)
+                    
+                    app_id = handlers.get(handler_id, "Unknown")
+                    app_clean = app_id.split('.')[-1].split('!')[-1].replace("ToastHandler", "").replace("App", "").title()
+                    
+                    payload_str = ""
+                    if isinstance(payload, bytes):
+                        payload_str = payload.decode('utf-8', errors='ignore')
+                    else:
+                        payload_str = str(payload)
+                    
+                    texts = re.findall(r'<text[^>]*>(.*?)</text>', payload_str)
+                    if texts:
+                        title = texts[0].strip()
+                        body = texts[1].strip() if len(texts) > 1 else ""
+                        
+                        if body:
+                            msg = f"{app_clean}: {title}: {body}"
+                        else:
+                            msg = f"{app_clean}: {title}"
+                            
+                        msg = msg[:39]  # fit 40 char ESP32 screen limit
+                        
+                        face = "ALERT_WARNING"
+                        app_lower = app_clean.lower()
+                        if any(k in app_lower for k in ["discord", "whatsapp", "telegram", "slack", "teams"]):
+                            face = "HAPPY"
+                        elif "spotify" in app_lower:
+                            face = "LOVE_BONDING"
+                            
+                        self.mood.trigger_event("notif", 5, 12.0, face, msg)
+                        break  # handle one per check cycle to prevent spamming
+                        
+                conn.close()
+                try: os.remove(temp_copy)
+                except: pass
+            except Exception as e:
+                pass
+
 
 # ==============================================================
 #  MAIN AGENT LOOP
@@ -660,12 +827,36 @@ class PCAgent:
         self.window_mon = WindowMonitor()
         self.kbd_mon    = KeyboardMonitor()
         self.sys_mon    = SystemMonitor()
-        self.mood_engine = MoodEngine(self.serial)
-        self.notif_mon  = NotificationWatcher(self.serial, self.mood_engine)
+        
+        self.weather_info = ""
+        self.mood_engine = MoodEngine(self.serial, self)
+        self.notif_mon  = NotificationWatcher(self.mood_engine)
         self._running   = False
 
         # Start keyboard listener
         self.kbd_mon.start()
+        
+        # Start Weather Fetcher daemon thread
+        self.weather_thread = threading.Thread(target=self._fetch_weather_loop, daemon=True)
+        self.weather_thread.start()
+
+    def _fetch_weather_loop(self):
+        """Fetch weather from wttr.in every 20 minutes in a non-blocking thread."""
+        import urllib.request
+        log("Weather fetcher thread started.", GREEN)
+        while True:
+            try:
+                url = "https://wttr.in/Nalco,Angul?format=%c%t"
+                req = urllib.request.Request(url, headers={'User-Agent': 'curl'})
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    raw = response.read().decode('utf-8').strip()
+                    clean = raw.replace('+', ' ').strip()
+                    if clean and len(clean) < 15:
+                        self.weather_info = clean
+                        log(f"Weather updated (Nalco, Angul): {clean}", GREEN)
+            except Exception as e:
+                pass
+            time.sleep(1200)
 
     def run(self):
         self._running = True

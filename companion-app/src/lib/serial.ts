@@ -119,7 +119,7 @@ class SerialProtocol {
     }
   }
 
-  async sendCommand(cmd: any) {
+  async sendCommand(cmd: any, raw = false) {
     if (!this.port || !this.port.writable) return;
 
     if (!this.writer) {
@@ -128,7 +128,8 @@ class SerialProtocol {
       this.writer = textEncoder.writable.getWriter();
     }
 
-    await this.writer.write(`CMD:${cmd}\n`);
+    const payload = raw ? `${cmd}\n` : `CMD:${cmd}\n`;
+    await this.writer.write(payload);
   }
 }
 

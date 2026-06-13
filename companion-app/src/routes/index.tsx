@@ -42,6 +42,7 @@ function Index() {
   const [booted, setBooted] = useState(false);
   const [bootLines, setBootLines] = useState<string[]>([]);
   const [mode, setMode] = useState<0 | 1 | 2 | 3 | 4>(0);
+  const [isConnected, setIsConnected] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
 
   // Boot sequence → idle
@@ -81,7 +82,11 @@ function Index() {
     <main className="pixelscape scanlines crt-flicker min-h-screen">
       <PixelBackdrop mode={mode} />
       <div className="relative z-10">
-        <Nav onFace={(f) => booted && setFace(f)} />
+        <Nav
+          onFace={(f) => booted && setFace(f)}
+          isConnected={isConnected}
+          setIsConnected={setIsConnected}
+        />
 
         {/* HERO */}
         <section
@@ -167,7 +172,12 @@ function Index() {
               desc="A living desktop companion. High-FPS vector face that reacts to your typing, CPU load, and the apps you open. He gets sleepy when you do."
               tags={["240×240 OLED", "PC-driven", "reacts to you"]}
               active={mode === 0}
-              onClick={() => setMode(0)}
+              onClick={() => {
+                setMode(0);
+                if (isConnected) {
+                  serialAPI.sendCommand("SET_MODE:0");
+                }
+              }}
             />
             <ModeCard
               n={2}
@@ -176,7 +186,12 @@ function Index() {
               desc="802.11 packet sniffer with an animated radar sweep + companion web app for full security control. Plug in, scan, learn."
               tags={["WiFi sniffer", "Payload UI", "Web Serial"]}
               active={mode === 1}
-              onClick={() => setMode(1)}
+              onClick={() => {
+                setMode(1);
+                if (isConnected) {
+                  serialAPI.sendCommand("SET_MODE:1");
+                }
+              }}
             />
             <ModeCard
               n={3}
@@ -185,7 +200,12 @@ function Index() {
               desc="Live ADS-B tracker pulling from the OpenSky Network. Watch callsigns, altitude, speed, and heading drift across his tiny screen."
               tags={["ADS-B live", "OpenSky", "compass"]}
               active={mode === 2}
-              onClick={() => setMode(2)}
+              onClick={() => {
+                setMode(2);
+                if (isConnected) {
+                  serialAPI.sendCommand("SET_MODE:2");
+                }
+              }}
             />
           </div>
 
@@ -214,7 +234,27 @@ function Index() {
                 {FACE_ORDER.filter((f) => FACE_META[f].group === g).map((f) => (
                   <button
                     key={f}
-                    onClick={() => setFace(f)}
+                    onClick={() => {
+                      setFace(f);
+                      if (isConnected) {
+                        const WEB_TO_ESP_FACE: Record<string, string> = {
+                          startup: "STARTUP_BOOT",
+                          idle: "IDLE",
+                          happy: "HAPPY",
+                          excited: "EXCITED",
+                          surprised: "SURPRISED",
+                          thinking: "THINKING",
+                          love: "LOVE_BONDING",
+                          alert: "ALERT_WARNING",
+                          sleepy: "SLEEPY",
+                          sad: "SAD_ERROR",
+                        };
+                        const espFace = WEB_TO_ESP_FACE[f];
+                        if (espFace) {
+                          serialAPI.sendCommand(`FACE:${espFace}`, true);
+                        }
+                      }
+                    }}
                     className={`pixel-card p-4 text-left transition-all hover:-translate-y-1 ${
                       face === f ? "ring-2 ring-[color:var(--as-neon)]" : ""
                     }`}
@@ -347,9 +387,14 @@ function Index() {
 
 /* ───── helpers ───── */
 
-function Nav({ onFace }: { onFace: (f: FaceState) => void }) {
+interface NavProps {
+  onFace: (f: FaceState) => void;
+  isConnected: boolean;
+  setIsConnected: (connected: boolean) => void;
+}
+
+function Nav({ onFace, isConnected, setIsConnected }: NavProps) {
   const [showSetup, setShowSetup] = useState(false);
-  const [setupConnected, setSetupConnected] = useState(false);
   const [deviceData, setDeviceData] = useState<any>(null);
   const [wifi, setWifi] = useState({ ssid: "", pass: "" });
   const [bbox, setBbox] = useState({ lamin: "", lomin: "", lamax: "", lomax: "" });
@@ -374,14 +419,14 @@ function Nav({ onFace }: { onFace: (f: FaceState) => void }) {
         }
       }
     };
-    serialAPI.onDisconnect = () => setSetupConnected(false);
+    serialAPI.onDisconnect = () => setIsConnected(false);
   }, [bbox.lamin]);
 
   const handleConnect = async () => {
     try {
       setSetupMsg("");
       await serialAPI.connect();
-      setSetupConnected(true);
+      setIsConnected(true);
       await serialAPI.sendCommand("PING");
       setTimeout(() => serialAPI.sendCommand("GET_CFG"), 500);
     } catch (e: any) {
@@ -496,7 +541,7 @@ function Nav({ onFace }: { onFace: (f: FaceState) => void }) {
               </button>
             </div>
 
-            {!setupConnected ? (
+            {!isConnected ? (
               <div className="text-center py-6">
                 <p className="font-mono-pixel text-[color:var(--as-neon)]/70 mb-6 text-sm">
                   To configure WiFi and Location, connect your AeroSniffer via USB (works in any mode!).
@@ -560,7 +605,7 @@ function Nav({ onFace }: { onFace: (f: FaceState) => void }) {
                   <button onClick={handleSave} className="pixel-btn w-full py-3 text-xs mb-3">
                     SAVE & REBOOT ROBOT
                   </button>
-                  <button onClick={() => { serialAPI.disconnect(); setSetupConnected(false); }} className="pixel-btn pixel-btn-ghost w-full py-2 text-xs border-[color:var(--as-pink)] text-[color:var(--as-pink)]">
+                  <button onClick={() => { serialAPI.disconnect(); setIsConnected(false); }} className="pixel-btn pixel-btn-ghost w-full py-2 text-xs border-[color:var(--as-pink)] text-[color:var(--as-pink)]">
                     DISCONNECT
                   </button>
                 </div>
@@ -832,6 +877,18 @@ function PayloadPanel() {
               {atk.cmd}
             </div>
             <button
+              onClick={async () => {
+                if (isConnected) {
+                  try {
+                    await serialAPI.sendCommand(`ATTACK:${atk.name.toUpperCase().replace(" ", "_")}`);
+                    alert(`Payload executed: ${atk.name}`);
+                  } catch (e) {
+                    console.error("Payload failed", e);
+                  }
+                } else {
+                  alert("Please connect via Web Serial first using the setup button.");
+                }
+              }}
               className="w-full pixel-btn pixel-btn-ghost text-[9px] py-2"
               style={{ color: "var(--as-orange)", borderColor: "var(--as-orange)" }}
             >
