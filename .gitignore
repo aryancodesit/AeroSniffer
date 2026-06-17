@@ -8,6 +8,7 @@
 # After cloning, edit Config.h locally. It won't be re-tracked.
 # Uncomment the line below only after your first commit of Config.h:
 # MultiBoot_DeskGadget/Config.h
+credentials.json
 
 # ── Arduino build output ─────────────────────────────────────────
 build/
@@ -72,3 +73,8 @@ serial_output.txt
 
 # ── Docs ─────────────────────────────────────────────────────────
 docs/
+
+# ── Local AI CLI assistant ──────────────────────────────────────
+aerosniffer-ai.py
+.aerosniffer-ai-history
+.aerosniffer-ai-cache/

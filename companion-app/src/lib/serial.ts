@@ -1,11 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 class SerialProtocol {
   port: any;
   reader: any;
   writer: any;
   keepReading: boolean;
   readPromise: any;
-  onMessage: any;
-  onDisconnect: any;
+  listeners: Set<(type: string, data: any) => void>;
+  connectListeners: Set<() => void>;
+  disconnectListeners: Set<() => void>;
   encoderClosed: any;
 
   constructor() {
@@ -14,9 +16,34 @@ class SerialProtocol {
     this.writer = null;
     this.keepReading = true;
     this.readPromise = null;
-    this.onMessage = null; // Callback for receiving complete messages
-    this.onDisconnect = null; // Callback for disconnection
+    this.listeners = new Set();
+    this.connectListeners = new Set();
+    this.disconnectListeners = new Set();
   }
+
+  // Modern Subscription API
+  addListener(cb: (type: string, data: any) => void) {
+    this.listeners.add(cb);
+    return () => {
+      this.listeners.delete(cb);
+    };
+  }
+
+  addConnectListener(cb: () => void) {
+    this.connectListeners.add(cb);
+    return () => {
+      this.connectListeners.delete(cb);
+    };
+  }
+
+  addDisconnectListener(cb: () => void) {
+    this.disconnectListeners.add(cb);
+    return () => {
+      this.disconnectListeners.delete(cb);
+    };
+  }
+
+
 
   async connect(baudRate = 115200) {
     if (!("serial" in navigator)) {
@@ -30,11 +57,14 @@ class SerialProtocol {
       this.keepReading = true;
       this.readPromise = this.readLoop();
 
+      // Trigger connect listeners
+      this.connectListeners.forEach((cb) => cb());
+
       // Setup disconnect listener
       (navigator as any).serial.addEventListener("disconnect", (event: any) => {
         if (event.target === this.port) {
           this.disconnect();
-          if (this.onDisconnect) this.onDisconnect();
+          this.disconnectListeners.forEach((cb) => cb());
         }
       });
 
@@ -64,7 +94,11 @@ class SerialProtocol {
     }
 
     if (this.port) {
-      await this.port.close();
+      try {
+        await this.port.close();
+      } catch (e) {
+        // ignore
+      }
       this.port = null;
     }
   }
@@ -87,7 +121,7 @@ class SerialProtocol {
           const line = buffer.slice(0, newlineIdx).trim();
           buffer = buffer.slice(newlineIdx + 1);
 
-          if (line && this.onMessage) {
+          if (line) {
             this.parseMessage(line);
           }
         }
@@ -96,23 +130,36 @@ class SerialProtocol {
       console.error("Read error:", error);
     } finally {
       this.reader.releaseLock();
-      await textDecoder.writable.close();
-      await readableStreamClosed;
+      try {
+        await textDecoder.writable.close();
+      } catch (e) {
+        // stream already closing
+      }
+      try {
+        await readableStreamClosed;
+      } catch (e) {
+        // stream already closed
+      }
     }
   }
 
   parseMessage(line: any) {
     if (line.startsWith("RES:")) {
       try {
-        const data = JSON.parse(line.substring(4));
-        this.onMessage("RES", data);
+        const jsonStr = line.substring(4);
+        const data = JSON.parse(jsonStr);
+        // Flight pipeline instrumentation
+        if (data.flights !== undefined) {
+          console.log(`[WEB] Received aircraft=${Array.isArray(data.flights) ? data.flights.length : 0}`, data.flights);
+        }
+        this.listeners.forEach((cb) => cb("RES", data));
       } catch (e) {
-        console.error("Failed to parse RES JSON:", line);
+        console.error("[WEB] Failed to parse RES JSON:", line.substring(0, 200), e);
       }
     } else if (line.startsWith("EVT:")) {
       try {
         const data = JSON.parse(line.substring(4));
-        this.onMessage("EVT", data);
+        this.listeners.forEach((cb) => cb("EVT", data));
       } catch (e) {
         console.error("Failed to parse EVT JSON:", line);
       }

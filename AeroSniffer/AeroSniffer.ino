@@ -2,7 +2,7 @@
 //  MultiBoot_DeskGadget.ino  —  Orchestration Layer
 //  AeroSniffer | ESP32-S3 Multi-Boot Desk Gadget
 //
-//  Architecture:
+//  Architecture: 
 //    Core 0 → Background processing (FFT / network / API)
 //    Core 1 → UI rendering + sensor reads (display thread)
 //
@@ -20,9 +20,7 @@
 //    Arduino/libraries/TFT_eSPI/User_Setup.h
 // ================================================================
 
-#include <FS.h>
-using fs::FS;
-
+#include <WiFi.h>
 #include "Config.h"
 #include "Mode1_Pet.h"
 #include "Mode2_Security.h"
@@ -31,10 +29,10 @@ using fs::FS;
 #include <TFT_eSPI.h>
 #include <Wire.h>
 #include <Preferences.h>
+#include <ArduinoJson.h>
 
 // ── Global TFT instance ──────────────────────────────────────────
 TFT_eSPI tft = TFT_eSPI();
-Preferences prefs;
 
 // ── Global Settings (loaded from Preferences) ────────────────────
 String sys_wifi_ssid;
@@ -45,11 +43,65 @@ float sys_sky_lamax;
 float sys_sky_lomax;
 uint16_t sys_clock_color;
 uint16_t sys_weather_color;
+String sys_device_name;
+String sys_ap_ssid;
+String sys_ap_pass;
+uint8_t sys_threat_sensitivity;
+bool    sys_homeguard_enabled;
+bool    sys_aviation_enabled;
+String  sys_current_face = "idle";
+bool    sec_hud_mode = true;
+bool    avi_hud_mode = true;
+
+// ── WiFi Event Logger ────────────────────────────────────────────
+void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
+{
+    switch(event)
+    {
+        case ARDUINO_EVENT_WIFI_STA_CONNECTED:
+            Serial.println("[WIFI] Connected to AP");
+            break;
+
+        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+            Serial.print("[WIFI] IP=");
+            Serial.println(WiFi.localIP());
+            break;
+
+        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+            Serial.printf(
+                "[WIFI] Disconnect reason=%d\n",
+                info.wifi_sta_disconnected.reason
+            );
+            break;
+
+        case ARDUINO_EVENT_WIFI_AP_STACONNECTED:
+            Serial.printf("[WIFI] AP client connected   mac=%02X:%02X:%02X:%02X:%02X:%02X aid=%u total=%u\n",
+                info.wifi_ap_staconnected.mac[0], info.wifi_ap_staconnected.mac[1],
+                info.wifi_ap_staconnected.mac[2], info.wifi_ap_staconnected.mac[3],
+                info.wifi_ap_staconnected.mac[4], info.wifi_ap_staconnected.mac[5],
+                info.wifi_ap_staconnected.aid,
+                WiFi.softAPgetStationNum());
+            break;
+
+        case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED:
+            Serial.printf("[WIFI] AP client disconnected mac=%02X:%02X:%02X:%02X:%02X:%02X aid=%u total=%u\n",
+                info.wifi_ap_stadisconnected.mac[0], info.wifi_ap_stadisconnected.mac[1],
+                info.wifi_ap_stadisconnected.mac[2], info.wifi_ap_stadisconnected.mac[3],
+                info.wifi_ap_stadisconnected.mac[4], info.wifi_ap_stadisconnected.mac[5],
+                info.wifi_ap_stadisconnected.aid,
+                WiFi.softAPgetStationNum());
+            break;
+
+        default:
+            break;
+    }
+}
 
 // ── State machine ────────────────────────────────────────────────
 volatile uint8_t  g_mode       = 0;      // 0=Pet  1=Security  2=Aviation
 volatile uint8_t  g_active_mode = 0;
 volatile bool     g_mode_dirty = false;  // Set by ISR/touch, consumed by Core 1
+volatile bool     g_mode_transitioning = false; // Core 0/1 sync: skip Core 0 task during transition
 volatile uint32_t g_last_btn   = 0;      // Debounce timestamp
 
 // ── Touch interaction signal (shared with Mode 1) ────────────────
@@ -86,41 +138,50 @@ static void poll_touch_input() {
     _touch_active = false;
     return;
   }
-  bool pressed = (digitalRead(TOUCH_PIN) == HIGH);
+  int raw = digitalRead(TOUCH_PIN);
+  bool pressed = (raw == HIGH);
   uint32_t now = millis();
+  static uint32_t last_boot_log = 0;
 
-  // Debug print every 1000ms to see touch pin status
-  static uint32_t last_debug = 0;
-  if (now - last_debug > 1000) {
-    last_debug = now;
-    Serial.printf("[DEBUG] Touch pin %d reads: %d (%s)\n", 
-                  TOUCH_PIN, digitalRead(TOUCH_PIN), pressed ? "PRESSED" : "IDLE");
+  // Log raw state every 250ms during first 5s of boot for startup diagnostics
+  static uint32_t boot_start = 0;
+  if (boot_start == 0) boot_start = now;
+  if (now - boot_start < 5000 && now - last_boot_log >= 250) {
+    last_boot_log = now;
+    Serial.printf("[TOUCH] boot raw=%d pressed=%d active=%d ms=%u\n", raw, pressed ? 1 : 0, _touch_active ? 1 : 0, now);
   }
 
   // Debounce: ignore state changes within TOUCH_DEBOUNCE_MS
   if (pressed != _touch_active) {
     if (now - _touch_last_change < TOUCH_DEBOUNCE_MS) return;
     _touch_last_change = now;
+    Serial.printf("[TOUCH] transition raw=%d pressed=%d ms=%u\n", raw, pressed ? 1 : 0, now);
   }
 
   if (pressed && !_touch_active) {
     // ── Finger DOWN ──────────────────────────────────────────
     _touch_start  = now;
     _touch_active = true;
+    Serial.printf("[TOUCH] START raw=%d ms=%u\n", raw, now);
   }
 
   if (!pressed && _touch_active) {
     // ── Finger UP ────────────────────────────────────────────
     uint32_t duration = now - _touch_start;
     _touch_active = false;
+    Serial.printf("[TOUCH] RELEASE raw=%d duration=%u ms=%u\n", raw, duration, now);
 
     if (duration >= LONG_PRESS_MS) {
       // LONG PRESS → Switch mode
+      Serial.println("[TOUCH] LONG_PRESS");
       g_mode       = (g_mode + 1) % TOTAL_MODES;
       g_mode_dirty = true;
     } else if (duration > 20) {
       // SHORT TAP → Context interaction (pet pat, etc.)
+      Serial.println("[TOUCH] TAP");
       g_touch_tap = true;
+    } else {
+      Serial.println("[TOUCH] CHATTER (duration <= 20ms, ignored)");
     }
   }
 }
@@ -186,18 +247,20 @@ static void teardown_mode(uint8_t mode) {
     case 1: security_teardown();  break;
     case 2: aviation_teardown();  break;
   }
+  WiFiService.stop();
 }
 
 // ================================================================
 //  MODE SETUP HELPER
 // ================================================================
 static void setup_mode(uint8_t mode) {
-  tft.fillScreen(TFT_BLACK);
+  DisplayService.clear();
   switch (mode) {
-    case 0: pet_setup(&tft);       break;
-    case 1: security_setup(&tft);  break;
-    case 2: aviation_setup(&tft);  break;
+    case 0: pet_setup(DisplayService.getCanvas());       break;
+    case 1: security_setup(DisplayService.getCanvas());  break;
+    case 2: aviation_setup(DisplayService.getCanvas());  break;
   }
+  DisplayService.commit();
 }
 
 // ================================================================
@@ -205,12 +268,77 @@ static void setup_mode(uint8_t mode) {
 // ================================================================
 
 static bool handle_global_command(const String& line) {
+  if (line.startsWith("{")) {
+    DynamicJsonDocument doc(512);
+    DeserializationError err = deserializeJson(doc, line);
+    if (!err) {
+      if (doc.containsKey("emotion")) {
+        String emo = doc["emotion"].as<String>();
+        if (emo == "happy") EmotionEngine.setEmotion(EMOTION_HAPPY);
+        else if (emo == "sad") EmotionEngine.setEmotion(EMOTION_SAD);
+        else if (emo == "angry") EmotionEngine.setEmotion(EMOTION_ANGRY);
+        else if (emo == "curious") EmotionEngine.setEmotion(EMOTION_CURIOUS);
+        else if (emo == "sleepy") EmotionEngine.setEmotion(EMOTION_SLEEPY);
+        else if (emo == "calm") EmotionEngine.setEmotion(EMOTION_CALM);
+        else if (emo == "alert") EmotionEngine.setEmotion(EMOTION_ALERT);
+        else if (emo == "love") EmotionEngine.setEmotion(EMOTION_LOVE);
+        else if (emo == "surprised") EmotionEngine.setEmotion(EMOTION_SURPRISED);
+      }
+      if (doc.containsKey("activity")) {
+        String act = doc["activity"].as<String>();
+        if (act == "idle") EmotionEngine.setActivity(ACTIVITY_IDLE);
+        else if (act == "coding") {
+          EmotionEngine.setActivity(ACTIVITY_CODING);
+          EventBus.publish(EVENT_PC_CODING);
+        }
+        else if (act == "music") EmotionEngine.setActivity(ACTIVITY_MUSIC);
+        else if (act == "aviation") EmotionEngine.setActivity(ACTIVITY_WATCHING_FLIGHTS);
+        else if (act == "scanning") EmotionEngine.setActivity(ACTIVITY_SCANNING_NETWORKS);
+        else if (act == "thinking") EmotionEngine.setActivity(ACTIVITY_THINKING);
+        else if (act == "sleeping") EmotionEngine.setActivity(ACTIVITY_SLEEPING);
+        else if (act == "typing") {
+          EmotionEngine.setActivity(ACTIVITY_TYPING);
+          EventBus.publish(EVENT_PC_TYPING);
+        }
+      }
+      if (doc.containsKey("app")) {
+        String app = doc["app"].as<String>();
+        EventBus.publish(EVENT_PC_STATUS_UPDATE, (void*)app.c_str());
+      }
+      Serial.println("RES:{\"ok\":true,\"action\":\"json_context\"}");
+      return true;
+    }
+  }
+
   // Web app commands prefix: "CMD:"
   if (line.startsWith("CMD:")) {
     String cmd = line.substring(4);
 
     if (cmd == "PING") {
       Serial.printf("RES:{\"ok\":true,\"fw\":\"2.0\",\"mode\":%d,\"hw\":\"deskbuddy2\"}\n", g_mode + 1);
+      return true;
+    }
+
+    if (cmd == "GET_FLIGHTS") {
+      avi_send_flights_serial();
+      return true;
+    }
+
+    if (cmd == "GET_TIMELINE") {
+      Timeline.sendSerial();
+      return true;
+    }
+    
+    if (cmd == "GET_PET_STATUS") {
+      Serial.printf("RES:{\"emotion\":\"%s\",\"mood\":\"%s\",\"activity\":\"%s\",\"face\":\"%s\",\"wifi\":\"%s\",\"heap\":%d,\"fps\":%d,\"mode\":%d,\"flights\":%lu,\"networks\":%lu,\"coding\":%lu,\"hours\":%lu,\"fl_seen_today\":%lu,\"fl_seen_lifetime\":%lu,\"fl_last_count\":%lu,\"fl_max_seen\":%lu}\n",
+                    EmotionEngine.getEmotionStr(), EmotionEngine.getMoodStr(), EmotionEngine.getActivityStr(),
+                    sys_current_face.c_str(),
+                    WiFiService.isConnected() ? sys_wifi_ssid.c_str() : "disconnected",
+                    ESP.getFreeHeap(), 30, g_mode,
+                    StorageService.getFlightsSeen(), StorageService.getNetworksDiscovered(),
+                    StorageService.getCodingTimeMinutes(), StorageService.getActiveHours(),
+                    FlightStats.aircraft_seen_today, FlightStats.aircraft_seen_lifetime,
+                    FlightStats.last_aircraft_count, FlightStats.max_aircraft_seen);
       return true;
     }
     
@@ -223,9 +351,37 @@ static bool handle_global_command(const String& line) {
         snprintf(hex, sizeof(hex), "#%02X%02X%02X", r, g, b);
         return String(hex);
       };
-      Serial.printf("RES:{\"ssid\":\"%s\",\"lamin\":%.2f,\"lomin\":%.2f,\"lamax\":%.2f,\"lomax\":%.2f,\"c_col\":\"%s\",\"w_col\":\"%s\"}\n",
+      Serial.printf("RES:{\"ssid\":\"%s\",\"lamin\":%.2f,\"lomin\":%.2f,\"lamax\":%.2f,\"lomax\":%.2f,\"c_col\":\"%s\",\"w_col\":\"%s\",\"refresh\":%lu,\"aviation_enabled\":%s}\n",
                     sys_wifi_ssid.c_str(), sys_sky_lamin, sys_sky_lomin, sys_sky_lamax, sys_sky_lomax,
-                    rgb565toHex(sys_clock_color).c_str(), rgb565toHex(sys_weather_color).c_str());
+                    rgb565toHex(sys_clock_color).c_str(), rgb565toHex(sys_weather_color).c_str(), sys_avi_refresh,
+                    sys_aviation_enabled ? "true" : "false");
+      return true;
+    }
+    
+    if (cmd.startsWith("SET_REFRESH:")) {
+      uint32_t val = cmd.substring(12).toInt();
+      if (val == 15000 || val == 30000 || val == 60000 || val == 120000) {
+        sys_avi_refresh = val;
+        Preferences p;
+        p.begin("aerosniffer", false);
+        p.putUInt("avi_refresh", val);
+        p.end();
+        Serial.println("RES:{\"ok\":true,\"action\":\"set_refresh\"}");
+      } else {
+        Serial.println("RES:{\"ok\":false,\"error\":\"invalid refresh rate\"}");
+      }
+      return true;
+    }
+    
+    if (cmd.startsWith("SET_AVIATION:")) {
+      String val = cmd.substring(13);
+      bool enable = (val == "1" || val == "true");
+      sys_aviation_enabled = enable;
+      Preferences p;
+      p.begin("aerosniffer", false);
+      p.putUChar("avi_enable", enable ? 1 : 0);
+      p.end();
+      Serial.println("RES:{\"ok\":true,\"action\":\"set_aviation\"}");
       return true;
     }
     
@@ -318,6 +474,17 @@ static bool handle_global_command(const String& line) {
       ESP.restart();
       return true;
     }
+  } else if (line.startsWith("TELEMETRY:")) {
+    String payload = line.substring(10);
+    int cpu_val = 0, ram_val = 0;
+    if (sscanf(payload.c_str(), "cpu=%d,ram=%d", &cpu_val, &ram_val) == 2) {
+      g_creature.pc_cpu = cpu_val;
+      g_creature.pc_ram = ram_val;
+      Serial.printf("RES:{\"ok\":true,\"action\":\"telemetry\",\"cpu\":%d,\"ram\":%d}\n", cpu_val, ram_val);
+    } else {
+      Serial.println("RES:{\"ok\":false,\"error\":\"bad_telemetry_format\"}");
+    }
+    return true;
   } else {
     // Non-CMD web commands, e.g. PC Agent PING
     if (line == "PING") {
@@ -336,6 +503,18 @@ static void process_serial_commands() {
     if (c == '\n') {
       input_line.trim();
       if (input_line.length() > 0) {
+        // Debug trace: log packet type, timestamp, payload size
+        String pkt_type = "RAW";
+        if (input_line.startsWith("{")) pkt_type = "JSON";
+        else if (input_line.startsWith("CMD:")) pkt_type = "CMD";
+        else if (input_line.startsWith("FACE:")) pkt_type = "FACE";
+        else if (input_line.startsWith("STATUS:")) pkt_type = "STATUS";
+        else if (input_line.startsWith("APP:")) pkt_type = "APP";
+        else if (input_line.startsWith("TELEMETRY:")) pkt_type = "TELEM";
+        else if (input_line.startsWith("PARTICLE:")) pkt_type = "PART";
+        else if (input_line == "PING") pkt_type = "PING";
+        Serial.printf("[SERIAL] %s t=%lu len=%d\n", pkt_type.c_str(), millis(), input_line.length());
+
         if (!handle_global_command(input_line)) {
           if (g_mode == 0) {
             pet_handle_command(input_line);
@@ -358,10 +537,14 @@ static void process_serial_commands() {
 // ── Core 0 — Background processing ──────────────────────────────
 void task_core0(void*) {
   for (;;) {
-    switch (g_mode) {
-      case 0: pet_core0_task();       break;
-      case 1: security_core0_task();  break;
-      case 2: aviation_core0_task();  break;
+    // Skip processing during mode transition to avoid race with Core 1's teardown/setup.
+    // Use g_active_mode (only updated by Core 1 after setup completes) to avoid ISR races.
+    if (!g_mode_transitioning) {
+      switch (g_active_mode) {
+        case 0: pet_core0_task();       break;
+        case 1: security_core0_task();  break;
+        case 2: aviation_core0_task();  break;
+      }
     }
     taskYIELD();
   }
@@ -371,8 +554,19 @@ void task_core0(void*) {
 void task_core1(void*) {
   // Initial mode boot
   setup_mode(g_mode);
+  uint32_t last_heartbeat = 0;
 
   for (;;) {
+    // ── Heartbeat (every 1s) ────────────────────────────────
+    uint32_t now = millis();
+    if (now - last_heartbeat >= 1000) {
+      last_heartbeat = now;
+      Serial.println("[FACE] heartbeat");
+    }
+
+    // ── Tick Emotion Engine ──────────────────────────────────
+    EmotionEngine.tick();
+
     // ── Non-Blocking Serial Processing ───────────────────────
     process_serial_commands();
 
@@ -384,22 +578,34 @@ void task_core1(void*) {
     // ── Handle mode switch (triggered by ISR or touch) ──────
     if (g_mode_dirty) {
       g_mode_dirty  = false;
-      prefs.putUInt("mode", g_mode);
+      g_mode_transitioning = true;
+      Serial.printf("[MODE] Transitioning: %d -> %d\n", g_active_mode, g_mode);
+      StorageService.saveMode(g_mode);
       teardown_mode(g_active_mode);
+      Serial.printf("[MODE] Teardown of mode %d complete\n", g_active_mode);
 
       // Mode transition splash
-      tft.fillScreen(TFT_BLACK);
-      tft.setTextColor(0x07FF);
-      tft.setTextSize(2);
+      DisplayService.clear();
+      TFT_eSprite* canvas = DisplayService.getCanvas();
+      canvas->setTextColor(0x07FF);
+      canvas->setTextSize(2);
       const char* mnames[] = {"COMPANION", "SECURITY", "AVIATION"};
       // Center text on screen
       int tx = (TFT_W - strlen(mnames[g_mode]) * 12) / 2;
-      tft.setCursor(tx, TFT_H / 2 - 8);
-      tft.print(mnames[g_mode]);
+      canvas->setCursor(tx, TFT_H / 2 - 8);
+      canvas->print(mnames[g_mode]);
+      DisplayService.commit();
       delay(600);
 
       g_active_mode = g_mode;
       setup_mode(g_mode);
+      #if HAS_TOUCH
+        _touch_start = 0;
+        _touch_active = false;
+        _touch_last_change = millis();
+      #endif
+      Serial.printf("[MODE] Setup of mode %d complete\n", g_active_mode);
+      g_mode_transitioning = false;
     }
 
     // ── Dispatch UI update for current mode ────────────────────
@@ -409,7 +615,9 @@ void task_core1(void*) {
       case 2: aviation_core1_task();  break;
     }
 
-    taskYIELD();
+    DisplayService.commit();
+
+    vTaskDelay(pdMS_TO_TICKS(16));
   }
 }
 
@@ -419,6 +627,7 @@ void task_core1(void*) {
 void setup() {
   Serial.begin(115200);
   Serial.println("\n[AeroSniffer] Booting...");
+  WiFi.onEvent(WiFiEvent);
 
   #ifdef HW_DESKBUDDY_2
     Serial.println("[HW] DeskBuddy 2.0 — XIAO ESP32S3 + ST7789 240x240");
@@ -431,26 +640,38 @@ void setup() {
   tft.setRotation(1);        // Rotate 90 degrees clockwise to make upright
   tft.fillScreen(TFT_BLACK);
 
-  // ── Load Mode & Settings ───────────────────────────────────────────
-  prefs.begin("aerosniffer", false);
-  g_mode = 0; // Always start in Mode 1 (Companion/Pet) on boot/reset
-  if (g_mode >= TOTAL_MODES) g_mode = 0;
+  // ── Initialize OS Services ───────────────────────────────────────
+  StorageService.begin();
+  EmotionEngine.begin();
+  WiFiService.begin();
+  DisplayService.begin();
 
-  sys_wifi_ssid = prefs.getString("ssid", DEFAULT_WIFI_SSID);
-  sys_wifi_pass = prefs.getString("pass", DEFAULT_WIFI_PASSWORD);
-  sys_sky_lamin = prefs.getFloat("lamin", DEFAULT_SKY_LAMIN);
-  sys_sky_lomin = prefs.getFloat("lomin", DEFAULT_SKY_LOMIN);
-  sys_sky_lamax = prefs.getFloat("lamax", DEFAULT_SKY_LAMAX);
-  sys_sky_lomax = prefs.getFloat("lomax", DEFAULT_SKY_LOMAX);
-  sys_clock_color = prefs.getUShort("c_col", DEFAULT_CLOCK_COLOR);
-  sys_weather_color = prefs.getUShort("w_col", DEFAULT_WEATHER_COLOR);
+  // Always boot to Companion Mode (ignore saved mode)
+  g_mode = 0;
+  g_active_mode = 0;
+
+  sys_wifi_ssid = StorageService.getSSID();
+  sys_wifi_pass = StorageService.getPassword();
+  sys_sky_lamin = StorageService.getSkyLamin();
+  sys_sky_lomin = StorageService.getSkyLomin();
+  sys_sky_lamax = StorageService.getSkyLamax();
+  sys_sky_lomax = StorageService.getSkyLomax();
+  sys_clock_color = StorageService.getClockColor();
+  sys_weather_color = StorageService.getWeatherColor();
+  sys_device_name = StorageService.getDeviceName();
+  sys_ap_ssid = StorageService.getAPSsid();
+  sys_ap_pass = StorageService.getAPPass();
+  sys_threat_sensitivity = StorageService.getThreatSensitivity();
+  sys_homeguard_enabled = StorageService.getHomeGuardEnabled();
+  sys_aviation_enabled = StorageService.getAviationEnabled();
+  Serial.printf("[BOOT] Aviation Enabled preference: %s\n", sys_aviation_enabled ? "true" : "false");
 
   // ── Backlight (DevKitC only — DeskBuddy BL is always-on) ─────
   #if defined(TFT_BL) && TFT_BL >= 0
     pinMode(TFT_BL, OUTPUT);
-    ledcSetup(0, 5000, 8);     // Channel 0, 5 kHz PWM, 8-bit
-    ledcAttachPin(TFT_BL, 0);
-    ledcWrite(0, 255);         // Full brightness (0-255)
+    // ESP32 Core v3 API
+    ledcAttach(TFT_BL, 5000, 8); // pin, 5 kHz PWM, 8-bit resolution
+    ledcWrite(TFT_BL, 255);      // Full brightness (0-255)
   #endif
 
   // ── I2C for MPU-6050 (only if IMU present) ────────────────────

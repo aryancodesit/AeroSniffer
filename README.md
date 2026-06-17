@@ -11,9 +11,9 @@ AeroSniffer treats the ESP32-S3 like a mini operating system with three complete
 
 | Mode | Name | What It Does |
 |------|------|--------------|
-| 🐾 **Mode 1** | Cyber-Pet | PC-driven interactive desk companion with smooth, high-FPS vector face expressions that react to your computer's activity (typing, CPU load, apps) |
-| 🛡️ **Mode 2** | Network Auditor | 802.11 packet sniffer with animated radar sweep display + companion web app ([aero-sniffer.vercel.app](https://aero-sniffer.vercel.app/)) for full security control |
-| ✈️ **Mode 3** | Flight Radar | Live ADS-B flight tracker pulling from OpenSky Network API with callsign, altitude, speed, and compass heading |
+| 🐾 **Mode 1** | Cyber-Pet Companion | PC-driven interactive desk companion with smooth, high-FPS vector face expressions that react to your computer's activity (typing, CPU load, apps) |
+| 🛡️ **Mode 2** | Security Sentinel | Network monitor with animated radar sweep display + companion web app ([aero-sniffer.vercel.app](https://aero-sniffer.vercel.app/)) for presence awareness |
+| ✈️ **Mode 3** | Aviation Observer | Live ADS-B flight tracker pulling from OpenSky Network API with callsign, altitude, speed, and compass heading |
 
 **Switch modes instantly** with a 1.5-second long-press on the capacitive touch sensor. No reboot needed — FreeRTOS handles clean teardown and re-init of all hardware between modes.
 
@@ -131,9 +131,9 @@ AeroSniffer was engineered to push the limits of embedded systems across six cap
 2. **Phase 2: Autonomous Cyber-Pet Engine**
    - Dynamic, high-FPS procedural vector facial expressions.
    - Live PC telemetrics (CPU load, active windows) mapped to emotional states via USB.
-3. **Phase 3: Passive Network Auditor**
-   - Stealthy 802.11 promiscuous mode packet sniffing.
-   - Automatic detection of unencrypted payloads and Deauthentication/Disassociation attacks.
+3. **Phase 3: Security Sentinel**
+   - Passive 802.11 network monitoring for local device presence.
+   - Automatic detection of unknown devices and network anomalies.
 4. **Phase 4: Web Serial Security Dashboard**
    - A fully immersive, browser-based command center.
    - Real-time visualization of ESP32 packet logs directly over USB-C.
@@ -179,7 +179,7 @@ Mode 2 uses a split architecture optimized for the tiny 1.3" display:
 
 **On your phone/laptop (Companion Web App):**
 - Connect via **Web Serial API** over USB-C
-- Full Marauder-style scan controls & AP telemetry
+- Full network scan controls & AP telemetry
 - Device configuration (Wi-Fi, Bounding Box, Colors)
 - Live Event Log for Deauth attacks
 

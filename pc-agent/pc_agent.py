@@ -511,17 +511,31 @@ class MoodEngine:
         short_app = self._short_app_name(window_title)
         title_lower = window_title.lower()
         
-        is_coding = "code" in title_lower or "terminal" in title_lower or "pycharm" in title_lower or "github" in title_lower
-        is_gaming = "steam" in title_lower or "epic" in title_lower or "minecraft" in title_lower
-        is_music = "spotify" in title_lower or "music" in title_lower
+        # Determine discrete activity context
+        activity = "idle"
+        coding_keywords = ["vscode", "visual studio code", "cursor", "pycharm", "intellij", "sublime", "terminal", "powershell", "cmd.exe", "bash", "nvim", "vim", "github"]
+        gaming_keywords = ["steam", "epic games", "battle.net", "minecraft", "roblox", "valorant"]
+        music_keywords = ["spotify", "apple music", "soundcloud"]
+        editing_keywords = ["obs", "premiere", "photoshop", "blender", "figma"]
+        
+        is_coding = any(kw in title_lower for kw in coding_keywords)
+        is_gaming = any(kw in title_lower for kw in gaming_keywords)
+        is_music = any(kw in title_lower for kw in music_keywords)
+        is_editing = any(kw in title_lower for kw in editing_keywords)
         
         if is_coding:
+            activity = "coding"
             self.focus += dt * 1.0
-        if is_gaming:
+        elif is_gaming:
+            activity = "gaming"
             self.happiness += dt * 1.0
             self.focus -= dt * 0.5
-        if is_music:
+        elif is_music:
+            activity = "music"
             self.happiness += dt * 0.5
+        elif is_editing:
+            activity = "editing"
+            self.focus += dt * 0.5
             
         # ── Battery & CPU stats impact ──────────────────────
         if hasattr(psutil, "sensors_battery"):
@@ -623,7 +637,47 @@ class MoodEngine:
                 new_face = "IDLE"
                 reason = "idle default"
 
-        # ── Send to ESP32 ──────────────────────────────────
+        # ── Send JSON Context to ESP32 ─────────────────────
+        # Convert face to standard emotion strings used in C++ firmware
+        emotion_map = {
+            "IDLE": "calm",
+            "HAPPY": "happy",
+            "EXCITED": "excited",
+            "SLEEPY": "sleepy",
+            "THINKING": "curious",
+            "SAD_ERROR": "sad",
+            "ALERT_WARNING": "alert",
+            "LOVE_BONDING": "love",
+            "STARTUP_BOOT": "happy",
+            "SURPRISED": "surprised"
+        }
+        emotion_str = emotion_map.get(new_face, "happy")
+
+        # Map to C++ Activity strings: "idle", "coding", "music", "aviation", "scanning", "thinking", "sleeping", "typing"
+        cpp_activity = "idle"
+        if activity == "coding":
+            cpp_activity = "coding"
+        elif activity == "gaming":
+            cpp_activity = "typing"  # Map gaming to active typing
+        elif activity == "music":
+            cpp_activity = "music"
+        elif activity == "editing":
+            cpp_activity = "thinking"
+        elif sys_mon.is_idle:
+            cpp_activity = "sleeping"
+
+        context = {
+            "emotion": emotion_str,
+            "activity": cpp_activity,
+            "app": short_app
+        }
+
+        # Send JSON context if anything changed
+        if new_face != self.last_face or short_app != self.last_app or activity != getattr(self, "last_activity", None):
+            self.serial.send(json.dumps(context))
+            self.last_activity = activity
+
+        # Also send legacy commands for robust compatibility
         if new_face != self.last_face:
             log(f"  stats -> H:{self.happiness:.0f} E:{self.energy:.0f} F:{self.focus:.0f}", DIM)
             log_face(new_face, reason)

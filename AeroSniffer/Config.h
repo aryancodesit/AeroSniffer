@@ -11,6 +11,8 @@
 //  Edit only this file to remap any hardware pin.
 // ================================================================
 #pragma once
+#ifndef CONFIG_H
+#define CONFIG_H
 
 // ── Hardware Variant Toggle ──────────────────────────────────────
 //    Uncomment ONE line to select your build target.
@@ -156,6 +158,10 @@
 extern String sys_wifi_ssid;
 extern String sys_wifi_pass;
 
+// ── OpenSky API Credentials ─────────────────────────────────────
+#define OPENSKY_USER              "aaluparatha-api-client"
+#define OPENSKY_PASS              "pgFnDE9qJrf9KaTsiqRnBV7IHl4xV9xF"
+
 // ── OpenSky Network REST API bounding box ────────────────────────
 //    Default: ~60 km radius over Bhubaneswar, Odisha, India
 //    Adjust lat/lon bounds to your location (1 degree ≈ 111 km)
@@ -176,6 +182,24 @@ extern float sys_sky_lomax;
 extern uint16_t sys_clock_color;
 extern uint16_t sys_weather_color;
 
+// ── Security Module Settings (loaded from Preferences) ──────────
+#define DEFAULT_AP_SSID            "AeroSniffer-Test"
+#define DEFAULT_AP_PASS            "aerosniffer123"
+#define DEFAULT_DEVICE_NAME        "AeroSniffer"
+#define DEFAULT_THREAT_SENSITIVITY 1   // 0=low, 1=medium, 2=high
+#define DEFAULT_HOMEGUARD_ENABLED  1
+#define DEFAULT_AVIATION_ENABLED   0
+
+extern String sys_device_name;
+extern String sys_ap_ssid;
+extern String sys_ap_pass;
+extern uint8_t sys_threat_sensitivity;
+extern bool    sys_homeguard_enabled;
+extern bool    sys_aviation_enabled;
+extern String  sys_current_face;
+extern bool    sec_hud_mode;
+extern bool    avi_hud_mode;
+
 // Global block touch flag to prevent Wi-Fi RF interference from triggering touch sensor
 extern volatile bool g_block_touch;
 
@@ -190,12 +214,24 @@ extern volatile bool g_block_touch;
 #define MAX_AP_TABLE        64    // Max tracked SSIDs
 #define CHANNEL_HOP_MS     180    // Channel dwell time (ms)
 
+// Map threat sensitivity (0=low/1=medium/2=high) to deauth threshold
+static inline uint8_t getDeauthThreshold() {
+    switch (sys_threat_sensitivity) {
+        case 0:  return 20;
+        case 2:  return 5;
+        default: return 10;  // medium
+    }
+}
+
 // ── Security Mode Web UI (DeskBuddy 2.0) ────────────────────────
-#define SEC_AP_SSID    "AeroSniffer-SEC"
-#define SEC_AP_PASS    ""
 #define SEC_WEB_PORT   80
+#define ENABLE_PORTAL_V2  1    // 1=Portal v2 (SPA)  0=Diagnostic mode
 
 // ── Aviation Mode Timings (Mode 3) ──────────────────────────────
 #define FETCH_INTERVAL_MS 15000   // OpenSky poll rate (respect rate limit)
 #define CARD_SCROLL_MS     4000   // Auto-scroll between flight cards
 #define MAX_FLIGHTS         10    // Max flights stored in RAM
+
+#include "AeroSnifferOS.h"
+
+#endif // CONFIG_H
