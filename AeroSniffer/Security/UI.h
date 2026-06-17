@@ -1,4 +1,34 @@
-<!DOCTYPE html>
+// ================================================================
+//  Security/UI.h  —  Web Dashboard & TFT Display Renderer
+//  AeroSniffer Security Layer | Modular Subcomponent
+// ================================================================
+#pragma once
+
+#include <Arduino.h>
+#include <FS.h>
+#include <SPIFFS.h>
+using fs::FS;
+#include <WebServer.h>
+#include <TFT_eSPI.h>
+#include "AeroSnifferOS.h"
+#include "Statistics.h"
+#include "HomeGuard.h"
+#include "EvilTwin.h"
+
+#include "Sniffer.h"
+
+static TFT_eSprite* _stft = nullptr;
+static WebServer* _webserver = nullptr;
+
+// ── Radar sweep animation state ──────────────────────────────────
+static float    _sweep_angle    = 0.0f;
+static uint32_t _sweep_last_ms  = 0;
+
+// Embed the raw client HTML dashboard
+static void sec_handle_root() {
+  Serial.printf("[SEC] WEB REQ client=%s uri=%s\n",
+    _webserver->client().remoteIP().toString().c_str(), _webserver->uri().c_str());
+  String html = R"rawliteral(<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -125,11 +155,6 @@
     box-shadow: inset 0 -2px 0 var(--green);
   }
   .tab-btn.active .freq{ color:var(--green-dim); }
-  .tab-btn.ble-tab.active{
-    color:var(--purple);
-    box-shadow: inset 0 -2px 0 var(--purple);
-  }
-  .tab-btn.ble-tab.active .freq{ color:#7c4fb8; }
 
   .tab-content{display:none;}
   .tab-content.active{display:block; animation:fadein .25s ease;}
@@ -316,7 +341,6 @@
     <button class="tab-btn active" onclick="switchTab('tab-dashboard')">Dashboard<span class="freq">2.4G</span></button>
     <button class="tab-btn" onclick="switchTab('tab-twin')">Evil Twin<span class="freq">AP-GUARD</span></button>
     <button class="tab-btn" onclick="switchTab('tab-probes')">Probes<span class="freq">CLIENT-RX</span></button>
-    <button class="tab-btn ble-tab" onclick="switchTab('tab-ble')">BLE Trackers<span class="freq">2.4G/BLE</span></button>
     <button class="tab-btn" onclick="switchTab('tab-homeguard')">Home Guard<span class="freq">DEFENSE</span></button>
   </div>
 
@@ -384,24 +408,6 @@
     </div>
   </div>
 
-  <!-- BLE -->
-  <div class="tab-content" id="tab-ble">
-    <div class="card" style="border-color:#3a2d52">
-      <div class="card-title" style="color:var(--purple)">BLE Beacon Tracking</div>
-      <p class="card-note">Scans for proximity signals matching commercial stalker tags (AirTags, Tiles, Samsung SmartTags).</p>
-      <div class="scrollable-table">
-        <table>
-          <thead>
-            <tr><th>Tracker Type</th><th>Bluetooth Address</th><th>Last RSSI</th><th>Last Seen</th><th>Hits</th></tr>
-          </thead>
-          <tbody id="ble-list-body">
-            <tr><td colspan="5" style="text-align:center;color:var(--muted)">No tracker beacons detected yet.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
   <!-- HOME GUARD -->
   <div class="tab-content" id="tab-homeguard">
     <div class="card">
@@ -444,7 +450,7 @@
     </div>
   </div>
 
-  <footer>AeroSniffer v2.0 :: DeskBuddy 2.0 SOC :: 802.11 / BLE Sensor</footer>
+  <footer>AeroSniffer v2.0 :: DeskBuddy 2.0 SOC :: 802.11 Sensor</footer>
 
   <script>
     function switchTab(tabId){
@@ -456,8 +462,7 @@
       if(tabId==='tab-dashboard')buttons[0].classList.add('active');
       else if(tabId==='tab-twin')buttons[1].classList.add('active');
       else if(tabId==='tab-probes')buttons[2].classList.add('active');
-      else if(tabId==='tab-ble')buttons[3].classList.add('active');
-      else if(tabId==='tab-homeguard')buttons[4].classList.add('active');
+      else if(tabId==='tab-homeguard')buttons[3].classList.add('active');
       loadTabData(tabId);
     }
     function startScan(){fetch('/api/scan/start')}
@@ -586,24 +591,6 @@
           }
           document.getElementById('probe-list-body').innerHTML=html;
         });
-      }else if(tabId==='tab-ble'){
-        fetch('/api/ble').then(r=>r.json()).then(d=>{
-          let html='';
-          if(!d.trackers||d.trackers.length===0){
-            html='<tr><td colspan="5" style="text-align:center;color:var(--muted)">No tracker beacons detected.</td></tr>';
-          }else{
-            d.trackers.forEach(tr=>{
-              html+=`<tr>
-                <td style="color:var(--purple);font-weight:bold">${tr.type}</td>
-                <td>${tr.mac}</td>
-                <td>${tr.rssi} dBm</td>
-                <td>${tr.seen}s ago</td>
-                <td>${tr.count}</td>
-              </tr>`;
-            });
-          }
-          document.getElementById('ble-list-body').innerHTML=html;
-        });
       }else if(tabId==='tab-homeguard'){
         loadHomeGuardConfig();
       }
@@ -633,4 +620,405 @@
     },1000);
   </script>
 </body>
-</html>
+</html>)rawliteral";
+  _webserver->send(200, "text/html", html);
+}
+
+static void sec_handle_stats() {
+  Serial.printf("[SEC] WEB REQ client=%s uri=%s\n",
+    _webserver->client().remoteIP().toString().c_str(), _webserver->uri().c_str());
+  String bssid_str = "";
+  char bssid_buf[20];
+  snprintf(bssid_buf, sizeof(bssid_buf), "%02X:%02X:%02X:%02X:%02X:%02X",
+           evil_twin_trusted_bssid[0], evil_twin_trusted_bssid[1], evil_twin_trusted_bssid[2],
+           evil_twin_trusted_bssid[3], evil_twin_trusted_bssid[4], evil_twin_trusted_bssid[5]);
+  bssid_str = bssid_buf;
+
+  char json[512];
+  snprintf(json, sizeof(json),
+    "{\"scanning\":%s,\"ch\":%d,\"pps\":%lu,\"total\":%lu,"
+    "\"beacons\":%lu,\"probes\":%lu,\"deauths\":%lu,"
+    "\"evil_twin_detected\":%s,\"evil_twin_target\":\"%s\",\"evil_twin_trusted\":\"%s\",\"evil_twin_attacker\":\"%s\"}",
+    sec_scanning ? "true" : "false", current_ch,
+    pkt_per_sec, pkt_total, pkt_beacon, pkt_probe, pkt_deauth,
+    evil_twin_detected ? "true" : "false", evil_twin_target_ssid, bssid_str.c_str(), evil_twin_attacker_bssid);
+  _webserver->send(200, "application/json", json);
+}
+
+static void sec_handle_aps() {
+  String json = "{\"aps\":[";
+  for (int i = 0; i < ap_count; i++) {
+    if (i > 0) json += ",";
+    char ap_json[128];
+    snprintf(ap_json, sizeof(ap_json),
+             "{\"ssid\":\"%s\",\"bssid\":\"%02X:%02X:%02X:%02X:%02X:%02X\",\"rssi\":%d,\"ch\":%d}",
+             ap_table[i].ssid,
+             ap_table[i].bssid[0], ap_table[i].bssid[1], ap_table[i].bssid[2],
+             ap_table[i].bssid[3], ap_table[i].bssid[4], ap_table[i].bssid[5],
+             ap_table[i].rssi, ap_table[i].channel);
+    json += ap_json;
+  }
+  json += "]}";
+  _webserver->send(200, "application/json", json);
+}
+
+static void sec_handle_probes() {
+  String json = "{\"probes\":[";
+  for (int i = 0; i < probe_leak_count; i++) {
+    if (i > 0) json += ",";
+    char pr_json[128];
+    snprintf(pr_json, sizeof(pr_json),
+             "{\"mac\":\"%s\",\"ssid\":\"%s\",\"seen\":%lu}",
+             probe_leaks[i].client_mac, probe_leaks[i].ssid, (millis() - probe_leaks[i].last_seen) / 1000);
+    json += pr_json;
+  }
+  json += "]}";
+  _webserver->send(200, "application/json", json);
+}
+
+static void sec_handle_set_protected() {
+  if (_webserver->hasArg("ssid") && _webserver->hasArg("bssid")) {
+    String ssid = _webserver->arg("ssid");
+    String bssid_str = _webserver->arg("bssid");
+    
+    uint8_t bssid[6] = {0};
+    int values[6];
+    if (sscanf(bssid_str.c_str(), "%x:%x:%x:%x:%x:%x", 
+               &values[0], &values[1], &values[2], 
+               &values[3], &values[4], &values[5]) == 6) {
+      for (int i = 0; i < 6; i++) {
+        bssid[i] = (uint8_t)values[i];
+      }
+    }
+    
+    strcpy(evil_twin_target_ssid, ssid.c_str());
+    memcpy(evil_twin_trusted_bssid, bssid, 6);
+    evil_twin_detected = false;
+    evil_twin_attacker_bssid[0] = '\0';
+    
+    Preferences prefs;
+    prefs.begin("aerosniffer", false);
+    prefs.putString("tr_ssid", ssid);
+    prefs.putBytes("tr_bssid", bssid, 6);
+    prefs.end();
+    
+    _webserver->send(200, "text/plain", "OK");
+  } else {
+    _webserver->send(400, "text/plain", "Missing ssid or bssid");
+  }
+}
+
+static void sec_handle_clear_evil_twin() {
+  evil_twin_detected = false;
+  evil_twin_attacker_bssid[0] = '\0';
+  _webserver->send(200, "text/plain", "OK");
+}
+
+static void sec_handle_hg_config() {
+  String json = "{";
+  json += "\"welcome_mac\":\"" + format_mac_bytes(welcome_mac) + "\",";
+  json += "\"welcome_name\":\"" + String(welcome_name) + "\",";
+  json += "\"find_ssid\":\"" + String(find_ssid) + "\",";
+  json += "\"find_active\":" + String(find_mode_active ? "true" : "false") + ",";
+  json += "\"find_rssi\":" + String(find_rssi) + ",";
+  
+  json += "\"whitelist\":[";
+  for (int i = 0; i < known_device_count; i++) {
+    if (i > 0) json += ",";
+    json += "{\"mac\":\"" + String(known_devices[i].mac) + "\",";
+    json += "\"name\":\"" + String(known_devices[i].name) + "\",";
+    json += "\"firstSeen\":" + String(known_devices[i].firstSeen) + ",";
+    json += "\"lastSeen\":" + String(known_devices[i].lastSeen) + ",";
+    json += "\"sightings\":" + String(known_devices[i].sightings) + ",";
+    json += "\"trusted\":" + String(known_devices[i].trusted ? "true" : "false") + "}";
+  }
+  json += "]}";
+  
+  _webserver->send(200, "application/json", json);
+}
+
+static void sec_handle_hg_set_welcome() {
+  if (_webserver->hasArg("mac") && _webserver->hasArg("name")) {
+    String mac_str = _webserver->arg("mac");
+    String name_str = _webserver->arg("name");
+    
+    uint8_t parsed_mac[6] = {0};
+    if (parse_mac_string(mac_str, parsed_mac)) {
+      memcpy(welcome_mac, parsed_mac, 6);
+      strncpy(welcome_name, name_str.c_str(), sizeof(welcome_name));
+      
+      Preferences prefs;
+      prefs.begin("aerosniffer", false);
+      prefs.putBytes("wl_mac", welcome_mac, 6);
+      prefs.putString("wl_name", name_str);
+      prefs.end();
+      
+      _webserver->send(200, "text/plain", "OK");
+      return;
+    }
+  }
+  _webserver->send(400, "text/plain", "Invalid arguments");
+}
+
+static void sec_handle_hg_wl_add() {
+  if (_webserver->hasArg("mac") && _webserver->hasArg("name")) {
+    String mac_str = _webserver->arg("mac");
+    String name_str = _webserver->arg("name");
+    
+    uint8_t parsed_mac[6] = {0};
+    if (parse_mac_string(mac_str, parsed_mac)) {
+      char norm_mac[18];
+      snprintf(norm_mac, sizeof(norm_mac), "%02X:%02X:%02X:%02X:%02X:%02X",
+               parsed_mac[0], parsed_mac[1], parsed_mac[2],
+               parsed_mac[3], parsed_mac[4], parsed_mac[5]);
+               
+      int idx = find_device_index(norm_mac);
+      if (idx == -1) {
+        if (known_device_count < MAX_KNOWN_DEVICES) {
+          idx = known_device_count++;
+        } else {
+          int oldest_idx = -1;
+          uint32_t oldest_time = 0xFFFFFFFF;
+          for (int i = 0; i < known_device_count; i++) {
+            if (!known_devices[i].trusted && known_devices[i].lastSeen < oldest_time) {
+              oldest_time = known_devices[i].lastSeen;
+              oldest_idx = i;
+            }
+          }
+          if (oldest_idx != -1) idx = oldest_idx;
+        }
+      }
+      if (idx != -1) {
+        strcpy(known_devices[idx].mac, norm_mac);
+        strncpy(known_devices[idx].name, name_str.c_str(), sizeof(known_devices[idx].name));
+        known_devices[idx].trusted = true;
+        known_devices[idx].lastSeen = millis() / 1000;
+        if (known_devices[idx].sightings == 0) {
+          known_devices[idx].sightings = 1;
+          known_devices[idx].firstSeen = millis() / 1000;
+        }
+        save_known_devices();
+        _webserver->send(200, "text/plain", "OK");
+        return;
+      }
+    }
+  }
+  _webserver->send(400, "text/plain", "Invalid arguments");
+}
+
+static void sec_handle_hg_wl_remove() {
+  if (_webserver->hasArg("mac")) {
+    String mac_str = _webserver->arg("mac");
+    uint8_t parsed_mac[6] = {0};
+    if (parse_mac_string(mac_str, parsed_mac)) {
+      char norm_mac[18];
+      snprintf(norm_mac, sizeof(norm_mac), "%02X:%02X:%02X:%02X:%02X:%02X",
+               parsed_mac[0], parsed_mac[1], parsed_mac[2],
+               parsed_mac[3], parsed_mac[4], parsed_mac[5]);
+      int idx = find_device_index(norm_mac);
+      if (idx != -1) {
+        for (int i = idx; i < known_device_count - 1; i++) {
+          known_devices[i] = known_devices[i + 1];
+        }
+        known_device_count--;
+        save_known_devices();
+        _webserver->send(200, "text/plain", "OK");
+        return;
+      }
+    }
+  }
+  _webserver->send(400, "text/plain", "Invalid arguments");
+}
+
+static void sec_handle_hg_find_toggle() {
+  if (_webserver->hasArg("ssid")) {
+    String ssid_str = _webserver->arg("ssid");
+    if (ssid_str.length() > 0) {
+      strncpy(find_ssid, ssid_str.c_str(), sizeof(find_ssid));
+      find_mode_active = true;
+      find_rssi = -100;
+      ch_hopping = true;
+    } else {
+      find_mode_active = false;
+      find_ssid[0] = '\0';
+    }
+    _webserver->send(200, "text/plain", "OK");
+  } else {
+    _webserver->send(400, "text/plain", "Missing ssid");
+  }
+}
+
+static void sec_handle_scan_start() {
+  Serial.printf("[SEC] WEB REQ client=%s uri=%s\n",
+    _webserver->client().remoteIP().toString().c_str(), _webserver->uri().c_str());
+  if (!sec_scanning) {
+    sec_scanning = true;
+    WiFiService.setPromiscuous(true, sec_sniffer_cb);
+  }
+  _webserver->send(200, "text/plain", "OK");
+}
+
+static void sec_handle_scan_stop() {
+  Serial.printf("[SEC] WEB REQ client=%s uri=%s\n",
+    _webserver->client().remoteIP().toString().c_str(), _webserver->uri().c_str());
+  if (sec_scanning) {
+    sec_scanning = false;
+    WiFiService.setPromiscuous(false);
+  }
+  _webserver->send(200, "text/plain", "OK");
+}
+
+static void sec_draw_display() {
+  if (!_stft) return;
+
+  if (welcome_triggered) {
+    if (millis() - welcome_triggered_ms < 10000) {
+      _stft->fillScreen(0x000F); // Sleek dark blue
+      _stft->drawRect(5, 5, TFT_W - 10, TFT_H - 10, 0x07FF); // Cyan border
+      _stft->setTextColor(TFT_YELLOW);
+      _stft->setTextSize(2);
+      _stft->setCursor(20, 40);
+      _stft->print("WELCOME");
+      _stft->setCursor(20, 65);
+      _stft->print("HOME,");
+      
+      _stft->setTextColor(TFT_WHITE);
+      _stft->setCursor(20, 105);
+      _stft->print(welcome_name);
+      
+      _stft->setTextSize(1);
+      _stft->setTextColor(TFT_GREEN);
+      _stft->setCursor(50, 180);
+      _stft->print("(^__^)");
+      return;
+    } else {
+      welcome_triggered = false;
+    }
+  }
+
+  if (find_mode_active) {
+    _stft->fillScreen(TFT_BLACK);
+    _stft->drawRect(5, 5, TFT_W - 10, TFT_H - 10, 0x07E0); // Green border
+    _stft->setTextColor(TFT_GREEN);
+    _stft->setTextSize(1);
+    _stft->setCursor(15, 20);
+    _stft->print("FINDING NETWORK:");
+    _stft->setCursor(15, 35);
+    _stft->setTextColor(TFT_WHITE);
+    _stft->print(find_ssid);
+    
+    _stft->setCursor(15, 70);
+    _stft->setTextSize(3);
+    if (find_rssi > -100) {
+      _stft->setTextColor(find_rssi > -60 ? TFT_GREEN : (find_rssi > -80 ? TFT_YELLOW : TFT_RED));
+      _stft->printf("%d dBm", find_rssi);
+    } else {
+      _stft->setTextColor(TFT_DARKGREY);
+      _stft->print("SEARCHING");
+    }
+    
+    int bar_val = map(find_rssi, -100, -30, 0, TFT_W - 40);
+    bar_val = constrain(bar_val, 0, TFT_W - 40);
+    _stft->fillRect(20, 120, TFT_W - 40, 20, 0x000F);
+    _stft->fillRect(20, 120, bar_val, 20, 0x07E0);
+    
+    _stft->setTextSize(1);
+    _stft->setTextColor(0x528A);
+    _stft->setCursor(15, 170);
+    _stft->print("Move the AeroSniffer");
+    _stft->setCursor(15, 185);
+    _stft->print("to locate dead zones.");
+    
+    _stft->setCursor(15, 215);
+    _stft->setTextColor(TFT_YELLOW);
+    _stft->print("Exit via companion app");
+    return;
+  }
+
+  _stft->fillScreen(TFT_BLACK);
+
+  _stft->fillRect(0, 0, TFT_W, 14, evil_twin_detected ? TFT_RED : 0x000F);
+  _stft->setTextColor(evil_twin_detected ? TFT_WHITE : 0x07FF);
+  _stft->setTextSize(1);
+  _stft->setCursor(2, 3);
+  _stft->print(evil_twin_detected ? "!! ROGUE AP DETECTED !!" : "MODE 2: SECURITY MONITOR");
+
+  int rcx = TFT_W / 2, rcy = 90, rr = 54;
+  _stft->fillCircle(rcx, rcy, rr, 0x0841);
+  _stft->drawCircle(rcx, rcy, rr, 0x0340);
+  _stft->drawCircle(rcx, rcy, rr / 2, 0x0220);
+  _stft->drawFastHLine(rcx - rr, rcy, rr * 2, 0x0220);
+  _stft->drawFastVLine(rcx, rcy - rr, rr * 2, 0x0220);
+
+  float rad = _sweep_angle * DEG_TO_RAD;
+  int sx = rcx + (int)((rr - 2) * cosf(rad));
+  int sy = rcy + (int)((rr - 2) * sinf(rad));
+  _stft->drawLine(rcx, rcy, sx, sy, 0x07E0);
+  _stft->fillCircle(rcx, rcy, 3, TFT_WHITE);
+
+  uint16_t badge_col = sec_scanning ? 0x07E0 : 0x4208;
+  _stft->fillRoundRect(TFT_W - 68, 18, 64, 12, 3, badge_col);
+  _stft->setTextColor(TFT_BLACK);
+  _stft->setTextSize(1);
+  _stft->setCursor(TFT_W - 62, 20);
+  _stft->print(sec_scanning ? "SCANNING" : "  IDLE  ");
+
+  int sy_base = 154;
+  _stft->setTextColor(0x528A);
+  _stft->setTextSize(1);
+
+  _stft->setCursor(4, sy_base);
+  _stft->print("PKT/s:");
+  int bar_w = std::min<int>((int)(pkt_per_sec / 5), TFT_W - 60);
+  _stft->fillRect(48, sy_base, bar_w, 8, 0x07E0);
+  _stft->setTextColor(TFT_YELLOW);
+  _stft->setCursor(TFT_W - 42, sy_base);
+  _stft->printf("%4lu", pkt_per_sec);
+
+  _stft->setTextColor(0x07FF);
+  _stft->setTextSize(1);
+  _stft->setCursor(4, sy_base + 16);
+  _stft->printf("TOTAL: %lu", pkt_total);
+
+  _stft->setCursor(4, sy_base + 28);
+  _stft->printf("BCN: %lu  PRB: %lu", pkt_beacon, pkt_probe);
+
+  _stft->setCursor(4, sy_base + 40);
+  _stft->setTextColor(pkt_deauth > 0 ? TFT_RED : 0x07FF);
+  _stft->printf("DEAUTH: %lu", pkt_deauth);
+  if (pkt_deauth >= getDeauthThreshold()) {
+    _stft->setTextColor(TFT_RED);
+    _stft->print("  !! ALERT");
+  }
+
+  _stft->setTextColor(0x528A);
+  _stft->setCursor(4, sy_base + 52);
+  _stft->printf("CH: %d", current_ch);
+
+  _stft->fillRect(0, TFT_H - 14, TFT_W, 14, 0x0008);
+  _stft->setTextColor(0x2CA0);
+  _stft->setTextSize(1);
+  _stft->setCursor(4, TFT_H - 12);
+  _stft->print("http://192.168.4.1");
+}
+
+static void sec_stream_events() {
+  if (_deauth_evt_pending) {
+    _deauth_evt_pending = false;
+    Serial.printf("EVT:{\"type\":\"deauth_alert\",\"count\":%lu,\"threshold\":%d}\n",
+                  pkt_deauth, getDeauthThreshold());
+  }
+
+  if (welcome_triggered) {
+    welcome_triggered = false;
+    Serial.printf("EVT:{\"type\":\"welcome_hello\",\"name\":\"%s\"}\n", welcome_name);
+    if (_stft) {
+      _stft->setTextColor(TFT_GREEN);
+      _stft->setTextSize(1);
+      _stft->setCursor(4, 4);
+      char buf[48];
+      snprintf(buf, sizeof(buf), "\xF0\x9F\x91\x8B WELCOME HOME: %s!", welcome_name);
+      _stft->print(buf);
+    }
+  }
+}

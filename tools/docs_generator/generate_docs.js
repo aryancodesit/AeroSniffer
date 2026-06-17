@@ -51,7 +51,7 @@ async function generatePPTX() {
     s2.addText([
         { text: 'Three separate devices in one tiny XIAO ESP32S3 chip' },
         { text: 'Mode 1: The Companion — Interactive desk pet with animated eyes' },
-        { text: 'Mode 2: Network Auditor — 802.11 sniffer + web UI control panel' },
+        { text: 'Mode 2: Security Sentinel — 802.11 network monitor + web UI dashboard' },
         { text: 'Mode 3: Flight Radar — Live ADS-B tracker from OpenSky Network' },
         { text: 'Instant mode switching via 1.5s long-press on touch sensor' },
         { text: 'Built on FreeRTOS dual-core architecture (Core 0: data, Core 1: UI)' }
@@ -177,7 +177,7 @@ async function generatePPTX() {
     s12.addText('Companion App (Planned)', TITLE_STYLE);
     s12.addText([
         { text: 'Web app (Vercel) or desktop .exe — connects via USB Serial' },
-        { text: 'Full Marauder control panel when device is plugged in' },
+        { text: 'Full network control panel when device is plugged in' },
         { text: 'Firmware update checker and OTA capability' },
         { text: 'Built-in how-to tutorial and payload library' },
         { text: 'Real-time packet visualization and export' }
@@ -287,7 +287,7 @@ async function generateDOCX() {
                 new Paragraph({ text: "" }),
                 new Paragraph({ text: "Mode 1 — The Companion: Animated desk pet with expressive eyes. Tap the touch sensor to trigger the happy face. The pet blinks automatically and cycles through idle expressions." }),
                 new Paragraph({ text: "" }),
-                new Paragraph({ text: "Mode 2 — Security Monitor: The 1.3 inch screen shows an animated radar sweep with live packet statistics (PKT/s, beacons, probes, deauths). For full control, connect your phone to the 'AeroSniffer-SEC' WiFi network and open http://192.168.4.1 in a browser. The web UI lets you start/stop scans and view detailed packet data." }),
+                new Paragraph({ text: "Mode 2 — Security Sentinel: The 1.3 inch screen shows an animated radar sweep with live network statistics (PKT/s, beacons, probes, events). For full control, connect your phone to the 'AeroSniffer-SEC' WiFi network and open http://192.168.4.1 in a browser. The web UI lets you start/stop scans and view detailed network data." }),
                 new Paragraph({ text: "" }),
                 new Paragraph({ text: "Mode 3 — Flight Radar: Connects to your home WiFi and polls the OpenSky Network API every 15 seconds. Displays compact flight cards with callsign, altitude, ground speed, heading, and a mini compass rose + radar map." }),
                 new Paragraph({ text: "" }),
@@ -295,7 +295,7 @@ async function generateDOCX() {
                 // Section 6: Companion App
                 new Paragraph({ text: "6. Companion App (Planned)", heading: HeadingLevel.HEADING_2 }),
                 new Paragraph({ text: "A web application (deployed on Vercel) or desktop executable is planned for Mode 2 control when the device is connected via USB. Features will include:" }),
-                new Paragraph({ text: "- Full Marauder-style control panel via USB Serial", bullet: { level: 0 } }),
+                new Paragraph({ text: "- Full network control panel via USB Serial", bullet: { level: 0 } }),
                 new Paragraph({ text: "- Firmware update checker and OTA capability", bullet: { level: 0 } }),
                 new Paragraph({ text: "- Built-in how-to tutorial and payload library", bullet: { level: 0 } }),
                 new Paragraph({ text: "- Real-time packet visualization and PCAP export", bullet: { level: 0 } }),

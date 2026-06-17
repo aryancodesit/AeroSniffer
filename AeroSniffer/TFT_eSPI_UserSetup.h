@@ -20,8 +20,8 @@
 
 // ── Hardware Variant ─────────────────────────────────────────────
 // Must match the setting in Config.h!
-// #define HW_DEVKITC
-#define HW_DESKBUDDY_2
+#define HW_DEVKITC
+// #define HW_DESKBUDDY_2
 
 // ================================================================
 //  DESKBUDDY 2.0 — XIAO ESP32S3 + ST7789 240×240
