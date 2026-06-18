@@ -25,16 +25,21 @@ void AttentionEngineClass::begin() {
 void AttentionEngineClass::tick(uint32_t delta_ms) {
   if (!_begun || _paused) return;
 
-  (void)delta_ms;   // unused in Phase 2 — drives decay deadline via millis()
+  (void)delta_ms;
+  uint32_t now = millis();
 
   // ── 1. Drain queue ───────────────────────────────────────────
   // Process every queued event. The last event's priority determines
   // the final state. Transition info is captured for serial logging
-  // outside the critical section.
+  // outside the critical section. millis() is read before the lock
+  // — the critical section should contain only small deterministic work.
   bool did_transition = false;
-  EventType trigger_ev = EVENT_COUNT;   // sentinel for "no event"
+  EventType trigger_ev = EVENT_COUNT;
   AttentionState old_state = STATE_SOFT_FOCUS;
 
+  // Future (Sprint 2): cap iterations to max_events_per_tick to bound
+  // CPU time during deauth storms. A burst of 16 events in one frame
+  // monopolises Core 1 at the expense of rendering.
   portENTER_CRITICAL(&_mux);
   while (_head != _tail) {
     EventType ev = _queue[_tail].event;
@@ -42,10 +47,9 @@ void AttentionEngineClass::tick(uint32_t delta_ms) {
     _processed_count++;
 
     uint8_t pri = eventPriority(ev);
-    if (pri == 0) continue;   // not an attention-relevant event
+    if (pri == 0) continue;
 
     if (_active_priority == 0 || pri <= _active_priority) {
-      // Preempt or renew
       AttentionState target = (pri == 1) ? STATE_THREAT_LOCK : STATE_WATCHING;
       if (target != _state) {
         did_transition = true;
@@ -54,21 +58,18 @@ void AttentionEngineClass::tick(uint32_t delta_ms) {
         _state         = target;
       }
       _active_priority = pri;
-      _decay_deadline  = millis() + decayForPriority(pri);
+      _decay_deadline  = now + decayForPriority(pri);
     }
-    // else: lower-priority event ignored while higher focus active
   }
   portEXIT_CRITICAL(&_mux);
 
-  // Serial diagnostics (outside critical section — never print with
-  // interrupts disabled, as Serial may block on full TX buffer)
   if (did_transition) {
     Serial.printf("[ATTN] %s -> %s (%s)\n",
       stateName(old_state), stateName(_state), eventName(trigger_ev));
   }
 
   // ── 2. Check decay ──────────────────────────────────────────
-  if (_active_priority > 0 && millis() >= _decay_deadline) {
+  if (_active_priority > 0 && now >= _decay_deadline) {
     resetState();
   }
 }
