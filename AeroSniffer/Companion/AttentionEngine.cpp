@@ -14,27 +14,72 @@ void AttentionEngineClass::begin() {
   _queue_high_water = 0;
   _paused          = false;
   _begun           = true;
+
+  _state           = STATE_SOFT_FOCUS;
+  _active_priority = 0;
+  _decay_deadline  = 0;
+
+  Serial.println("[ATTN] begin -> SOFT_FOCUS");
 }
 
 void AttentionEngineClass::tick(uint32_t delta_ms) {
   if (!_begun || _paused) return;
 
-  (void)delta_ms;   // unused in Phase 1 — drives decay in Phase 2
+  (void)delta_ms;   // unused in Phase 2 — drives decay deadline via millis()
 
-  // Drain the entire queue under one critical section.
-  // Phase 2 will extract and process each entry here.
+  // ── 1. Drain queue ───────────────────────────────────────────
+  // Process every queued event. The last event's priority determines
+  // the final state. Transition info is captured for serial logging
+  // outside the critical section.
+  bool did_transition = false;
+  EventType trigger_ev = EVENT_COUNT;   // sentinel for "no event"
+  AttentionState old_state = STATE_SOFT_FOCUS;
+
   portENTER_CRITICAL(&_mux);
   while (_head != _tail) {
+    EventType ev = _queue[_tail].event;
     _tail = (_tail + 1) % QUEUE_SIZE;
     _processed_count++;
+
+    uint8_t pri = eventPriority(ev);
+    if (pri == 0) continue;   // not an attention-relevant event
+
+    if (_active_priority == 0 || pri <= _active_priority) {
+      // Preempt or renew
+      AttentionState target = (pri == 1) ? STATE_THREAT_LOCK : STATE_WATCHING;
+      if (target != _state) {
+        did_transition = true;
+        trigger_ev     = ev;
+        old_state      = _state;
+        _state         = target;
+      }
+      _active_priority = pri;
+      _decay_deadline  = millis() + decayForPriority(pri);
+    }
+    // else: lower-priority event ignored while higher focus active
   }
   portEXIT_CRITICAL(&_mux);
+
+  // Serial diagnostics (outside critical section — never print with
+  // interrupts disabled, as Serial may block on full TX buffer)
+  if (did_transition) {
+    Serial.printf("[ATTN] %s -> %s (%s)\n",
+      stateName(old_state), stateName(_state), eventName(trigger_ev));
+  }
+
+  // ── 2. Check decay ──────────────────────────────────────────
+  if (_active_priority > 0 && millis() >= _decay_deadline) {
+    resetState();
+  }
 }
 
 // ── Mode Transition ──────────────────────────────────────────────
 
 void AttentionEngineClass::pause() {
   if (!_begun) return;
+  if (!_paused) {
+    Serial.printf("[ATTN] pause (was %s)\n", stateName(_state));
+  }
   _paused = true;
 
   // Flush the event queue — events arriving during pause are stale.
@@ -46,7 +91,11 @@ void AttentionEngineClass::pause() {
 
 void AttentionEngineClass::resume() {
   if (!_begun) return;
+  if (_paused) {
+    Serial.println("[ATTN] resume -> SOFT_FOCUS");
+  }
   _paused = false;
+  resetState();
 }
 
 // ── Event Ingestion ──────────────────────────────────────────────
@@ -80,10 +129,80 @@ void AttentionEngineClass::queueEvent(EventType event, void* data) {
   portEXIT_CRITICAL(&_mux);
 }
 
+// ── State Machine ─────────────────────────────────────────────────
+
+void AttentionEngineClass::resetState() {
+  if (_state == STATE_SOFT_FOCUS && _active_priority == 0) return;
+
+  AttentionState old = _state;
+  _state           = STATE_SOFT_FOCUS;
+  _active_priority = 0;
+  _decay_deadline  = 0;
+
+  Serial.printf("[ATTN] %s -> %s (decay)\n", stateName(old), stateName(_state));
+}
+
+// ── Priority / Decay Lookup ──────────────────────────────────────
+
+uint8_t AttentionEngineClass::eventPriority(EventType e) {
+  switch (e) {
+    case EVENT_ATTACK_DEAUTH:
+    case EVENT_ATTACK_EVILTWIN:
+      return 1;
+    case EVENT_TOUCH_SHORT:
+    case EVENT_TOUCH_LONG:
+      return 2;
+    case EVENT_FLIGHT_DETECTED:
+    case EVENT_FLIGHT_RARE:
+      return 3;
+    case EVENT_WIFI_CONNECTING:
+    case EVENT_WIFI_CONNECTED:
+    case EVENT_WIFI_DISCONNECTED:
+    case EVENT_MODE_SWITCHED:
+      return 4;
+    default:
+      return 0;
+  }
+}
+
+uint32_t AttentionEngineClass::decayForPriority(uint8_t pri) {
+  switch (pri) {
+    case 1:  return 8000;
+    case 2:  return 3000;
+    case 3:  return 5000;
+    case 4:  return 2500;
+    default: return 0;
+  }
+}
+
+const char* AttentionEngineClass::stateName(AttentionState s) {
+  switch (s) {
+    case STATE_SOFT_FOCUS:  return "SOFT_FOCUS";
+    case STATE_WATCHING:    return "WATCHING";
+    case STATE_THREAT_LOCK: return "THREAT_LOCK";
+    default:                return "?";
+  }
+}
+
+const char* AttentionEngineClass::eventName(EventType e) {
+  switch (e) {
+    case EVENT_ATTACK_DEAUTH:    return "ATTACK_DEAUTH";
+    case EVENT_ATTACK_EVILTWIN:  return "ATTACK_EVILTWIN";
+    case EVENT_TOUCH_SHORT:      return "TOUCH_SHORT";
+    case EVENT_TOUCH_LONG:       return "TOUCH_LONG";
+    case EVENT_FLIGHT_DETECTED:  return "FLIGHT_DETECTED";
+    case EVENT_FLIGHT_RARE:      return "FLIGHT_RARE";
+    case EVENT_WIFI_CONNECTING:  return "WIFI_CONNECTING";
+    case EVENT_WIFI_CONNECTED:   return "WIFI_CONNECTED";
+    case EVENT_WIFI_DISCONNECTED: return "WIFI_DISCONNECTED";
+    case EVENT_MODE_SWITCHED:    return "MODE_SWITCHED";
+    default:                     return "UNKNOWN";
+  }
+}
+
 // ── Private Helpers ──────────────────────────────────────────────
 
 size_t AttentionEngineClass::queueCount() const {
-  // Only called from consumer (Core 1 tick) or with spinlock held.
   return (_head + QUEUE_SIZE - _tail) % QUEUE_SIZE;
 }
 
