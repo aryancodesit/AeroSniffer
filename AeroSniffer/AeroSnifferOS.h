@@ -315,6 +315,8 @@ public:
 };
 
 // ── Global Service Instances ────────────────────────────────────
+class AttentionEngineClass;
+extern AttentionEngineClass AttentionEngine;
 extern EventBusClass EventBus;
 extern EmotionEngineClass EmotionEngine;
 extern WiFiServiceClass WiFiService;

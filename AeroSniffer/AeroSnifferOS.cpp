@@ -4,6 +4,7 @@
 // ================================================================
 #include "AeroSnifferOS.h"
 #include "Config.h"
+#include "Companion/AttentionEngine.h"
 #include <math.h>
 
 extern TFT_eSPI tft;
@@ -30,6 +31,7 @@ CreatureState g_creature = {
 EventBusClass EventBus;
 TimelineClass Timeline;
 FaceEngineClass FaceEngine;
+AttentionEngineClass AttentionEngine;
 WiFiServiceClass WiFiService;
 DisplayServiceClass DisplayService;
 StorageServiceClass StorageService;

@@ -179,6 +179,52 @@
     display:flex; flex-direction:column; gap:4px;
     background:#0a120d;
   }
+  /* ---------- SENTINEL COMPANION ---------- */
+  .companion-card { display: flex; gap: 16px; align-items: center; }
+  .companion-avatar {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: #0a120d; border: 2px solid var(--green-dim);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 10px rgba(57,255,136,0.05); transition: all 0.3s ease;
+    overflow: hidden; position: relative;
+  }
+  .companion-avatar.breathing {
+    animation: sentinel-breathe 4s infinite ease-in-out;
+  }
+  @keyframes sentinel-breathe {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 10px rgba(57,255,136,0.05); }
+    50% { transform: scale(1.02); box-shadow: 0 0 15px rgba(57,255,136,0.15); }
+  }
+  .sentinel-eyes {
+    display: flex; gap: 8px;
+    transition: transform 0.1s ease-out; /* For saccades */
+  }
+  .eye {
+    width: 14px; height: 16px; background: var(--green); border-radius: 50%;
+    position: relative; transition: height 0.15s ease, background 0.3s ease;
+    display: flex; justify-content: center; align-items: center;
+  }
+  .pupil {
+    width: 6px; height: 10px; background: #0a120d; border-radius: 50%;
+    transition: all 0.3s ease;
+  }
+  .companion-avatar.alert {
+    border-color: #ff5d5d; box-shadow: 0 0 20px rgba(255,93,93,0.3); animation: none;
+  }
+  .companion-avatar.alert .eye { background: #ff5d5d; height: 12px; border-radius: 2px; }
+  .companion-avatar.alert .pupil { width: 2px; height: 10px; } /* Slits */
+  .companion-avatar.stimulated .pupil { width: 10px; height: 12px; } /* Dilated */
+  .companion-avatar.sleepy .eye { height: 4px; }
+  .companion-avatar.sleepy { opacity: 0.6; animation: sentinel-breathe 6s infinite ease-in-out; }
+  .companion-avatar.blink .eye { height: 0px; margin-top: 8px; }
+  
+  .companion-details { flex: 1; }
+  .companion-mood { font-size: .95em; font-weight: 700; color: var(--text); margin-bottom: 6px; letter-spacing: .05em; }
+  .companion-stats { font-size: .75em; color: var(--muted); display: flex; gap: 12px; margin-bottom: 10px; }
+
+  @media (prefers-reduced-motion: reduce){
+    header::after, .status-dot{ animation:none; }
+  }
   .stat-label{
     font-size:.68em;
     color:var(--muted);
@@ -288,10 +334,6 @@
     padding-top:14px;
     border-top:1px solid var(--line);
   }
-
-  @media (prefers-reduced-motion: reduce){
-    header::after, .status-dot{ animation:none; }
-  }
 </style>
 </head>
 <body>
@@ -322,7 +364,26 @@
 
   <!-- DASHBOARD -->
   <div class="tab-content active" id="tab-dashboard">
-    <div class="card">
+      <div class="companion-card">
+        <div class="companion-avatar breathing" id="comp-avatar">
+          <div class="sentinel-eyes" id="sentinel-eyes">
+            <div class="eye"><div class="pupil"></div></div>
+            <div class="eye"><div class="pupil"></div></div>
+          </div>
+        </div>
+        <div class="companion-details">
+          <div class="companion-mood" id="comp-mood">State: Idle / Observing</div>
+          <div class="companion-stats">
+            <span>Archetype: <span style="color:var(--text)">The Sentinel</span></span>
+          </div>
+          <div class="btn-group">
+            <button class="btn action-btn" onclick="interactCompanion('pet')">Pet</button>
+            <button class="btn action-btn" onclick="interactCompanion('feed')">Feed</button>
+            <button class="btn action-btn" onclick="interactCompanion('comfort')">Comfort</button>
+          </div>
+        </div>
+      </div>
+    <div class="card" style="margin-top:16px;">
       <div class="card-title">Console Controls</div>
       <div class="btn-group">
         <button class="btn" onclick="startScan()">▶ Start Wi-Fi Scan</button>
@@ -462,6 +523,77 @@
     }
     function startScan(){fetch('/api/scan/start')}
     function stopScan(){fetch('/api/scan/stop')}
+    
+    // --- Sentinel Behavior Engine ---
+    let sentinelBlinkTimeout;
+    let sentinelSaccadeTimeout;
+    
+    function startSentinelEngine() {
+      scheduleBlink();
+      scheduleSaccade();
+    }
+
+    function scheduleBlink() {
+      const avatar = document.getElementById('comp-avatar');
+      const delay = Math.random() * 8000 + 4000; // 4s to 12s
+      sentinelBlinkTimeout = setTimeout(() => {
+        if(!avatar.classList.contains('alert')) {
+          avatar.classList.add('blink');
+          setTimeout(() => avatar.classList.remove('blink'), 150);
+          if(Math.random() < 0.2) { // 20% double blink
+             setTimeout(() => {
+                avatar.classList.add('blink');
+                setTimeout(() => avatar.classList.remove('blink'), 150);
+             }, 300);
+          }
+        }
+        scheduleBlink();
+      }, delay);
+    }
+
+    function scheduleSaccade() {
+      const eyes = document.getElementById('sentinel-eyes');
+      const delay = Math.random() * 2000 + 500;
+      sentinelSaccadeTimeout = setTimeout(() => {
+        const x = (Math.random() - 0.5) * 4;
+        const y = (Math.random() - 0.5) * 4;
+        eyes.style.transform = `translate(${x}px, ${y}px)`;
+        scheduleSaccade();
+      }, delay);
+    }
+
+    window.addEventListener('DOMContentLoaded', startSentinelEngine);
+
+    function interactCompanion(action) {
+      const avatar = document.getElementById('comp-avatar');
+      const mood = document.getElementById('comp-mood');
+      const eyes = document.getElementById('sentinel-eyes');
+      
+      if (action === 'pet') {
+        avatar.className = 'companion-avatar breathing';
+        avatar.classList.add('blink'); // Slow affectionate blink
+        setTimeout(() => avatar.classList.remove('blink'), 600);
+        mood.innerText = 'State: Affectionate / Acknowledged';
+      } else if (action === 'feed') {
+        avatar.className = 'companion-avatar breathing stimulated'; // Dilated pupils
+        mood.innerText = 'State: Flow / High Traffic Scan';
+        startScan();
+      } else if (action === 'comfort') {
+        avatar.className = 'companion-avatar sleepy'; // Relaxed
+        mood.innerText = 'State: Calm / Resting';
+        eyes.style.transform = 'translate(0px, 0px)';
+      }
+      
+      fetch(`/api/companion/interact?action=${action}`).catch(e => console.log('Mock interact:', action));
+      
+      setTimeout(() => {
+        if (!avatar.classList.contains('alert')) {
+          avatar.className = 'companion-avatar breathing';
+          mood.innerText = 'State: Idle / Observing';
+        }
+      }, 5000);
+    }
+
     function setProtected(ssid,bssid){
       fetch(`/api/set_protected?ssid=${encodeURIComponent(ssid)}&bssid=${encodeURIComponent(bssid)}`).then(()=>alert(`Protected target set: ${ssid}`));
     }
@@ -621,11 +753,24 @@
         document.getElementById('protected-ssid-lbl').innerText=d.evil_twin_target||'None';
         document.getElementById('protected-bssid-lbl').innerText=d.evil_twin_trusted||'00:00:00:00:00:00';
         const banner=document.getElementById('evil-twin-banner');
+        const compAvatar = document.getElementById('comp-avatar');
+        const compMood = document.getElementById('comp-mood');
         if(d.evil_twin_detected){
           banner.style.display='block';
           document.getElementById('alarm-details').innerText=`Target Network SSID: ${d.evil_twin_target}\nTrusted Router MAC: ${d.evil_twin_trusted}\nATTACKER ROUTER MAC: ${d.evil_twin_attacker}`;
+          
+          // Trigger Companion Alert State
+          if (!compAvatar.classList.contains('alert')) {
+            compAvatar.className = 'companion-avatar alert';
+            compMood.innerText = 'State: THREAT DETECTED (Hunting Mode)';
+          }
         }else{
           banner.style.display='none';
+          // Reset Companion Alert if it was spooked
+          if (compAvatar.classList.contains('alert')) {
+            compAvatar.className = 'companion-avatar breathing';
+            compMood.innerText = 'State: Idle / Observing';
+          }
         }
       });
       const activeTab=document.querySelector('.tab-content.active');

@@ -1,8 +1,8 @@
 // ================================================================
-//  Companion/AttentionEngine.cpp  —  Visual Attention System
+//  AttentionEngine.cpp  —  Visual Attention System
 //  AeroSniffer Companion Layer | C++ Implementation
 // ================================================================
-#include "AttentionEngine.h"
+#include "Companion/AttentionEngine.h"
 
 // ── Lifecycle ────────────────────────────────────────────────────
 
@@ -81,13 +81,13 @@ void AttentionEngineClass::pause() {
   if (!_paused) {
     Serial.printf("[ATTN] pause (was %s)\n", stateName(_state));
   }
+  // No critical section needed — _paused flag is the exclusive guard.
+  // queueEvent() discards events while paused, tick() returns early.
+  // Pre-pause events remain in the queue and drain naturally on
+  // the next tick() after resume().  Removing the spinlock eliminates
+  // the Interrupt WDT that occurred when Core 0 held _mux during
+  // queueEvent() while Core 1 tried to enter pause().
   _paused = true;
-
-  // Flush the event queue — events arriving during pause are stale.
-  portENTER_CRITICAL(&_mux);
-  _head = 0;
-  _tail = 0;
-  portEXIT_CRITICAL(&_mux);
 }
 
 void AttentionEngineClass::resume() {
