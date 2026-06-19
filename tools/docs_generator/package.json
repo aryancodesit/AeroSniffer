@@ -11,7 +11,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "docx": "^9.6.1",
+    "docx": "^9.7.1",
     "pptxgenjs": "^4.0.1"
   }
 }
