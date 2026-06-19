@@ -27,6 +27,7 @@ public:
   void pause();
   void resume();
   void queueEvent(EventType event, void* data);
+  void publish();
 
   // ── States ──
   enum AttentionState : uint8_t {
@@ -50,7 +51,7 @@ private:
   volatile size_t  _tail = 0;
 
   // ── Spinlock ─────────────────────────────────────────────────
-  portMUX_TYPE     _mux = {};
+  portMUX_TYPE     _mux = portMUX_INITIALIZER_UNLOCKED;
 
   // ── Pause State ──────────────────────────────────────────────
   bool             _paused = false;
@@ -59,7 +60,13 @@ private:
   // ── State Machine ────────────────────────────────────────────
   AttentionState   _state           = STATE_SOFT_FOCUS;
   uint8_t          _active_priority = 0;   // 0 = none, 1 = highest
-  uint32_t         _decay_deadline  = 0;   // millis() threshold
+
+  // ── V2.5 Structured Attention ────────────────────────────────
+  AttentionTarget   _target           = TARGET_NONE;
+  AttentionSource   _source           = SOURCE_INTERNAL;
+  uint8_t           _strength         = 0;
+  uint32_t          _acquired_ms      = 0;   // millis() when current target was set
+  uint8_t           _initial_strength = 0;
 
   // ── Statistics ───────────────────────────────────────────────
   uint32_t         _dropped_count     = 0;
@@ -68,11 +75,13 @@ private:
 
   // ── Priority / Decay Lookup ──────────────────────────────────
   static uint8_t   eventPriority(EventType e);
-  static uint32_t  decayForPriority(uint8_t pri);
   static const char* stateName(AttentionState s);
   static const char* eventName(EventType e);
 
-  void resetState();
+  void resetToIdle();
+  static void mapEvent(EventType e, AttentionTarget& target,
+                       AttentionSource& source, uint8_t& strength);
+  static uint8_t computeStrength(uint8_t initial, uint32_t elapsed_ms);
 
   // ── Helpers ──────────────────────────────────────────────────
   size_t queueCount() const;

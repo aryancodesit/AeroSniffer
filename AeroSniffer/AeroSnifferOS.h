@@ -41,7 +41,7 @@ enum EventType {
 
 typedef void (*EventCallback)(EventType event, void* eventData);
 
-#define MAX_SUBSCRIBERS 24
+#define MAX_SUBSCRIBERS 32
 
 class EventBusClass {
 private:
@@ -94,6 +94,22 @@ enum ActivityType {
   ACTIVITY_COUNT
 };
 
+// ── Attention Types (V2.5 Structured Attention) ───────────────────
+enum AttentionTarget : uint8_t {
+    TARGET_NONE    = 0,  // Idle — no focus target
+    TARGET_USER    = 1,  // User interaction (touch)
+    TARGET_THREAT  = 2,  // Security threat
+    TARGET_FLIGHT  = 3   // Aircraft detected
+};
+
+enum AttentionSource : uint8_t {
+    SOURCE_INTERNAL  = 0,  // Infrastructure: WiFi, mode switch, idle
+    SOURCE_TOUCH     = 1,  // Physical user interaction
+    SOURCE_SECURITY  = 2,  // Threat detection: deauth, evil twin
+    SOURCE_AVIATION  = 3,  // Aircraft observation
+    SOURCE_PORTAL    = 4   // Reserved — future Portal-triggered attention
+};
+
 // ── Global Creature State (Single Source of Truth) ───────────────
 struct CreatureState {
   EmotionType emotion;
@@ -110,7 +126,14 @@ struct CreatureState {
   uint32_t friendship_level;
   int8_t pc_cpu;  // Last PC CPU telemetry reading
   int8_t pc_ram;  // Last PC RAM telemetry reading
-  uint8_t attention_state;  // 0=SOFT_FOCUS, 1=WATCHING, 2=THREAT_LOCK
+  struct {
+    AttentionTarget target;    // What the creature is focused on
+    AttentionSource source;    // Which domain triggered focus
+    uint8_t         strength;  // 0–100, 0 = idle, 100 = locked
+  } attention;
+
+  // DEPRECATED: V2.4 compatibility shim — removed in Phase B
+  uint8_t attention_state;
 };
 
 extern CreatureState g_creature;

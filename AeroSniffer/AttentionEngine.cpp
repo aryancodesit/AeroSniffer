@@ -1,5 +1,5 @@
 // ================================================================
-//  AttentionEngine.cpp  —  Visual Attention System
+//  AttentionEngine.cpp  —  Visual Attention System (V2.5)
 //  AeroSniffer Companion Layer | C++ Implementation
 // ================================================================
 #include "Companion/AttentionEngine.h"
@@ -15,10 +15,7 @@ void AttentionEngineClass::begin() {
   _paused          = false;
   _begun           = true;
 
-  _state           = STATE_SOFT_FOCUS;
-  _active_priority = 0;
-  _decay_deadline  = 0;
-
+  resetToIdle();
   Serial.println("[ATTN] begin -> SOFT_FOCUS");
 }
 
@@ -29,19 +26,14 @@ void AttentionEngineClass::tick(uint32_t delta_ms) {
   uint32_t now = millis();
 
   // ── 1. Drain queue ───────────────────────────────────────────
-  // Process every queued event. The last event's priority determines
-  // the final state. Lock-free — single consumer on Core 1.
-  bool did_transition = false;
+  // Lock-free single consumer on Core 1. Producers (queueEvent)
+  // write _head under spinlock; consumer reads _head, reads entry,
+  // advances _tail. volatile prevents compiler-cache stalls.
+  // Worst case: missed event (stale _head read) — next tick picks it up.
+  bool did_event_transition = false;
   EventType trigger_ev = EVENT_COUNT;
-  AttentionState old_state = STATE_SOFT_FOCUS;
+  AttentionState old_state = _state;
 
-  // No spinlock — tick() is the single consumer on Core 1.
-  // queueEvent() (multi-producer, either core) uses portENTER_CRITICAL
-  // for its own writes, but since producers only advance _head and the
-  // consumer only advances _tail, a lock-free drain is safe here.
-  // volatile head/tail prevent compiler-cache stalls.
-  // Worst case: missed event (stale _head read), harmless in a
-  // best-effort attention system — the next tick picks it up.
   static constexpr size_t MAX_EVENTS_PER_TICK = 8;
   size_t events_this_tick = 0;
   while (_head != _tail && events_this_tick < MAX_EVENTS_PER_TICK) {
@@ -53,28 +45,46 @@ void AttentionEngineClass::tick(uint32_t delta_ms) {
     uint8_t pri = eventPriority(ev);
     if (pri == 0) continue;
 
+    // Accept: preempt (pri <= current) or first event
     if (_active_priority == 0 || pri <= _active_priority) {
-      AttentionState target = (pri == 1) ? STATE_THREAT_LOCK : STATE_WATCHING;
-      if (target != _state) {
-        did_transition = true;
-        trigger_ev     = ev;
-        old_state      = _state;
-        _state         = target;
-      }
+      mapEvent(ev, _target, _source, _initial_strength);
+      _acquired_ms = now;
       _active_priority = pri;
-      _decay_deadline  = now + decayForPriority(pri);
+
+      AttentionState target_state = (_target == TARGET_THREAT)  ? STATE_THREAT_LOCK :
+                                    (_target != TARGET_NONE)    ? STATE_WATCHING :
+                                                                  STATE_SOFT_FOCUS;
+      if (target_state != _state) {
+        did_event_transition = true;
+        trigger_ev = ev;
+        old_state  = _state;
+        _state     = target_state;
+      }
     }
   }
 
-  if (did_transition) {
+  // ── 2. Compute decay ────────────────────────────────────────
+  if (_active_priority > 0) {
+    uint32_t elapsed = now - _acquired_ms;
+    if (elapsed > 30000) {
+      resetToIdle();
+    } else {
+      _strength = computeStrength(_initial_strength, elapsed);
+      if (_strength == 0) {
+        resetToIdle();
+      }
+    }
+  }
+
+  // ── 3. Log event-driven transition ──────────────────────────
+  // (decay-driven transitions are logged inside resetToIdle())
+  if (did_event_transition) {
     Serial.printf("[ATTN] %s -> %s (%s)\n",
       stateName(old_state), stateName(_state), eventName(trigger_ev));
   }
 
-  // ── 2. Check decay ──────────────────────────────────────────
-  if (_active_priority > 0 && now >= _decay_deadline) {
-    resetState();
-  }
+  // ── 4. Publish to CreatureState ─────────────────────────────
+  publish();
 }
 
 // ── Mode Transition ──────────────────────────────────────────────
@@ -99,7 +109,7 @@ void AttentionEngineClass::resume() {
     Serial.println("[ATTN] resume -> SOFT_FOCUS");
   }
   _paused = false;
-  resetState();
+  resetToIdle();
 }
 
 // ── Event Ingestion ──────────────────────────────────────────────
@@ -109,13 +119,11 @@ void AttentionEngineClass::queueEvent(EventType event, void* data) {
 
   portENTER_CRITICAL(&_mux);
 
-  // Silently discard events while paused — mode isolation
   if (_paused) {
     portEXIT_CRITICAL(&_mux);
     return;
   }
 
-  // Overflow: discard oldest (advance tail), keep newest
   if (isQueueFull()) {
     _tail = (_tail + 1) % QUEUE_SIZE;
     _dropped_count++;
@@ -124,7 +132,6 @@ void AttentionEngineClass::queueEvent(EventType event, void* data) {
   _queue[_head] = { event, data };
   _head = (_head + 1) % QUEUE_SIZE;
 
-  // Track queue depth for debugging
   size_t count = (_head + QUEUE_SIZE - _tail) % QUEUE_SIZE;
   if (count > _queue_high_water) {
     _queue_high_water = count;
@@ -133,20 +140,101 @@ void AttentionEngineClass::queueEvent(EventType event, void* data) {
   portEXIT_CRITICAL(&_mux);
 }
 
-// ── State Machine ─────────────────────────────────────────────────
+// ── V2.5 Structured Attention ─────────────────────────────────────
 
-void AttentionEngineClass::resetState() {
-  if (_state == STATE_SOFT_FOCUS && _active_priority == 0) return;
+void AttentionEngineClass::resetToIdle() {
+  if (_target == TARGET_NONE && _active_priority == 0) return;
 
   AttentionState old = _state;
-  _state           = STATE_SOFT_FOCUS;
-  _active_priority = 0;
-  _decay_deadline  = 0;
+  _target           = TARGET_NONE;
+  _source           = SOURCE_INTERNAL;
+  _strength         = 0;
+  _state            = STATE_SOFT_FOCUS;
+  _active_priority  = 0;
+  _acquired_ms      = 0;
+  _initial_strength = 0;
 
   Serial.printf("[ATTN] %s -> %s (decay)\n", stateName(old), stateName(_state));
 }
 
-// ── Priority / Decay Lookup ──────────────────────────────────────
+void AttentionEngineClass::publish() {
+  g_creature.attention.target   = _target;
+  g_creature.attention.source   = _source;
+  g_creature.attention.strength = _strength;
+
+  // V2.4 compatibility shim — remove in Phase B
+  g_creature.attention_state    = (uint8_t)_state;
+}
+
+// ── Event → Attention Mapping ────────────────────────────────────
+
+void AttentionEngineClass::mapEvent(EventType e,
+    AttentionTarget& target, AttentionSource& source, uint8_t& strength) {
+  switch (e) {
+    case EVENT_ATTACK_DEAUTH:
+    case EVENT_ATTACK_EVILTWIN:
+      target = TARGET_THREAT; source = SOURCE_SECURITY; strength = 100; break;
+    case EVENT_TOUCH_SHORT:
+    case EVENT_TOUCH_LONG:
+      target = TARGET_USER; source = SOURCE_TOUCH; strength = 55; break;
+    case EVENT_FLIGHT_DETECTED:
+      target = TARGET_FLIGHT; source = SOURCE_AVIATION; strength = 45; break;
+    case EVENT_FLIGHT_RARE:
+      target = TARGET_FLIGHT; source = SOURCE_AVIATION; strength = 55; break;
+    case EVENT_WIFI_CONNECTING:
+    case EVENT_WIFI_DISCONNECTED:
+      target = TARGET_NONE; source = SOURCE_INTERNAL; strength = 30; break;
+    case EVENT_WIFI_CONNECTED:
+      target = TARGET_NONE; source = SOURCE_INTERNAL; strength = 25; break;
+    case EVENT_MODE_SWITCHED:
+      target = TARGET_NONE; source = SOURCE_INTERNAL; strength = 20; break;
+    default:
+      target = TARGET_NONE; source = SOURCE_INTERNAL; strength = 0; break;
+  }
+}
+
+// ── Strength Decay (Fixed-Point, 3-Zone) ─────────────────────────
+
+uint8_t AttentionEngineClass::computeStrength(uint8_t initial, uint32_t elapsed_ms) {
+  int s = (int)initial;
+  uint32_t t = elapsed_ms;
+
+  // Zone 1: above 50, decays at 25/s  (40ms per unit)
+  if (s > 50) {
+    uint32_t zone_ms = (s - 50) * 40;
+    if (t < zone_ms) {
+      s -= (int)((25 * t + 500) / 1000);
+      return (uint8_t)(s < 0 ? 0 : (s > 100 ? 100 : s));
+    }
+    t -= zone_ms;
+    s = 50;
+  }
+
+  // Zone 2: 20–50, decays at 10/s  (100ms per unit)
+  if (s > 20) {
+    uint32_t zone_ms = (s - 20) * 100;
+    if (t < zone_ms) {
+      s -= (int)((10 * t + 500) / 1000);
+      return (uint8_t)(s < 0 ? 0 : (s > 100 ? 100 : s));
+    }
+    t -= zone_ms;
+    s = 20;
+  }
+
+  // Zone 3: below 20, decays at 5/s  (200ms per unit)
+  {
+    uint32_t zone_ms = s * 200;
+    if (t < zone_ms) {
+      s -= (int)((5 * t + 500) / 1000);
+    } else {
+      s = 0;
+    }
+  }
+
+  return (uint8_t)(s < 0 ? 0 : (s > 100 ? 100 : s));
+}
+
+// ── Priority Lookup ──────────────────────────────────────────────
 
 uint8_t AttentionEngineClass::eventPriority(EventType e) {
   switch (e) {
@@ -166,16 +254,6 @@ uint8_t AttentionEngineClass::eventPriority(EventType e) {
       return 4;
     default:
       return 0;
-  }
-}
-
-uint32_t AttentionEngineClass::decayForPriority(uint8_t pri) {
-  switch (pri) {
-    case 1:  return 8000;
-    case 2:  return 3000;
-    case 3:  return 5000;
-    case 4:  return 2500;
-    default: return 0;
   }
 }
 
