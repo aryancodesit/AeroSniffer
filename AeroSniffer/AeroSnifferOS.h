@@ -110,6 +110,7 @@ struct CreatureState {
   uint32_t friendship_level;
   int8_t pc_cpu;  // Last PC CPU telemetry reading
   int8_t pc_ram;  // Last PC RAM telemetry reading
+  uint8_t attention_state;  // 0=SOFT_FOCUS, 1=WATCHING, 2=THREAT_LOCK
 };
 
 extern CreatureState g_creature;

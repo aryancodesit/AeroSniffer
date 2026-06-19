@@ -568,15 +568,26 @@ void FaceEngineClass::updateAnimations(int frame) {
     }
   }
   
-  if (now > anim_look_next) {
-    if (g_creature.emotion == EMOTION_CALM || g_creature.emotion == EMOTION_CURIOUS) {
-      anim_look_x = random(-6, 7);
-      anim_look_y = random(-4, 5);
-    } else {
-      anim_look_x = 0;
-      anim_look_y = 0;
+  // ── Attention-driven gaze ──────────────────────────────────
+  // Override random wandering when the creature has a target.
+  // WATCHING (1): look upward, alert
+  // THREAT_LOCK (2): centre dead ahead, intense focus
+  if (g_creature.attention_state == 1) {
+    anim_look_x = 0; anim_look_y = -2;
+  } else if (g_creature.attention_state == 2) {
+    anim_look_x = 0; anim_look_y = 0;
+  } else {
+    // SOFT_FOCUS (0) — existing random wandering
+    if (now > anim_look_next) {
+      if (g_creature.emotion == EMOTION_CALM || g_creature.emotion == EMOTION_CURIOUS) {
+        anim_look_x = random(-6, 7);
+        anim_look_y = random(-4, 5);
+      } else {
+        anim_look_x = 0;
+        anim_look_y = 0;
+      }
+      anim_look_next = now + random(1000, 4000);
     }
-    anim_look_next = now + random(1000, 4000);
   }
 
   // Bounce animation when happy, excited, or loving
