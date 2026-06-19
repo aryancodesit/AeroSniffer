@@ -571,9 +571,9 @@ void task_core1(void*) {
     }
 
     // ── Tick Attention Engine ────────────────────────────────
-    // uint32_t ae_delta = now - last_ae_tick;
-    // last_ae_tick = now;
-    // AttentionEngine.tick(ae_delta);
+    uint32_t ae_delta = now - last_ae_tick;
+    last_ae_tick = now;
+    AttentionEngine.tick(ae_delta);
 
     // ── Tick Emotion Engine ──────────────────────────────────
     EmotionEngine.tick();
@@ -671,7 +671,8 @@ void setup() {
   EventBus.subscribe(EVENT_FLIGHT_DETECTED, ae_event_callback);
   EventBus.subscribe(EVENT_WIFI_CONNECTING, ae_event_callback);
   EventBus.subscribe(EVENT_WIFI_CONNECTED, ae_event_callback);
-  EventBus.subscribe(EVENT_USER_TAP, ae_event_callback);
+  EventBus.subscribe(EVENT_TOUCH_SHORT, ae_event_callback);
+  EventBus.subscribe(EVENT_FLIGHT_RARE, ae_event_callback);
   EventBus.subscribe(EVENT_WIFI_DISCONNECTED, ae_event_callback);
 
   WiFiService.begin();

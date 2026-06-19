@@ -30,18 +30,22 @@ void AttentionEngineClass::tick(uint32_t delta_ms) {
 
   // ── 1. Drain queue ───────────────────────────────────────────
   // Process every queued event. The last event's priority determines
-  // the final state. Transition info is captured for serial logging
-  // outside the critical section. millis() is read before the lock
-  // — the critical section should contain only small deterministic work.
+  // the final state. Lock-free — single consumer on Core 1.
   bool did_transition = false;
   EventType trigger_ev = EVENT_COUNT;
   AttentionState old_state = STATE_SOFT_FOCUS;
 
-  // Future (Sprint 2): cap iterations to max_events_per_tick to bound
-  // CPU time during deauth storms. A burst of 16 events in one frame
-  // monopolises Core 1 at the expense of rendering.
-  portENTER_CRITICAL(&_mux);
-  while (_head != _tail) {
+  // No spinlock — tick() is the single consumer on Core 1.
+  // queueEvent() (multi-producer, either core) uses portENTER_CRITICAL
+  // for its own writes, but since producers only advance _head and the
+  // consumer only advances _tail, a lock-free drain is safe here.
+  // volatile head/tail prevent compiler-cache stalls.
+  // Worst case: missed event (stale _head read), harmless in a
+  // best-effort attention system — the next tick picks it up.
+  static constexpr size_t MAX_EVENTS_PER_TICK = 8;
+  size_t events_this_tick = 0;
+  while (_head != _tail && events_this_tick < MAX_EVENTS_PER_TICK) {
+    events_this_tick++;
     EventType ev = _queue[_tail].event;
     _tail = (_tail + 1) % QUEUE_SIZE;
     _processed_count++;
@@ -61,7 +65,6 @@ void AttentionEngineClass::tick(uint32_t delta_ms) {
       _decay_deadline  = now + decayForPriority(pri);
     }
   }
-  portEXIT_CRITICAL(&_mux);
 
   if (did_transition) {
     Serial.printf("[ATTN] %s -> %s (%s)\n",

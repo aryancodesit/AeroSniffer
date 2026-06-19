@@ -46,8 +46,8 @@ private:
   };
 
   QueueEntry       _queue[QUEUE_SIZE];
-  size_t           _head = 0;
-  size_t           _tail = 0;
+  volatile size_t  _head = 0;
+  volatile size_t  _tail = 0;
 
   // ── Spinlock ─────────────────────────────────────────────────
   portMUX_TYPE     _mux = {};
