@@ -1,0 +1,42 @@
+# ── Dependabot Configuration — AeroSniffer ──────────────────────
+#   Security updates = YES
+#   Dependency churn = NO
+#
+# Strategy: monthly, grouped, conservative. No firmware ecosystem
+# tracking (PlatformIO absent). No GitHub Actions yet.
+# ================================================================
+
+version: 2
+
+updates:
+  # ── Portal / Frontend (companion-app) ─────────────────────────
+  # TanStack React app, active development, 49+ dependencies.
+  # Group radix-ui and tanstack to reduce PR noise.
+  - package-ecosystem: "npm"
+    directory: "/companion-app"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      radix-ui:
+        patterns: ["@radix-ui/*"]
+        update-types: ["patch", "minor"]
+      tanstack:
+        patterns: ["@tanstack/*"]
+        update-types: ["patch", "minor"]
+
+  # ── Docs Generator (tools/docs_generator) ─────────────────────
+  # Infrequent dev tool — 2 low-churn deps (docx, pptxgenjs).
+  - package-ecosystem: "npm"
+    directory: "/tools/docs_generator"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 2
+
+  # ── PC Agent (pc-agent) ──────────────────────────────────────
+  # 3 stable Python deps (pyserial, psutil, pynput). Low churn.
+  - package-ecosystem: "pip"
+    directory: "/pc-agent"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 2
