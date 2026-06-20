@@ -135,7 +135,9 @@ bool MoodEngineClass::anxiousEntryCondition() const {
 bool MoodEngineClass::playfulEntryCondition() const {
   return _touch_count >= 2 &&
          (g_creature.emotion == EMOTION_HAPPY ||
-          g_creature.emotion == EMOTION_EXCITED);
+          g_creature.emotion == EMOTION_EXCITED ||
+          g_creature.emotion == EMOTION_LOVE ||
+          g_creature.emotion == EMOTION_SURPRISED);
 }
 
 // ── Publish ───────────────────────────────────────────────────────
