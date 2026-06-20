@@ -86,7 +86,11 @@ export function LiveRadarPanel() {
         }
       } else if (type === "EVT") {
         if (data.mac) {
-          if (data.classification === "SUSPICIOUS" || data.type === "deauth_alert" || data.type === "intruder_alert") {
+          if (
+            data.classification === "SUSPICIOUS" ||
+            data.type === "deauth_alert" ||
+            data.type === "intruder_alert"
+          ) {
             setSuspiciousMacs((prev) => [...new Set([...prev, data.mac.toUpperCase()])]);
           }
         }
@@ -139,11 +143,35 @@ export function LiveRadarPanel() {
     if (connected) return;
 
     setWhitelist([
-      { mac: "4A:F2:C3:99:A1:02", name: "Aryan's iPhone", sightings: 48, lastSeen: 120, trusted: true },
-      { mac: "8C:E2:B3:77:E1:05", name: "Development Laptop", sightings: 36, lastSeen: 180, trusted: true },
+      {
+        mac: "4A:F2:C3:99:A1:02",
+        name: "Aryan's iPhone",
+        sightings: 48,
+        lastSeen: 120,
+        trusted: true,
+      },
+      {
+        mac: "8C:E2:B3:77:E1:05",
+        name: "Development Laptop",
+        sightings: 36,
+        lastSeen: 180,
+        trusted: true,
+      },
       { mac: "00:1A:2B:3C:4D:5E", name: "Smart TV", sightings: 15, lastSeen: 300, trusted: true },
-      { mac: "A4:5E:60:88:B2:C1", name: "Unknown Phone", sightings: 3, lastSeen: 10, trusted: false },
-      { mac: "F2:C3:04:88:99:AA", name: "Intruder Client", sightings: 1, lastSeen: 2, trusted: false }
+      {
+        mac: "A4:5E:60:88:B2:C1",
+        name: "Unknown Phone",
+        sightings: 3,
+        lastSeen: 10,
+        trusted: false,
+      },
+      {
+        mac: "F2:C3:04:88:99:AA",
+        name: "Intruder Client",
+        sightings: 1,
+        lastSeen: 2,
+        trusted: false,
+      },
     ]);
 
     setApList([
@@ -151,7 +179,7 @@ export function LiveRadarPanel() {
       { ssid: "Linksys_Guest", rssi: -72 },
       { ssid: "HP-Print-24", rssi: -78 },
       { ssid: "AeroSniffer-SEC", rssi: -30 },
-      { ssid: "CoffeeShop_Free", rssi: -88 }
+      { ssid: "CoffeeShop_Free", rssi: -88 },
     ]);
 
     setStatus({
@@ -163,11 +191,11 @@ export function LiveRadarPanel() {
       probes: 250,
       deauths: 0,
       hopping: true,
-      aps: 5
+      aps: 5,
     });
 
     setEvents([
-      { time: new Date().toLocaleTimeString(), type: "welcome_hello", name: "Aryan's iPhone" }
+      { time: new Date().toLocaleTimeString(), type: "welcome_hello", name: "Aryan's iPhone" },
     ]);
   }, [connected]);
 
@@ -195,8 +223,8 @@ export function LiveRadarPanel() {
             {
               time: new Date().toLocaleTimeString(),
               type: "deauth_alert",
-              count: deauthCount
-            }
+              count: deauthCount,
+            },
           ]);
           return {
             ...s,
@@ -205,26 +233,31 @@ export function LiveRadarPanel() {
             total: s.total + totalDelta,
             beacons: s.beacons + beaconsDelta,
             probes: s.probes + probesDelta,
-            deauths: s.deauths + 1
+            deauths: s.deauths + 1,
           };
         } else if (rand < 0.16) {
-          const randomMacs = [
-            "B4:18:D1:42:0E:C8",
-            "9A:02:C4:F3:11:80",
-            "7E:F2:A3:88:B1:0E"
-          ];
+          const randomMacs = ["B4:18:D1:42:0E:C8", "9A:02:C4:F3:11:80", "7E:F2:A3:88:B1:0E"];
           const chosenMac = randomMacs[Math.floor(Math.random() * randomMacs.length)];
           setEvents((prev) => [
             ...prev.slice(-49),
             {
               time: new Date().toLocaleTimeString(),
               type: "intruder_alert",
-              mac: chosenMac
-            }
+              mac: chosenMac,
+            },
           ]);
           setWhitelist((w) => {
             if (w.some((d) => d.mac === chosenMac)) return w;
-            return [...w, { mac: chosenMac, name: "Unknown Client", sightings: 1, lastSeen: Date.now(), trusted: false }];
+            return [
+              ...w,
+              {
+                mac: chosenMac,
+                name: "Unknown Client",
+                sightings: 1,
+                lastSeen: Date.now(),
+                trusted: false,
+              },
+            ];
           });
         }
 
@@ -234,7 +267,7 @@ export function LiveRadarPanel() {
           pps: nextPps,
           total: s.total + totalDelta,
           beacons: s.beacons + beaconsDelta,
-          probes: s.probes + probesDelta
+          probes: s.probes + probesDelta,
         };
       });
 
@@ -244,7 +277,7 @@ export function LiveRadarPanel() {
           const rssiDelta = Math.round((Math.random() - 0.5) * 6);
           const nextRssi = Math.max(-95, Math.min(-20, ap.rssi + rssiDelta));
           return { ...ap, rssi: nextRssi };
-        })
+        }),
       );
     }, 1500);
 
@@ -306,7 +339,7 @@ export function LiveRadarPanel() {
         alert("Invalid MAC format for Welcome Home Detector.\nExpected: AA:BB:CC:DD:EE:FF");
         return;
       }
-      
+
       const nameRegex = /^[A-Za-z0-9 ]{3,20}$/;
       if (!nameRegex.test(welcomeName.trim())) {
         alert("Invalid name.\nExpected: 3-20 characters (letters, numbers, spaces).");
@@ -316,7 +349,11 @@ export function LiveRadarPanel() {
       if (!connected) {
         setEvents((prev) => [
           ...prev,
-          { time: new Date().toLocaleTimeString(), type: "welcome_hello", name: welcomeName.trim() }
+          {
+            time: new Date().toLocaleTimeString(),
+            type: "welcome_hello",
+            name: welcomeName.trim(),
+          },
         ]);
         alert(`Demo Mode: Welcome greeting simulated for ${welcomeName.trim()}!`);
         return;
@@ -361,7 +398,7 @@ export function LiveRadarPanel() {
   const toggleSuspicious = (mac: string) => {
     const norm = mac.toUpperCase();
     setSuspiciousMacs((prev) =>
-      prev.includes(norm) ? prev.filter((m) => m !== norm) : [...prev, norm]
+      prev.includes(norm) ? prev.filter((m) => m !== norm) : [...prev, norm],
     );
   };
 
@@ -369,7 +406,10 @@ export function LiveRadarPanel() {
     setValidationError("");
 
     // 1. Normalize MAC
-    let cleanMac = wlMac.toUpperCase().trim().replace(/[^0-9A-F]/g, "");
+    let cleanMac = wlMac
+      .toUpperCase()
+      .trim()
+      .replace(/[^0-9A-F]/g, "");
     if (cleanMac.length === 12) {
       cleanMac = cleanMac.match(/.{1,2}/g)?.join(":") || cleanMac;
     } else {
@@ -394,7 +434,10 @@ export function LiveRadarPanel() {
     if (!connected) {
       setWhitelist((prev) => {
         if (prev.some((d) => d.mac === cleanMac)) return prev;
-        return [...prev, { mac: cleanMac, name: cleanName, sightings: 1, lastSeen: Date.now(), trusted: true }];
+        return [
+          ...prev,
+          { mac: cleanMac, name: cleanName, sightings: 1, lastSeen: Date.now(), trusted: true },
+        ];
       });
       setWlMac("");
       setWlName("");
@@ -431,7 +474,16 @@ export function LiveRadarPanel() {
       )}
       <div className="flex flex-wrap items-center justify-between mb-6 border-b border-[color:var(--as-neon)]/20 pb-4">
         <div className="font-pixel text-[10px] text-[color:var(--as-orange)] flex items-center gap-3">
-          <span>▲ MODE 2 · SECURITY SENTINEL · <span className={connected ? "text-[color:var(--as-neon)]" : "text-[color:var(--as-orange)]/70"}>{connected ? "LIVE" : "SIMULATED"}</span></span>
+          <span>
+            ▲ MODE 2 · SECURITY SENTINEL ·{" "}
+            <span
+              className={
+                connected ? "text-[color:var(--as-neon)]" : "text-[color:var(--as-orange)]/70"
+              }
+            >
+              {connected ? "LIVE" : "SIMULATED"}
+            </span>
+          </span>
           <a
             href="http://192.168.4.1"
             target="_blank"
@@ -486,7 +538,7 @@ export function LiveRadarPanel() {
                 backgroundColor: "transparent",
                 border: "2px solid var(--as-pink)",
                 color: "var(--as-pink)",
-                boxShadow: !status.scanning ? "none" : "4px 4px 0 rgba(255, 79, 216, 0.25)"
+                boxShadow: !status.scanning ? "none" : "4px 4px 0 rgba(255, 79, 216, 0.25)",
               }}
             >
               STOP
@@ -556,11 +608,17 @@ export function LiveRadarPanel() {
                 <div key={i} className="border-b border-[color:var(--as-neon)]/10 pb-1 break-words">
                   <span className="text-[color:var(--as-neon)]/40">[{evt.time}] </span>
                   {evt.type === "deauth_alert" ? (
-                    <span className="text-[color:var(--as-pink)] font-bold">⚠️ NETWORK BURST: {evt.count} frames</span>
+                    <span className="text-[color:var(--as-pink)] font-bold">
+                      ⚠️ NETWORK BURST: {evt.count} frames
+                    </span>
                   ) : evt.type === "intruder_alert" ? (
-                    <span className="text-[color:var(--as-pink)] font-bold">🚨 ANOMALY DETECTED: Unknown device {evt.mac}</span>
+                    <span className="text-[color:var(--as-pink)] font-bold">
+                      🚨 ANOMALY DETECTED: Unknown device {evt.mac}
+                    </span>
                   ) : evt.type === "welcome_hello" ? (
-                    <span className="text-[color:var(--as-neon)] font-bold">👋 WELCOME HOME: {evt.name} detected!</span>
+                    <span className="text-[color:var(--as-neon)] font-bold">
+                      👋 WELCOME HOME: {evt.name} detected!
+                    </span>
                   ) : (
                     <span className="text-[color:var(--as-neon)]/70">{JSON.stringify(evt)}</span>
                   )}
@@ -577,11 +635,13 @@ export function LiveRadarPanel() {
         <h3 className="font-pixel text-[10px] text-[color:var(--as-orange)] mb-4">
           ▲ HOME GUARD DEFENSE SYSTEM
         </h3>
-        
+
         <div className="grid md:grid-cols-3 gap-6">
           {/* Welcome Home */}
           <div className="bg-[#06080e] p-4 border border-[color:var(--as-neon)]/20">
-            <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-2">Welcome Home Detector</h4>
+            <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-2">
+              Welcome Home Detector
+            </h4>
             <p className="font-mono-pixel text-[color:var(--as-neon)]/60 text-xs mb-4">
               Greets you on the TFT screen when your device MAC is detected.
             </p>
@@ -600,10 +660,7 @@ export function LiveRadarPanel() {
                 placeholder="Name (e.g. Aryan)"
                 className="w-full bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-xs"
               />
-              <button
-                onClick={saveWelcome}
-                className="w-full pixel-btn text-[9px] py-1.5"
-              >
+              <button onClick={saveWelcome} className="w-full pixel-btn text-[9px] py-1.5">
                 SAVE WELCOME
               </button>
             </div>
@@ -611,7 +668,9 @@ export function LiveRadarPanel() {
 
           {/* Hot & Cold Signal Finder */}
           <div className="bg-[#06080e] p-4 border border-[color:var(--as-neon)]/20">
-            <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-2">Signal dead-zone Finder</h4>
+            <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-2">
+              Signal dead-zone Finder
+            </h4>
             <p className="font-mono-pixel text-[color:var(--as-neon)]/60 text-xs mb-4">
               Locks radio channel to track RSSI of a specific SSID.
             </p>
@@ -628,7 +687,9 @@ export function LiveRadarPanel() {
                   onClick={toggleFinder}
                   className={`flex-1 pixel-btn text-[9px] py-1.5 ${findActive ? "bg-red-900 border-red-500 text-white" : ""}`}
                 >
-                  {findActive ? `STOP FINDER (${findRssi > -100 ? findRssi + ' dBm' : 'SEARCHING...'})` : "START FINDER"}
+                  {findActive
+                    ? `STOP FINDER (${findRssi > -100 ? findRssi + " dBm" : "SEARCHING..."})`
+                    : "START FINDER"}
                 </button>
               </div>
             </div>
@@ -637,7 +698,9 @@ export function LiveRadarPanel() {
           {/* Device Trust Manager */}
           <div className="bg-[#06080e] p-4 border border-[color:var(--as-neon)]/20 flex flex-col h-[400px]">
             <div className="flex justify-between items-center mb-3 border-b border-[color:var(--as-neon)]/15 pb-2">
-              <h4 className="font-pixel text-xs text-[color:var(--as-neon)]">Device Trust Manager</h4>
+              <h4 className="font-pixel text-xs text-[color:var(--as-neon)]">
+                Device Trust Manager
+              </h4>
               <div className="flex gap-2">
                 <button
                   onClick={() => setSecPanelTab("trusted")}
@@ -679,10 +742,7 @@ export function LiveRadarPanel() {
                       {validationError}
                     </div>
                   )}
-                  <button
-                    onClick={addWhitelist}
-                    className="w-full pixel-btn text-[9px] py-1.5"
-                  >
+                  <button onClick={addWhitelist} className="w-full pixel-btn text-[9px] py-1.5">
                     ADD TO TRUSTED
                   </button>
                 </div>
@@ -692,23 +752,30 @@ export function LiveRadarPanel() {
                       No trusted devices.
                     </div>
                   ) : (
-                    whitelist.filter((d: any) => d.trusted).map((dev: any) => (
-                      <div key={dev.mac} className="flex flex-col border-b border-[color:var(--as-neon)]/10 py-2 font-mono-pixel text-[color:var(--as-neon)]/80">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[color:var(--as-neon)] font-bold">{dev.name || "Unnamed"}</span>
-                          <button
-                            onClick={() => removeWhitelist(dev.mac)}
-                            className="text-[color:var(--as-pink)] hover:underline text-[9px] ml-2"
-                          >
-                            [UNTRUST]
-                          </button>
+                    whitelist
+                      .filter((d: any) => d.trusted)
+                      .map((dev: any) => (
+                        <div
+                          key={dev.mac}
+                          className="flex flex-col border-b border-[color:var(--as-neon)]/10 py-2 font-mono-pixel text-[color:var(--as-neon)]/80"
+                        >
+                          <div className="flex justify-between items-center">
+                            <span className="text-[color:var(--as-neon)] font-bold">
+                              {dev.name || "Unnamed"}
+                            </span>
+                            <button
+                              onClick={() => removeWhitelist(dev.mac)}
+                              className="text-[color:var(--as-pink)] hover:underline text-[9px] ml-2"
+                            >
+                              [UNTRUST]
+                            </button>
+                          </div>
+                          <div className="flex justify-between text-[10px] text-[color:var(--as-neon)]/50 mt-1">
+                            <span>{dev.mac}</span>
+                            <span>Seen: {dev.sightings}x</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between text-[10px] text-[color:var(--as-neon)]/50 mt-1">
-                          <span>{dev.mac}</span>
-                          <span>Seen: {dev.sightings}x</span>
-                        </div>
-                      </div>
-                    ))
+                      ))
                   )}
                 </div>
               </div>
@@ -737,80 +804,97 @@ export function LiveRadarPanel() {
                       No nearby devices discovered yet. Enable Wi-Fi scan to listen.
                     </div>
                   ) : (
-                    whitelist.filter((d: any) => !d.trusted).map((dev: any) => {
-                      const classification = getClassification(dev);
-                      const isRandom = isRandomizedMac(dev.mac);
-                      return (
-                        <div key={dev.mac} className="border border-[color:var(--as-neon)]/15 p-2 bg-black/40 flex flex-col space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="font-mono-pixel font-bold text-[color:var(--as-orange)] text-[10px] truncate max-w-[120px]">
-                              {dev.mac}
-                            </span>
-                            <div className="flex gap-1">
-                              <span className={`text-[8px] px-1 py-0.5 border ${
-                                classification === "SUSPICIOUS" ? "border-red-500 text-red-500 bg-red-950/20" :
-                                classification === "FAMILIAR" ? "border-blue-400 text-blue-400 bg-blue-950/20" :
-                                "border-yellow-400 text-yellow-400 bg-yellow-950/20"
-                              } font-pixel`}>
-                                {classification}
+                    whitelist
+                      .filter((d: any) => !d.trusted)
+                      .map((dev: any) => {
+                        const classification = getClassification(dev);
+                        const isRandom = isRandomizedMac(dev.mac);
+                        return (
+                          <div
+                            key={dev.mac}
+                            className="border border-[color:var(--as-neon)]/15 p-2 bg-black/40 flex flex-col space-y-2"
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="font-mono-pixel font-bold text-[color:var(--as-orange)] text-[10px] truncate max-w-[120px]">
+                                {dev.mac}
                               </span>
-                              {isRandom && (
-                                <span className="text-[8px] px-1 py-0.5 border border-purple-500 text-purple-400 bg-purple-950/20 font-pixel" title="Likely Phone / Randomized MAC">
-                                  RANDOM
+                              <div className="flex gap-1">
+                                <span
+                                  className={`text-[8px] px-1 py-0.5 border ${
+                                    classification === "SUSPICIOUS"
+                                      ? "border-red-500 text-red-500 bg-red-950/20"
+                                      : classification === "FAMILIAR"
+                                        ? "border-blue-400 text-blue-400 bg-blue-950/20"
+                                        : "border-yellow-400 text-yellow-400 bg-yellow-950/20"
+                                  } font-pixel`}
+                                >
+                                  {classification}
                                 </span>
-                              )}
+                                {isRandom && (
+                                  <span
+                                    className="text-[8px] px-1 py-0.5 border border-purple-500 text-purple-400 bg-purple-950/20 font-pixel"
+                                    title="Likely Phone / Randomized MAC"
+                                  >
+                                    RANDOM
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {isRandom && (
+                              <div className="text-[9px] text-purple-300/60 font-mono-pixel leading-none">
+                                Android Private MAC / Likely Phone
+                              </div>
+                            )}
+
+                            <div className="flex justify-between text-[10px] text-[color:var(--as-neon)]/50">
+                              <span>Seen: {dev.sightings}x</span>
+                              <span>Last: {formatSeenTime(dev.lastSeen)}</span>
+                            </div>
+
+                            <div className="flex gap-1">
+                              <input
+                                type="text"
+                                placeholder="Assign Name"
+                                defaultValue={dev.name}
+                                onBlur={(e) => {
+                                  dev._typedName = e.target.value;
+                                }}
+                                className="flex-1 bg-black border border-[color:var(--as-neon)]/20 px-2 py-0.5 font-mono-pixel text-[10px] text-[color:var(--as-neon)]"
+                              />
+                              <button
+                                onClick={() => {
+                                  const nameToSave =
+                                    dev._typedName?.trim() ||
+                                    dev.name ||
+                                    (isRandom ? "Android Private MAC" : "Discovered");
+
+                                  const nameRegex = /^[A-Za-z0-9 ]{3,20}$/;
+                                  if (!nameRegex.test(nameToSave)) {
+                                    alert(
+                                      "Invalid name.\nExpected: 3-20 characters (letters, numbers, spaces).",
+                                    );
+                                    return;
+                                  }
+
+                                  serialAPI.sendCommand(`WL_ADD:${dev.mac},${nameToSave}`);
+                                  setTimeout(() => serialAPI.sendCommand("GET_HG_CFG"), 250);
+                                }}
+                                className="pixel-btn text-[8px] px-2 py-0.5"
+                              >
+                                TRUST
+                              </button>
+                              <button
+                                onClick={() => toggleSuspicious(dev.mac)}
+                                className={`border px-1.5 text-[8px] font-pixel ${classification === "SUSPICIOUS" ? "border-red-500 text-red-500 bg-red-950/30" : "border-red-500/30 text-red-500/60"}`}
+                                title="Toggle Suspicious Flag"
+                              >
+                                ⚠️
+                              </button>
                             </div>
                           </div>
-
-                          {isRandom && (
-                            <div className="text-[9px] text-purple-300/60 font-mono-pixel leading-none">
-                              Android Private MAC / Likely Phone
-                            </div>
-                          )}
-
-                          <div className="flex justify-between text-[10px] text-[color:var(--as-neon)]/50">
-                            <span>Seen: {dev.sightings}x</span>
-                            <span>Last: {formatSeenTime(dev.lastSeen)}</span>
-                          </div>
-
-                          <div className="flex gap-1">
-                            <input
-                              type="text"
-                              placeholder="Assign Name"
-                              defaultValue={dev.name}
-                              onBlur={(e) => {
-                                dev._typedName = e.target.value;
-                              }}
-                              className="flex-1 bg-black border border-[color:var(--as-neon)]/20 px-2 py-0.5 font-mono-pixel text-[10px] text-[color:var(--as-neon)]"
-                            />
-                            <button
-                              onClick={() => {
-                                const nameToSave = dev._typedName?.trim() || dev.name || (isRandom ? "Android Private MAC" : "Discovered");
-                                
-                                const nameRegex = /^[A-Za-z0-9 ]{3,20}$/;
-                                if (!nameRegex.test(nameToSave)) {
-                                  alert("Invalid name.\nExpected: 3-20 characters (letters, numbers, spaces).");
-                                  return;
-                                }
-                                
-                                serialAPI.sendCommand(`WL_ADD:${dev.mac},${nameToSave}`);
-                                setTimeout(() => serialAPI.sendCommand("GET_HG_CFG"), 250);
-                              }}
-                              className="pixel-btn text-[8px] px-2 py-0.5"
-                            >
-                              TRUST
-                            </button>
-                            <button
-                              onClick={() => toggleSuspicious(dev.mac)}
-                              className={`border px-1.5 text-[8px] font-pixel ${classification === "SUSPICIOUS" ? "border-red-500 text-red-500 bg-red-950/30" : "border-red-500/30 text-red-500/60"}`}
-                              title="Toggle Suspicious Flag"
-                            >
-                              ⚠️
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
+                        );
+                      })
                   )}
                 </div>
               </div>

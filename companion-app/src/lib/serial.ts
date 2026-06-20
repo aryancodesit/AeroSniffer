@@ -43,8 +43,6 @@ class SerialProtocol {
     };
   }
 
-
-
   async connect(baudRate = 115200) {
     if (!("serial" in navigator)) {
       throw new Error("Web Serial API not supported in this browser.");
@@ -150,7 +148,10 @@ class SerialProtocol {
         const data = JSON.parse(jsonStr);
         // Flight pipeline instrumentation
         if (data.flights !== undefined) {
-          console.log(`[WEB] Received aircraft=${Array.isArray(data.flights) ? data.flights.length : 0}`, data.flights);
+          console.log(
+            `[WEB] Received aircraft=${Array.isArray(data.flights) ? data.flights.length : 0}`,
+            data.flights,
+          );
         }
         this.listeners.forEach((cb) => cb("RES", data));
       } catch (e) {

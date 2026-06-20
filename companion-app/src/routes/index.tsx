@@ -16,7 +16,7 @@ import {
   Legend,
   LineChart,
   Line,
-  CartesianGrid
+  CartesianGrid,
 } from "recharts";
 
 export const Route = createFileRoute("/")({
@@ -80,7 +80,10 @@ function Index() {
         setFace(status.face as FaceState);
       } else if (status.mode === 1) {
         // Security mode
-        const isIntrusion = status.emotion === "sec_intrusion" || status.emotion === "intrusion" || status.activity === "intrusion";
+        const isIntrusion =
+          status.emotion === "sec_intrusion" ||
+          status.emotion === "intrusion" ||
+          status.activity === "intrusion";
         setFace(isIntrusion ? "sec_intrusion" : "sec_scanning");
       } else if (status.mode === 2) {
         // Aviation mode
@@ -99,7 +102,7 @@ function Index() {
           love: "love",
           surprised: "surprised",
           excited: "excited",
-          
+
           sec_scanning: "sec_scanning",
           sec_intrusion: "sec_intrusion",
           avi_radar: "avi_radar",
@@ -134,7 +137,16 @@ function Index() {
         setFace(emoMap[rawEmo] || "idle");
       }
     }
-  }, [isConnected, booted, activeTab, status.mode, status.emotion, status.activity, mode, aviationEnabled]);
+  }, [
+    isConnected,
+    booted,
+    activeTab,
+    status.mode,
+    status.emotion,
+    status.activity,
+    mode,
+    aviationEnabled,
+  ]);
 
   // Global status tracking when connected
   useEffect(() => {
@@ -169,7 +181,7 @@ function Index() {
             const hrs = Math.floor(sec / 3600);
             const mins = Math.floor((sec % 3600) / 60);
             const secs = sec % 60;
-            const timeStr = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            const timeStr = `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
             return {
               time: timeStr,
               text: evt.text,
@@ -231,7 +243,7 @@ function Index() {
     setLastUpdated(nowStr);
     setTimeline([
       { time: nowStr, text: "AeroSniffer OS 2.3 simulated core boot OK", type: "system" },
-      { time: nowStr, text: "Home Guard monitoring enabled", type: "activity" }
+      { time: nowStr, text: "Home Guard monitoring enabled", type: "activity" },
     ]);
 
     // Fill initial heap history
@@ -251,10 +263,12 @@ function Index() {
 
       // Keep mode synchronized with current user tab selection
       setStatus((prev: any) => {
-        const nextHeap = Math.round(180000 + Math.sin(Date.now() / 10000) * 3000 + Math.random() * 1000);
+        const nextHeap = Math.round(
+          180000 + Math.sin(Date.now() / 10000) * 3000 + Math.random() * 1000,
+        );
         const randomFlights = mode === 2 ? 4 + Math.round(Math.random() * 2) : 0;
         const randomNetworks = mode === 1 ? 12 + Math.round(Math.random() * 3) : 0;
-        
+
         let act = prev.activity;
         let emo = prev.emotion;
         if (mode === 0) {
@@ -283,7 +297,10 @@ function Index() {
 
       setHeapHistory((prev) => [
         ...prev.slice(-29),
-        { time: timeStr.slice(-8), heap: (180000 + Math.sin(Date.now() / 10000) * 3000 + Math.random() * 1000) / 1024 },
+        {
+          time: timeStr.slice(-8),
+          heap: (180000 + Math.sin(Date.now() / 10000) * 3000 + Math.random() * 1000) / 1024,
+        },
       ]);
 
       // Add simulated events to timeline periodically
@@ -295,7 +312,7 @@ function Index() {
             "Companion bond state updated",
             "IDE scroll action detected (writing firmware)",
             "Pet smiled at user activity",
-            "CPU load spike: pet became energized"
+            "CPU load spike: pet became energized",
           ];
           text = events[Math.floor(Math.random() * events.length)];
           type = "emotion";
@@ -304,7 +321,7 @@ function Index() {
             "Home Guard: Whitelisted device returned (iPad)",
             "⚠️ Alert: Unknown device detected on Channel 6",
             "Hopped channel: radio set to CH 11",
-            "Hopped channel: radio set to CH 1"
+            "Hopped channel: radio set to CH 1",
           ];
           text = events[Math.floor(Math.random() * events.length)];
           type = "network";
@@ -313,16 +330,13 @@ function Index() {
             "Aviation Target: AIC304 distance decreasing",
             "Aviation: Received ADS-B packet",
             "Aviation Target: IND912 bearing change",
-            "Aviation airspace sweep: 4 targets tracked"
+            "Aviation airspace sweep: 4 targets tracked",
           ];
           text = events[Math.floor(Math.random() * events.length)];
           type = "flight";
         }
 
-        setTimeline((prev) => [
-          ...prev,
-          { time: timeStr, text, type }
-        ]);
+        setTimeline((prev) => [...prev, { time: timeStr, text, type }]);
         setEventCount((c) => c + 1);
       }
     }, 3000);
@@ -398,7 +412,9 @@ function Index() {
               >
                 <BotFace state={face} size={420} followCursor={booted} />
                 <div className="mt-3 flex items-center justify-between font-pixel text-[10px]">
-                  <span className="neon-text">● {(FACE_META[face]?.label || "unknown").toUpperCase()}</span>
+                  <span className="neon-text">
+                    ● {(FACE_META[face]?.label || "unknown").toUpperCase()}
+                  </span>
                   <span className="text-[color:var(--as-neon)]/60">240×240 · RGB565</span>
                 </div>
               </div>
@@ -449,8 +465,6 @@ function Index() {
           <Marquee />
         </section>
 
-
-
         {/* TAB CONTENTS */}
         <div className="py-10">
           {activeTab === "companion" && (
@@ -475,17 +489,27 @@ function Index() {
                           <div className="flex justify-between border-b border-[color:var(--as-neon)]/15 pb-2">
                             <span className="text-[color:var(--as-neon)]/60">Current Mode</span>
                             <span className="text-[color:var(--as-yellow)] uppercase">
-                              {mode === 0 ? "Cyber-Pet" : mode === 1 ? "Security Sentinel" : mode === 2 ? "Aviation Observer" : "Settings"}
+                              {mode === 0
+                                ? "Cyber-Pet"
+                                : mode === 1
+                                  ? "Security Sentinel"
+                                  : mode === 2
+                                    ? "Aviation Observer"
+                                    : "Settings"}
                             </span>
                           </div>
                           <div className="flex justify-between border-b border-[color:var(--as-neon)]/15 pb-2">
                             <span className="text-[color:var(--as-neon)]/60">WiFi Status</span>
                             <span className="text-[color:var(--as-neon)] uppercase font-bold">
-                              {isConnected ? (status.wifi || "CONNECTED").toUpperCase() : "DEMO_WIFI_ACTIVE"}
+                              {isConnected
+                                ? (status.wifi || "CONNECTED").toUpperCase()
+                                : "DEMO_WIFI_ACTIVE"}
                             </span>
                           </div>
                           <div className="flex justify-between border-b border-[color:var(--as-neon)]/15 pb-2">
-                            <span className="text-[color:var(--as-neon)]/60">Aircraft in Range</span>
+                            <span className="text-[color:var(--as-neon)]/60">
+                              Aircraft in Range
+                            </span>
                             <span className="text-[color:var(--as-yellow)] font-pixel text-base">
                               {isConnected ? aircraftCount : 4}
                             </span>
@@ -515,7 +539,7 @@ function Index() {
                         <div className="flex justify-between border-b border-[color:var(--as-neon)]/15 pb-2">
                           <span className="text-[color:var(--as-neon)]/60">Firmware Version</span>
                           <span className="text-[color:var(--as-yellow)] uppercase">
-                            {isConnected ? (status.fw || "v2.3") : "v2.3-SENTINEL (DEMO)"}
+                            {isConnected ? status.fw || "v2.3" : "v2.3-SENTINEL (DEMO)"}
                           </span>
                         </div>
                         <div className="flex justify-between border-b border-[color:var(--as-neon)]/15 pb-2">
@@ -551,10 +575,17 @@ function Index() {
                         <div className="h-[250px] w-full font-mono-pixel text-xs">
                           {heapHistory.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
-                              <AreaChart data={heapHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                              <AreaChart
+                                data={heapHistory}
+                                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                              >
                                 <defs>
                                   <linearGradient id="heapGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="var(--as-neon)" stopOpacity={0.4} />
+                                    <stop
+                                      offset="5%"
+                                      stopColor="var(--as-neon)"
+                                      stopOpacity={0.4}
+                                    />
                                     <stop offset="95%" stopColor="var(--as-neon)" stopOpacity={0} />
                                   </linearGradient>
                                 </defs>
@@ -571,7 +602,11 @@ function Index() {
                                     color: "var(--as-neon)",
                                   }}
                                 />
-                                <CartesianGrid strokeDasharray="3 3" stroke="var(--as-neon)" opacity={0.1} />
+                                <CartesianGrid
+                                  strokeDasharray="3 3"
+                                  stroke="var(--as-neon)"
+                                  opacity={0.1}
+                                />
                                 <Area
                                   type="monotone"
                                   dataKey="heap"
@@ -604,8 +639,13 @@ function Index() {
                               .slice()
                               .reverse()
                               .map((evt, i) => (
-                                <div key={i} className="border-b border-[color:var(--as-neon)]/10 pb-1">
-                                  <span className="text-[color:var(--as-neon)]/40">[{evt.time}] </span>
+                                <div
+                                  key={i}
+                                  className="border-b border-[color:var(--as-neon)]/10 pb-1"
+                                >
+                                  <span className="text-[color:var(--as-neon)]/40">
+                                    [{evt.time}]{" "}
+                                  </span>
                                   <span
                                     className={
                                       evt.type === "flight"
@@ -638,23 +678,51 @@ function Index() {
                       <div className="grid md:grid-cols-2 gap-8 items-center">
                         <div className="space-y-4 text-left">
                           <p className="font-mono-pixel text-sm text-[color:var(--as-neon)]/85 leading-relaxed">
-                            AeroSniffer is a <span className="text-[color:var(--as-yellow)] font-bold">multi-mode embedded intelligence companion</span> built on the ESP32-S3.
+                            AeroSniffer is a{" "}
+                            <span className="text-[color:var(--as-yellow)] font-bold">
+                              multi-mode embedded intelligence companion
+                            </span>{" "}
+                            built on the ESP32-S3.
                           </p>
                           <p className="font-mono-pixel text-sm text-[color:var(--as-neon)]/70 leading-relaxed">
                             Three distinct roles in a single portable device:
                           </p>
                           <div className="space-y-3 mt-4">
                             <div className="flex items-center gap-3">
-                              <span className="font-pixel text-[9px] text-[color:var(--as-pink)] w-5">01</span>
-                              <span className="font-mono-pixel text-sm text-[color:var(--as-neon)]">A desktop <span className="text-[color:var(--as-pink)] font-bold">Companion</span> that lives on your desk and reacts to you</span>
+                              <span className="font-pixel text-[9px] text-[color:var(--as-pink)] w-5">
+                                01
+                              </span>
+                              <span className="font-mono-pixel text-sm text-[color:var(--as-neon)]">
+                                A desktop{" "}
+                                <span className="text-[color:var(--as-pink)] font-bold">
+                                  Companion
+                                </span>{" "}
+                                that lives on your desk and reacts to you
+                              </span>
                             </div>
                             <div className="flex items-center gap-3">
-                              <span className="font-pixel text-[9px] text-[color:var(--as-yellow)] w-5">02</span>
-                              <span className="font-mono-pixel text-sm text-[color:var(--as-neon)]">A network <span className="text-[color:var(--as-yellow)] font-bold">Sentinel</span> that monitors local device presence</span>
+                              <span className="font-pixel text-[9px] text-[color:var(--as-yellow)] w-5">
+                                02
+                              </span>
+                              <span className="font-mono-pixel text-sm text-[color:var(--as-neon)]">
+                                A network{" "}
+                                <span className="text-[color:var(--as-yellow)] font-bold">
+                                  Sentinel
+                                </span>{" "}
+                                that monitors local device presence
+                              </span>
                             </div>
                             <div className="flex items-center gap-3">
-                              <span className="font-pixel text-[9px] text-[color:var(--as-violet)] w-5">03</span>
-                              <span className="font-mono-pixel text-sm text-[color:var(--as-neon)]">An aviation <span className="text-[color:var(--as-violet)] font-bold">Observer</span> that tracks aircraft overhead</span>
+                              <span className="font-pixel text-[9px] text-[color:var(--as-violet)] w-5">
+                                03
+                              </span>
+                              <span className="font-mono-pixel text-sm text-[color:var(--as-neon)]">
+                                An aviation{" "}
+                                <span className="text-[color:var(--as-violet)] font-bold">
+                                  Observer
+                                </span>{" "}
+                                that tracks aircraft overhead
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -672,51 +740,83 @@ function Index() {
                       <div className="pixel-card p-6 border-[color:var(--as-pink)] bg-[#06080e]/50 flex flex-col justify-between">
                         <div>
                           <div className="flex justify-between items-start mb-3">
-                            <span className="font-pixel text-xs text-[color:var(--as-pink)]">MODE 01 // COMPANION</span>
-                            <span className="font-mono-pixel text-[10px] text-[color:var(--as-neon)]/50">[ACTIVE]</span>
+                            <span className="font-pixel text-xs text-[color:var(--as-pink)]">
+                              MODE 01 // COMPANION
+                            </span>
+                            <span className="font-mono-pixel text-[10px] text-[color:var(--as-neon)]/50">
+                              [ACTIVE]
+                            </span>
                           </div>
                           <h3 className="font-pixel text-base neon-text mb-2">Cyber-Pet</h3>
                           <p className="font-mono-pixel text-xs text-[color:var(--as-neon)]/75 leading-relaxed">
-                            A responsive desk pet with a vector face mapping. Reacts dynamically to keyboard inputs, CPU usage metrics, and local time cycles.
+                            A responsive desk pet with a vector face mapping. Reacts dynamically to
+                            keyboard inputs, CPU usage metrics, and local time cycles.
                           </p>
                         </div>
                         <div className="mt-4 flex gap-1.5 flex-wrap">
-                          <span className="text-[8px] font-pixel border border-[color:var(--as-pink)]/40 px-1.5 py-0.5 text-[color:var(--as-pink)]">OLED FACE</span>
-                          <span className="text-[8px] font-pixel border border-[color:var(--as-pink)]/40 px-1.5 py-0.5 text-[color:var(--as-pink)]">VECTOR GRAPHICS</span>
+                          <span className="text-[8px] font-pixel border border-[color:var(--as-pink)]/40 px-1.5 py-0.5 text-[color:var(--as-pink)]">
+                            OLED FACE
+                          </span>
+                          <span className="text-[8px] font-pixel border border-[color:var(--as-pink)]/40 px-1.5 py-0.5 text-[color:var(--as-pink)]">
+                            VECTOR GRAPHICS
+                          </span>
                         </div>
                       </div>
 
                       <div className="pixel-card p-6 border-[color:var(--as-yellow)] bg-[#06080e]/50 flex flex-col justify-between">
                         <div>
                           <div className="flex justify-between items-start mb-3">
-                            <span className="font-pixel text-xs text-[color:var(--as-yellow)]">MODE 02 // SENTINEL</span>
-                            <span className="font-mono-pixel text-[10px] text-[color:var(--as-neon)]/50">[ACTIVE]</span>
+                            <span className="font-pixel text-xs text-[color:var(--as-yellow)]">
+                              MODE 02 // SENTINEL
+                            </span>
+                            <span className="font-mono-pixel text-[10px] text-[color:var(--as-neon)]/50">
+                              [ACTIVE]
+                            </span>
                           </div>
-                          <h3 className="font-pixel text-base text-[color:var(--as-yellow)] mb-2">Security Sentinel</h3>
+                          <h3 className="font-pixel text-base text-[color:var(--as-yellow)] mb-2">
+                            Security Sentinel
+                          </h3>
                           <p className="font-mono-pixel text-xs text-[color:var(--as-neon)]/75 leading-relaxed">
-                            Monitors local airspace for device presence and network changes. Integrates with the Home Guard rules engine to identify known and unrecognized devices.
+                            Monitors local airspace for device presence and network changes.
+                            Integrates with the Home Guard rules engine to identify known and
+                            unrecognized devices.
                           </p>
                         </div>
                         <div className="mt-4 flex gap-1.5 flex-wrap">
-                          <span className="text-[8px] font-pixel border border-[color:var(--as-yellow)]/40 px-1.5 py-0.5 text-[color:var(--as-yellow)]">NETWORK MONITOR</span>
-                          <span className="text-[8px] font-pixel border border-[color:var(--as-yellow)]/40 px-1.5 py-0.5 text-[color:var(--as-yellow)]">HOME GUARD</span>
+                          <span className="text-[8px] font-pixel border border-[color:var(--as-yellow)]/40 px-1.5 py-0.5 text-[color:var(--as-yellow)]">
+                            NETWORK MONITOR
+                          </span>
+                          <span className="text-[8px] font-pixel border border-[color:var(--as-yellow)]/40 px-1.5 py-0.5 text-[color:var(--as-yellow)]">
+                            HOME GUARD
+                          </span>
                         </div>
                       </div>
 
                       <div className="pixel-card p-6 border-[color:var(--as-violet)] bg-[#06080e]/50 flex flex-col justify-between">
                         <div>
                           <div className="flex justify-between items-start mb-3">
-                            <span className="font-pixel text-xs text-[color:var(--as-violet)]">MODE 03 // AVIATION OBSERVER</span>
-                            <span className="font-mono-pixel text-[10px] text-[color:var(--as-neon)]/50">[ACTIVE]</span>
+                            <span className="font-pixel text-xs text-[color:var(--as-violet)]">
+                              MODE 03 // AVIATION OBSERVER
+                            </span>
+                            <span className="font-mono-pixel text-[10px] text-[color:var(--as-neon)]/50">
+                              [ACTIVE]
+                            </span>
                           </div>
-                          <h3 className="font-pixel text-base text-[color:var(--as-violet)] mb-2">Aviation Observer</h3>
+                          <h3 className="font-pixel text-base text-[color:var(--as-violet)] mb-2">
+                            Aviation Observer
+                          </h3>
                           <p className="font-mono-pixel text-xs text-[color:var(--as-neon)]/75 leading-relaxed">
-                            Polls local ADS-B coordinates and tracks real-time aircraft altitude, heading drift, and speed curves on a dedicated custom retro radar HUD.
+                            Polls local ADS-B coordinates and tracks real-time aircraft altitude,
+                            heading drift, and speed curves on a dedicated custom retro radar HUD.
                           </p>
                         </div>
                         <div className="mt-4 flex gap-1.5 flex-wrap">
-                          <span className="text-[8px] font-pixel border border-[color:var(--as-violet)]/40 px-1.5 py-0.5 text-[color:var(--as-violet)]">ADS-B INGEST</span>
-                          <span className="text-[8px] font-pixel border border-[color:var(--as-violet)]/40 px-1.5 py-0.5 text-[color:var(--as-violet)]">OPENSKY API</span>
+                          <span className="text-[8px] font-pixel border border-[color:var(--as-violet)]/40 px-1.5 py-0.5 text-[color:var(--as-violet)]">
+                            ADS-B INGEST
+                          </span>
+                          <span className="text-[8px] font-pixel border border-[color:var(--as-violet)]/40 px-1.5 py-0.5 text-[color:var(--as-violet)]">
+                            OPENSKY API
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -726,7 +826,8 @@ function Index() {
                   <div>
                     <SectionHeader kicker="02 // WEB APIS" title="PORTAL SHOWCASE" />
                     <p className="font-mono-pixel text-sm text-[color:var(--as-neon)]/60 mt-3 mb-8 text-left max-w-3xl">
-                      The ESP32 serves a local HTTP/REST API and web console — the AeroPortal — giving you real-time access to everything the device sees.
+                      The ESP32 serves a local HTTP/REST API and web console — the AeroPortal —
+                      giving you real-time access to everything the device sees.
                     </p>
                     <div className="grid md:grid-cols-3 gap-4 mt-4">
                       <div className="pixel-card p-5 border-[color:var(--as-neon)]/30 bg-[#06080e]/40 text-left">
@@ -734,19 +835,25 @@ function Index() {
                           <span className="inline-block w-2 h-2 rounded-full bg-[color:var(--as-neon)]" />
                           OVERVIEW
                         </div>
-                        <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-2">Live Dashboard</h4>
+                        <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-2">
+                          Live Dashboard
+                        </h4>
                         <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60 leading-relaxed">
-                          Real-time packet stats, channel hopping status, signal heat map, and device connection state — all on one screen.
+                          Real-time packet stats, channel hopping status, signal heat map, and
+                          device connection state — all on one screen.
                         </p>
                         <div className="mt-3 bg-black/60 border border-[color:var(--as-neon)]/10 p-2 font-mono text-[9px] space-y-1">
                           <div className="flex justify-between text-[color:var(--as-yellow)]">
-                            <span>PPS</span><span className="text-[color:var(--as-neon)]">1,482</span>
+                            <span>PPS</span>
+                            <span className="text-[color:var(--as-neon)]">1,482</span>
                           </div>
                           <div className="flex justify-between text-[color:var(--as-yellow)]">
-                            <span>CH</span><span className="text-[color:var(--as-neon)]">6 (HOP)</span>
+                            <span>CH</span>
+                            <span className="text-[color:var(--as-neon)]">6 (HOP)</span>
                           </div>
                           <div className="flex justify-between text-[color:var(--as-yellow)]">
-                            <span>STATE</span><span className="text-green-400">ACTIVE</span>
+                            <span>STATE</span>
+                            <span className="text-green-400">ACTIVE</span>
                           </div>
                         </div>
                       </div>
@@ -755,22 +862,31 @@ function Index() {
                           <span className="inline-block w-2 h-2 rounded-full bg-[color:var(--as-orange)]" />
                           THREAT TIMELINE
                         </div>
-                        <h4 className="font-pixel text-xs text-[color:var(--as-orange)] mb-2">Event Log & Severity</h4>
+                        <h4 className="font-pixel text-xs text-[color:var(--as-orange)] mb-2">
+                          Event Log & Severity
+                        </h4>
                         <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60 leading-relaxed">
-                          Chronological event feed with severity badges (critical, warning, info). Filter by type and drill into MAC-level details.
+                          Chronological event feed with severity badges (critical, warning, info).
+                          Filter by type and drill into MAC-level details.
                         </p>
                         <div className="mt-3 bg-black/60 border border-[color:var(--as-orange)]/10 p-2 font-mono text-[9px] space-y-1">
                           <div className="flex items-center gap-1">
                             <span className="text-[color:var(--as-pink)]">◆</span>
-                            <span className="text-[color:var(--as-neon)]/70">Unknown device F2:C3:04:88:99:AA</span>
+                            <span className="text-[color:var(--as-neon)]/70">
+                              Unknown device F2:C3:04:88:99:AA
+                            </span>
                           </div>
                           <div className="flex items-center gap-1">
                             <span className="text-[color:var(--as-yellow)]">◇</span>
-                            <span className="text-[color:var(--as-neon)]/50">Probe request on CH 6</span>
+                            <span className="text-[color:var(--as-neon)]/50">
+                              Probe request on CH 6
+                            </span>
                           </div>
                           <div className="flex items-center gap-1">
                             <span className="text-[color:var(--as-neon)]">○</span>
-                            <span className="text-[color:var(--as-neon)]/50">Known device joined</span>
+                            <span className="text-[color:var(--as-neon)]/50">
+                              Known device joined
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -779,14 +895,26 @@ function Index() {
                           <span className="inline-block w-2 h-2 rounded-full bg-[color:var(--as-violet)]" />
                           DEVICES
                         </div>
-                        <h4 className="font-pixel text-xs text-[color:var(--as-violet)] mb-2">Discovered & Trusted</h4>
+                        <h4 className="font-pixel text-xs text-[color:var(--as-violet)] mb-2">
+                          Discovered & Trusted
+                        </h4>
                         <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60 leading-relaxed">
-                          Auto-populated device registry showing MAC, vendor, first/last seen, RSSI curve, and trust classification.
+                          Auto-populated device registry showing MAC, vendor, first/last seen, RSSI
+                          curve, and trust classification.
                         </p>
                         <div className="mt-3 bg-black/60 border border-[color:var(--as-violet)]/10 p-2 font-mono text-[9px] space-y-1">
-                          <div className="flex justify-between text-green-400"><span>iPhone (4A:F2)</span><span>TRUSTED</span></div>
-                          <div className="flex justify-between text-[color:var(--as-orange)]"><span>Galaxy (8C:E2)</span><span>KNOWN</span></div>
-                          <div className="flex justify-between text-[color:var(--as-pink)]"><span>Unknown (F2:C3)</span><span>NEW</span></div>
+                          <div className="flex justify-between text-green-400">
+                            <span>iPhone (4A:F2)</span>
+                            <span>TRUSTED</span>
+                          </div>
+                          <div className="flex justify-between text-[color:var(--as-orange)]">
+                            <span>Galaxy (8C:E2)</span>
+                            <span>KNOWN</span>
+                          </div>
+                          <div className="flex justify-between text-[color:var(--as-pink)]">
+                            <span>Unknown (F2:C3)</span>
+                            <span>NEW</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -796,14 +924,26 @@ function Index() {
                           <span className="inline-block w-2 h-2 rounded-full bg-[color:var(--as-yellow)]" />
                           HOME GUARD
                         </div>
-                        <h4 className="font-pixel text-xs text-[color:var(--as-yellow)] mb-2">Presence Engine</h4>
+                        <h4 className="font-pixel text-xs text-[color:var(--as-yellow)] mb-2">
+                          Presence Engine
+                        </h4>
                         <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60 leading-relaxed">
-                          Whitelist familiar devices by MAC. Get notified when recognized devices arrive or leave. Flag unknown ranges as suspicious.
+                          Whitelist familiar devices by MAC. Get notified when recognized devices
+                          arrive or leave. Flag unknown ranges as suspicious.
                         </p>
                         <div className="mt-3 bg-black/60 border border-[color:var(--as-yellow)]/10 p-2 font-mono text-[9px] space-y-1">
-                          <div className="flex justify-between text-green-400"><span>Aryan's iPhone</span><span>PRESENT</span></div>
-                          <div className="flex justify-between text-green-400"><span>Dev Laptop</span><span>PRESENT</span></div>
-                          <div className="flex justify-between text-gray-500"><span>Smart TV</span><span>AWAY</span></div>
+                          <div className="flex justify-between text-green-400">
+                            <span>Aryan's iPhone</span>
+                            <span>PRESENT</span>
+                          </div>
+                          <div className="flex justify-between text-green-400">
+                            <span>Dev Laptop</span>
+                            <span>PRESENT</span>
+                          </div>
+                          <div className="flex justify-between text-gray-500">
+                            <span>Smart TV</span>
+                            <span>AWAY</span>
+                          </div>
                         </div>
                       </div>
                       <div className="pixel-card p-5 border-[color:var(--as-pink)]/30 bg-[#06080e]/40 text-left">
@@ -811,14 +951,26 @@ function Index() {
                           <span className="inline-block w-2 h-2 rounded-full bg-[color:var(--as-pink)]" />
                           SETTINGS
                         </div>
-                        <h4 className="font-pixel text-xs text-[color:var(--as-pink)] mb-2">Device Configuration</h4>
+                        <h4 className="font-pixel text-xs text-[color:var(--as-pink)] mb-2">
+                          Device Configuration
+                        </h4>
                         <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60 leading-relaxed">
-                          WiFi credentials, bounding box coordinates, display brightness, Home Guard sensitivity, and NVS-backed preferences.
+                          WiFi credentials, bounding box coordinates, display brightness, Home Guard
+                          sensitivity, and NVS-backed preferences.
                         </p>
                         <div className="mt-3 bg-black/60 border border-[color:var(--as-pink)]/10 p-2 font-mono text-[9px] space-y-1">
-                          <div className="flex justify-between"><span className="text-[color:var(--as-neon)]/70">WiFi</span><span className="text-[color:var(--as-neon)]">Home_SSID</span></div>
-                          <div className="flex justify-between"><span className="text-[color:var(--as-neon)]/70">Sensitivity</span><span className="text-[color:var(--as-yellow)]">MEDIUM</span></div>
-                          <div className="flex justify-between"><span className="text-[color:var(--as-neon)]/70">BBox</span><span className="text-[color:var(--as-neon)]">37.7, -122.4</span></div>
+                          <div className="flex justify-between">
+                            <span className="text-[color:var(--as-neon)]/70">WiFi</span>
+                            <span className="text-[color:var(--as-neon)]">Home_SSID</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[color:var(--as-neon)]/70">Sensitivity</span>
+                            <span className="text-[color:var(--as-yellow)]">MEDIUM</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[color:var(--as-neon)]/70">BBox</span>
+                            <span className="text-[color:var(--as-neon)]">37.7, -122.4</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -828,18 +980,25 @@ function Index() {
                   <div>
                     <SectionHeader kicker="03 // SYSTEM PIPELINE" title="OBSERVE → ACT → ANALYZE" />
                     <p className="font-mono-pixel text-sm text-[color:var(--as-neon)]/60 mt-3 mb-8 text-left max-w-3xl">
-                      AeroSniffer's architecture is split across three layers — from raw signal capture on the badge to remote analysis.
+                      AeroSniffer's architecture is split across three layers — from raw signal
+                      capture on the badge to remote analysis.
                     </p>
                     <div className="space-y-0 relative">
                       {/* Layer 1: Device */}
                       <div className="pixel-card p-6 border-[color:var(--as-neon)] bg-[#06080e]/60 relative z-10">
                         <div className="flex items-center gap-3 mb-3">
-                          <span className="font-pixel text-[9px] text-[color:var(--as-neon)] border border-[color:var(--as-neon)]/40 px-2 py-0.5">LAYER 01</span>
-                          <span className="font-pixel text-sm text-[color:var(--as-neon)]">DEVICE — OBSERVE + REACT</span>
+                          <span className="font-pixel text-[9px] text-[color:var(--as-neon)] border border-[color:var(--as-neon)]/40 px-2 py-0.5">
+                            LAYER 01
+                          </span>
+                          <span className="font-pixel text-sm text-[color:var(--as-neon)]">
+                            DEVICE — OBSERVE + REACT
+                          </span>
                         </div>
                         <div className="grid md:grid-cols-2 gap-4 text-left font-mono-pixel text-xs">
                           <div className="bg-black/40 border border-[color:var(--as-neon)]/15 p-3">
-                            <div className="text-[color:var(--as-neon)]/50 text-[10px] mb-1">OBSERVE</div>
+                            <div className="text-[color:var(--as-neon)]/50 text-[10px] mb-1">
+                              OBSERVE
+                            </div>
                             <ul className="text-[color:var(--as-neon)]/80 space-y-1">
                               <li>• 802.11 promiscuous monitor</li>
                               <li>• ADS-B airspace polling</li>
@@ -848,7 +1007,9 @@ function Index() {
                             </ul>
                           </div>
                           <div className="bg-black/40 border border-[color:var(--as-neon)]/15 p-3">
-                            <div className="text-[color:var(--as-neon)]/50 text-[10px] mb-1">REACT</div>
+                            <div className="text-[color:var(--as-neon)]/50 text-[10px] mb-1">
+                              REACT
+                            </div>
                             <ul className="text-[color:var(--as-neon)]/80 space-y-1">
                               <li>• FreeRTOS dual-core scheduler</li>
                               <li>• TFT OLED face rendering</li>
@@ -863,7 +1024,9 @@ function Index() {
                         <div className="w-0.5 h-6 bg-gradient-to-b from-[color:var(--as-neon)] to-[color:var(--as-violet)]" />
                       </div>
                       <div className="flex justify-center relative z-10">
-                        <span className="font-pixel text-[8px] text-[color:var(--as-violet)] bg-[#06080e] px-2 border border-[color:var(--as-violet)]/30">↓ WEB SERIAL / TCP / HTTP ↓</span>
+                        <span className="font-pixel text-[8px] text-[color:var(--as-violet)] bg-[#06080e] px-2 border border-[color:var(--as-violet)]/30">
+                          ↓ WEB SERIAL / TCP / HTTP ↓
+                        </span>
                       </div>
                       <div className="flex justify-center py-2 relative z-10">
                         <div className="w-0.5 h-6 bg-gradient-to-b from-[color:var(--as-violet)] to-[color:var(--as-pink)]" />
@@ -871,11 +1034,17 @@ function Index() {
                       {/* Layer 2: Portal */}
                       <div className="pixel-card p-6 border-[color:var(--as-violet)] bg-[#06080e]/60 relative z-10">
                         <div className="flex items-center gap-3 mb-3">
-                          <span className="font-pixel text-[9px] text-[color:var(--as-violet)] border border-[color:var(--as-violet)]/40 px-2 py-0.5">LAYER 02</span>
-                          <span className="font-pixel text-sm text-[color:var(--as-violet)]">PORTAL — ACT</span>
+                          <span className="font-pixel text-[9px] text-[color:var(--as-violet)] border border-[color:var(--as-violet)]/40 px-2 py-0.5">
+                            LAYER 02
+                          </span>
+                          <span className="font-pixel text-sm text-[color:var(--as-violet)]">
+                            PORTAL — ACT
+                          </span>
                         </div>
                         <div className="bg-black/40 border border-[color:var(--as-violet)]/15 p-3 text-left font-mono-pixel text-xs">
-                          <div className="text-[color:var(--as-violet)]/50 text-[10px] mb-1">ACT</div>
+                          <div className="text-[color:var(--as-violet)]/50 text-[10px] mb-1">
+                            ACT
+                          </div>
                           <ul className="text-[color:var(--as-neon)]/80 space-y-1 grid md:grid-cols-2">
                             <li>• Configure whitelist rules</li>
                             <li>• Set sensitivity thresholds</li>
@@ -891,7 +1060,9 @@ function Index() {
                         <div className="w-0.5 h-6 bg-gradient-to-b from-[color:var(--as-pink)] to-[color:var(--as-yellow)]" />
                       </div>
                       <div className="flex justify-center relative z-10">
-                        <span className="font-pixel text-[8px] text-[color:var(--as-yellow)] bg-[#06080e] px-2 border border-[color:var(--as-yellow)]/30">↓ COMPANION APP API / EXPORT ↓</span>
+                        <span className="font-pixel text-[8px] text-[color:var(--as-yellow)] bg-[#06080e] px-2 border border-[color:var(--as-yellow)]/30">
+                          ↓ COMPANION APP API / EXPORT ↓
+                        </span>
                       </div>
                       <div className="flex justify-center py-2 relative z-10">
                         <div className="w-0.5 h-6 bg-gradient-to-b from-[color:var(--as-yellow)] to-[color:var(--as-orange)]" />
@@ -899,11 +1070,17 @@ function Index() {
                       {/* Layer 3: Mission Control */}
                       <div className="pixel-card p-6 border-[color:var(--as-yellow)] bg-[#06080e]/60 relative z-10">
                         <div className="flex items-center gap-3 mb-3">
-                          <span className="font-pixel text-[9px] text-[color:var(--as-yellow)] border border-[color:var(--as-yellow)]/40 px-2 py-0.5">LAYER 03</span>
-                          <span className="font-pixel text-sm text-[color:var(--as-yellow)]">MISSION CONTROL — ANALYZE</span>
+                          <span className="font-pixel text-[9px] text-[color:var(--as-yellow)] border border-[color:var(--as-yellow)]/40 px-2 py-0.5">
+                            LAYER 03
+                          </span>
+                          <span className="font-pixel text-sm text-[color:var(--as-yellow)]">
+                            MISSION CONTROL — ANALYZE
+                          </span>
                         </div>
                         <div className="bg-black/40 border border-[color:var(--as-yellow)]/15 p-3 text-left font-mono-pixel text-xs">
-                          <div className="text-[color:var(--as-yellow)]/50 text-[10px] mb-1">ANALYZE</div>
+                          <div className="text-[color:var(--as-yellow)]/50 text-[10px] mb-1">
+                            ANALYZE
+                          </div>
                           <ul className="text-[color:var(--as-neon)]/80 space-y-1 grid md:grid-cols-2">
                             <li>• Cross-session signal trends</li>
                             <li>• Device presence history</li>
@@ -931,21 +1108,30 @@ function Index() {
                         </div>
                         <div className="space-y-3">
                           <div>
-                            <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-1">Firmware V2.3</h4>
+                            <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-1">
+                              Firmware V2.3
+                            </h4>
                             <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60">
-                              Threat intelligence pipeline, Home Guard presence engine, aviation radar, NVS settings layer.
+                              Threat intelligence pipeline, Home Guard presence engine, aviation
+                              radar, NVS settings layer.
                             </p>
                           </div>
                           <div>
-                            <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-1">AeroPortal</h4>
+                            <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-1">
+                              AeroPortal
+                            </h4>
                             <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60">
-                              Overview dashboard, device registry, threat timeline, Home Guard config, settings panel.
+                              Overview dashboard, device registry, threat timeline, Home Guard
+                              config, settings panel.
                             </p>
                           </div>
                           <div>
-                            <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-1">Companion App</h4>
+                            <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-1">
+                              Companion App
+                            </h4>
                             <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60">
-                              Web serial console, BotFace emotion control, live radar panel, flight tracker.
+                              Web serial console, BotFace emotion control, live radar panel, flight
+                              tracker.
                             </p>
                           </div>
                         </div>
@@ -953,19 +1139,27 @@ function Index() {
                       <div className="pixel-card p-5 border-[color:var(--as-yellow)]/30 bg-[#06080e]/40 text-left">
                         <div className="flex items-center gap-2 mb-3">
                           <span className="inline-block w-2 h-2 rounded-full bg-[color:var(--as-yellow)]" />
-                          <span className="font-pixel text-[8px] text-[color:var(--as-yellow)]">IN PROGRESS</span>
+                          <span className="font-pixel text-[8px] text-[color:var(--as-yellow)]">
+                            IN PROGRESS
+                          </span>
                         </div>
                         <div className="space-y-3">
                           <div>
-                            <h4 className="font-pixel text-xs text-[color:var(--as-yellow)] mb-1">Website V2</h4>
+                            <h4 className="font-pixel text-xs text-[color:var(--as-yellow)] mb-1">
+                              Website V2
+                            </h4>
                             <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60">
-                              Identity migration, Portal showcase, architecture diagram, product landing page.
+                              Identity migration, Portal showcase, architecture diagram, product
+                              landing page.
                             </p>
                           </div>
                           <div>
-                            <h4 className="font-pixel text-xs text-[color:var(--as-yellow)] mb-1">RC1 Validation</h4>
+                            <h4 className="font-pixel text-xs text-[color:var(--as-yellow)] mb-1">
+                              RC1 Validation
+                            </h4>
                             <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60">
-                              19 required tests across 7 categories. Bug sprint, V2.3 release candidate.
+                              19 required tests across 7 categories. Bug sprint, V2.3 release
+                              candidate.
                             </p>
                           </div>
                         </div>
@@ -973,19 +1167,26 @@ function Index() {
                       <div className="pixel-card p-5 border-[color:var(--as-violet)]/30 bg-[#06080e]/40 text-left">
                         <div className="flex items-center gap-2 mb-3">
                           <span className="inline-block w-2 h-2 rounded-full bg-[color:var(--as-violet)]" />
-                          <span className="font-pixel text-[8px] text-[color:var(--as-violet)]">NEXT</span>
+                          <span className="font-pixel text-[8px] text-[color:var(--as-violet)]">
+                            NEXT
+                          </span>
                         </div>
                         <div className="space-y-3">
                           <div>
-                            <h4 className="font-pixel text-xs text-[color:var(--as-violet)] mb-1">V2.3 Release</h4>
+                            <h4 className="font-pixel text-xs text-[color:var(--as-violet)] mb-1">
+                              V2.3 Release
+                            </h4>
                             <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60">
                               Final bug fixes, documentation, packaging, and distribution.
                             </p>
                           </div>
                           <div>
-                            <h4 className="font-pixel text-xs text-[color:var(--as-violet)] mb-1">V3.0 Mission Control</h4>
+                            <h4 className="font-pixel text-xs text-[color:var(--as-violet)] mb-1">
+                              V3.0 Mission Control
+                            </h4>
                             <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60">
-                              Multi-node correlation, encrypted peer mesh, forensic observation interfaces.
+                              Multi-node correlation, encrypted peer mesh, forensic observation
+                              interfaces.
                             </p>
                           </div>
                         </div>
@@ -998,15 +1199,24 @@ function Index() {
                     <SectionHeader kicker="05 // COMMUNITY" title="OPEN SOURCE" />
                     <div className="grid md:grid-cols-2 gap-6 mt-8">
                       <div className="pixel-card p-6 border-[color:var(--as-neon)]/30 bg-[#06080e]/40 text-left">
-                        <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-2">Fully Open Hardware & Software</h4>
+                        <h4 className="font-pixel text-xs text-[color:var(--as-neon)] mb-2">
+                          Fully Open Hardware & Software
+                        </h4>
                         <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60 leading-relaxed">
-                          AeroSniffer is built in the open. The entire firmware (FreeRTOS/C++), companion web app (React/TypeScript), and PC agent tools are published on GitHub. Circuit schematics and PCB design files are included for the ESP32-S3 badge.
+                          AeroSniffer is built in the open. The entire firmware (FreeRTOS/C++),
+                          companion web app (React/TypeScript), and PC agent tools are published on
+                          GitHub. Circuit schematics and PCB design files are included for the
+                          ESP32-S3 badge.
                         </p>
                       </div>
                       <div className="pixel-card p-6 border-[color:var(--as-violet)]/30 bg-[#06080e]/40 text-left">
-                        <h4 className="font-pixel text-xs text-[color:var(--as-violet)] mb-2">MIT Licensed</h4>
+                        <h4 className="font-pixel text-xs text-[color:var(--as-violet)] mb-2">
+                          MIT Licensed
+                        </h4>
                         <p className="font-mono-pixel text-[11px] text-[color:var(--as-neon)]/60 leading-relaxed">
-                          All source code is released under the MIT license. Fork it, hack it, build your own variant — attribution is all we ask. Contributions, issues, and PRs are welcome.
+                          All source code is released under the MIT license. Fork it, hack it, build
+                          your own variant — attribution is all we ask. Contributions, issues, and
+                          PRs are welcome.
                         </p>
                       </div>
                     </div>
@@ -1077,8 +1287,8 @@ function Index() {
             <div className="max-w-6xl mx-auto px-6">
               <SectionHeader kicker="02 // EMOTION REGISTER" title="HIS LITTLE FEELINGS" />
               <p className="max-w-2xl mx-auto text-center font-mono-pixel text-[color:var(--as-neon)]/70 text-lg mt-3">
-                Select an emotion below to command your AeroSniffer.
-                Each face is animated using custom vector SVGs inside the browser and mapped to core emotions on the ESP32.
+                Select an emotion below to command your AeroSniffer. Each face is animated using
+                custom vector SVGs inside the browser and mapped to core emotions on the ESP32.
               </p>
 
               {(["CORE EMOTIONS", "SECURITY", "AVIATION", "SYSTEM", "SECRET"] as const).map((g) => (
@@ -1134,7 +1344,10 @@ function Index() {
                           }
                         >
                           <BotFace state={f as FaceState} size={220} />
-                          <div className="mt-3 font-pixel text-xs" style={{ color: FACE_META[f as FaceState].color }}>
+                          <div
+                            className="mt-3 font-pixel text-xs"
+                            style={{ color: FACE_META[f as FaceState].color }}
+                          >
                             {FACE_META[f as FaceState].label}
                           </div>
                           <div className="font-mono-pixel text-[color:var(--as-neon)]/60 text-base mt-1">
@@ -1193,7 +1406,15 @@ interface NavProps {
   setAviationEnabled: (enabled: boolean) => void;
 }
 
-function Nav({ onFace, isConnected, setIsConnected, activeTab, setActiveTab, aviationEnabled, setAviationEnabled }: NavProps) {
+function Nav({
+  onFace,
+  isConnected,
+  setIsConnected,
+  activeTab,
+  setActiveTab,
+  aviationEnabled,
+  setAviationEnabled,
+}: NavProps) {
   const [showSetup, setShowSetup] = useState(false);
   const [deviceData, setDeviceData] = useState<any>(null);
   const [wifi, setWifi] = useState({ ssid: "", pass: "" });
@@ -1263,16 +1484,19 @@ function Nav({ onFace, isConnected, setIsConnected, activeTab, setActiveTab, avi
 
   const handleAutoLocate = () => {
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-        setBbox({
-          lamin: (lat - 0.6).toFixed(2),
-          lamax: (lat + 0.6).toFixed(2),
-          lomin: (lon - 0.9).toFixed(2),
-          lomax: (lon + 0.9).toFixed(2),
-        });
-      }, () => setSetupMsg("Location access denied."));
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          setBbox({
+            lamin: (lat - 0.6).toFixed(2),
+            lamax: (lat + 0.6).toFixed(2),
+            lomin: (lon - 0.9).toFixed(2),
+            lomax: (lon + 0.9).toFixed(2),
+          });
+        },
+        () => setSetupMsg("Location access denied."),
+      );
     } else {
       setSetupMsg("Geolocation not supported.");
     }
@@ -1283,7 +1507,9 @@ function Nav({ onFace, isConnected, setIsConnected, activeTab, setActiveTab, avi
     setIsSearching(true);
     setSetupMsg("Searching for city...");
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`);
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`,
+      );
       const data = await res.json();
       if (data && data.length > 0) {
         const lat = parseFloat(data[0].lat);
@@ -1294,7 +1520,7 @@ function Nav({ onFace, isConnected, setIsConnected, activeTab, setActiveTab, avi
           lomin: (lon - 0.9).toFixed(2),
           lomax: (lon + 0.9).toFixed(2),
         });
-        setSetupMsg(`Found: ${data[0].display_name.split(',')[0]}`);
+        setSetupMsg(`Found: ${data[0].display_name.split(",")[0]}`);
       } else {
         setSetupMsg("City not found.");
       }
@@ -1307,7 +1533,8 @@ function Nav({ onFace, isConnected, setIsConnected, activeTab, setActiveTab, avi
 
   const handleSave = () => {
     if (wifi.ssid) serialAPI.sendCommand(`SET_WIFI:${wifi.ssid}:${wifi.pass}`);
-    if (bbox.lamin) serialAPI.sendCommand(`SET_BBOX:${bbox.lamin}:${bbox.lomin}:${bbox.lamax}:${bbox.lomax}`);
+    if (bbox.lamin)
+      serialAPI.sendCommand(`SET_BBOX:${bbox.lamin}:${bbox.lomin}:${bbox.lamax}:${bbox.lomax}`);
     if (refreshInterval) serialAPI.sendCommand(`SET_REFRESH:${refreshInterval}`);
     serialAPI.sendCommand(`SET_AVIATION:${aviationEnabled}`);
     setSetupMsg("Saved! Rebooting robot...");
@@ -1386,7 +1613,10 @@ function Nav({ onFace, isConnected, setIsConnected, activeTab, setActiveTab, avi
               <div className="font-pixel text-lg text-[color:var(--as-neon)]">
                 ⚙️ AEROSNIFFER SETUP
               </div>
-              <button onClick={() => setShowSetup(false)} className="text-[color:var(--as-pink)] font-pixel text-xs hover:underline">
+              <button
+                onClick={() => setShowSetup(false)}
+                className="text-[color:var(--as-pink)] font-pixel text-xs hover:underline"
+              >
                 [X] CLOSE
               </button>
             </div>
@@ -1394,43 +1624,76 @@ function Nav({ onFace, isConnected, setIsConnected, activeTab, setActiveTab, avi
             {!isConnected ? (
               <div className="text-center py-6">
                 <p className="font-mono-pixel text-[color:var(--as-neon)]/70 mb-6 text-sm">
-                  To configure WiFi and Location, connect your AeroSniffer via USB (works in any mode!).
+                  To configure WiFi and Location, connect your AeroSniffer via USB (works in any
+                  mode!).
                 </p>
                 <button onClick={handleConnect} className="pixel-btn w-full">
                   CONNECT VIA WEB SERIAL
                 </button>
-                {setupMsg && <p className="mt-4 font-mono-pixel text-[color:var(--as-pink)] text-xs">{setupMsg}</p>}
+                {setupMsg && (
+                  <p className="mt-4 font-mono-pixel text-[color:var(--as-pink)] text-xs">
+                    {setupMsg}
+                  </p>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="font-pixel text-[10px] text-[color:var(--as-orange)] mb-4">
                   ▲ CONNECTED TO ESP32
                 </div>
-                
+
                 <div>
-                  <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">Wi-Fi SSID</label>
-                  <input type="text" value={wifi.ssid} onChange={(e) => setWifi(w => ({ ...w, ssid: e.target.value }))} className="w-full bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" placeholder="Network Name" />
+                  <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">
+                    Wi-Fi SSID
+                  </label>
+                  <input
+                    type="text"
+                    value={wifi.ssid}
+                    onChange={(e) => setWifi((w) => ({ ...w, ssid: e.target.value }))}
+                    className="w-full bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm"
+                    placeholder="Network Name"
+                  />
                 </div>
                 <div>
-                  <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">Wi-Fi Password</label>
-                  <input type="password" value={wifi.pass} onChange={(e) => setWifi(w => ({ ...w, pass: e.target.value }))} className="w-full bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" placeholder="Password" />
+                  <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">
+                    Wi-Fi Password
+                  </label>
+                  <input
+                    type="password"
+                    value={wifi.pass}
+                    onChange={(e) => setWifi((w) => ({ ...w, pass: e.target.value }))}
+                    className="w-full bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm"
+                    placeholder="Password"
+                  />
                 </div>
                 <div>
-                  <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">Flight Refresh Rate</label>
-                  <select 
-                    value={refreshInterval} 
-                    onChange={(e) => setRefreshInterval(Number(e.target.value))} 
+                  <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">
+                    Flight Refresh Rate
+                  </label>
+                  <select
+                    value={refreshInterval}
+                    onChange={(e) => setRefreshInterval(Number(e.target.value))}
                     className="w-full bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm focus:outline-none focus:border-[color:var(--as-neon)]"
                   >
-                    <option value={15000} className="bg-[#06080e] text-[color:var(--as-neon)]">15 Seconds</option>
-                    <option value={30000} className="bg-[#06080e] text-[color:var(--as-neon)]">30 Seconds</option>
-                    <option value={60000} className="bg-[#06080e] text-[color:var(--as-neon)]">60 Seconds</option>
-                    <option value={120000} className="bg-[#06080e] text-[color:var(--as-neon)]">120 Seconds</option>
+                    <option value={15000} className="bg-[#06080e] text-[color:var(--as-neon)]">
+                      15 Seconds
+                    </option>
+                    <option value={30000} className="bg-[#06080e] text-[color:var(--as-neon)]">
+                      30 Seconds
+                    </option>
+                    <option value={60000} className="bg-[#06080e] text-[color:var(--as-neon)]">
+                      60 Seconds
+                    </option>
+                    <option value={120000} className="bg-[#06080e] text-[color:var(--as-neon)]">
+                      120 Seconds
+                    </option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">Aviation Mode (ADS-B)</label>
+                  <label className="block font-pixel text-[10px] text-[color:var(--as-neon)]/70 mb-2">
+                    Aviation Mode (ADS-B)
+                  </label>
                   <button
                     onClick={() => setAviationEnabled(!aviationEnabled)}
                     className={`w-full font-pixel text-xs p-2.5 border transition-all flex items-center justify-between ${
@@ -1440,50 +1703,96 @@ function Nav({ onFace, isConnected, setIsConnected, activeTab, setActiveTab, avi
                     }`}
                   >
                     <span>{aviationEnabled ? "ACTIVE" : "DISABLED"}</span>
-                    <span className="font-mono-pixel text-[10px] opacity-75">{aviationEnabled ? "[ ON ]" : "[ OFF ]"}</span>
+                    <span className="font-mono-pixel text-[10px] opacity-75">
+                      {aviationEnabled ? "[ ON ]" : "[ OFF ]"}
+                    </span>
                   </button>
                 </div>
 
                 <div className="border-t border-[color:var(--as-neon)]/20 pt-4 mt-4">
                   <div className="flex flex-col gap-2 mb-3">
-                    <label className="block font-pixel text-[10px] text-[color:var(--as-yellow)]/70">Mode 3 Radar Bounds</label>
-                    
+                    <label className="block font-pixel text-[10px] text-[color:var(--as-yellow)]/70">
+                      Mode 3 Radar Bounds
+                    </label>
+
                     <div className="flex gap-2">
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleCitySearch()}
-                        placeholder="Search City..." 
+                        onKeyDown={(e) => e.key === "Enter" && handleCitySearch()}
+                        placeholder="Search City..."
                         className="flex-1 bg-black border border-[color:var(--as-yellow)]/30 p-2 font-mono-pixel text-[color:var(--as-yellow)] text-xs"
                       />
-                      <button 
+                      <button
                         onClick={handleCitySearch}
                         disabled={isSearching}
                         className="text-[10px] font-pixel text-[color:var(--as-yellow)] hover:underline border border-[color:var(--as-yellow)] px-2 py-1 whitespace-nowrap"
                       >
                         {isSearching ? "[ ... ]" : "[ SEARCH ]"}
                       </button>
-                      <button onClick={handleAutoLocate} className="text-[10px] font-pixel text-[color:var(--as-yellow)] hover:underline border border-[color:var(--as-yellow)] px-2 py-1 whitespace-nowrap" title="Use GPS">
+                      <button
+                        onClick={handleAutoLocate}
+                        className="text-[10px] font-pixel text-[color:var(--as-yellow)] hover:underline border border-[color:var(--as-yellow)] px-2 py-1 whitespace-nowrap"
+                        title="Use GPS"
+                      >
                         [ GPS ]
                       </button>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mt-2">
-                    <input type="number" step="0.1" value={bbox.lamin} onChange={e => setBbox(b => ({...b, lamin: e.target.value}))} placeholder="Min Lat" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" />
-                    <input type="number" step="0.1" value={bbox.lamax} onChange={e => setBbox(b => ({...b, lamax: e.target.value}))} placeholder="Max Lat" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" />
-                    <input type="number" step="0.1" value={bbox.lomin} onChange={e => setBbox(b => ({...b, lomin: e.target.value}))} placeholder="Min Lon" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" />
-                    <input type="number" step="0.1" value={bbox.lomax} onChange={e => setBbox(b => ({...b, lomax: e.target.value}))} placeholder="Max Lon" className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm" />
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={bbox.lamin}
+                      onChange={(e) => setBbox((b) => ({ ...b, lamin: e.target.value }))}
+                      placeholder="Min Lat"
+                      className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm"
+                    />
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={bbox.lamax}
+                      onChange={(e) => setBbox((b) => ({ ...b, lamax: e.target.value }))}
+                      placeholder="Max Lat"
+                      className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm"
+                    />
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={bbox.lomin}
+                      onChange={(e) => setBbox((b) => ({ ...b, lomin: e.target.value }))}
+                      placeholder="Min Lon"
+                      className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm"
+                    />
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={bbox.lomax}
+                      onChange={(e) => setBbox((b) => ({ ...b, lomax: e.target.value }))}
+                      placeholder="Max Lon"
+                      className="bg-black border border-[color:var(--as-neon)]/30 p-2 font-mono-pixel text-[color:var(--as-neon)] text-sm"
+                    />
                   </div>
                 </div>
 
-                {setupMsg && <p className="font-mono-pixel text-[color:var(--as-neon)] text-xs text-center my-2">{setupMsg}</p>}
+                {setupMsg && (
+                  <p className="font-mono-pixel text-[color:var(--as-neon)] text-xs text-center my-2">
+                    {setupMsg}
+                  </p>
+                )}
 
                 <div className="pt-4 mt-2">
                   <button onClick={handleSave} className="pixel-btn w-full py-3 text-xs mb-3">
                     SAVE & REBOOT ROBOT
                   </button>
-                  <button onClick={() => { serialAPI.disconnect(); setIsConnected(false); }} className="pixel-btn pixel-btn-ghost w-full py-2 text-xs border-[color:var(--as-pink)] text-[color:var(--as-pink)]">
+                  <button
+                    onClick={() => {
+                      serialAPI.disconnect();
+                      setIsConnected(false);
+                    }}
+                    className="pixel-btn pixel-btn-ghost w-full py-2 text-xs border-[color:var(--as-pink)] text-[color:var(--as-pink)]"
+                  >
                     DISCONNECT
                   </button>
                 </div>
@@ -1646,14 +1955,14 @@ function FlightPanel({ isConnected, devMode }: FlightPanelProps) {
       lamin: "28.30",
       lomin: "76.80",
       lamax: "28.90",
-      lomax: "77.60"
+      lomax: "77.60",
     });
 
     const initialFlights = [
-      { callsign: "AIC304", alt: 9800, spd: 240, hdg: 120, lat: 28.56, lon: 77.10, gnd: false },
+      { callsign: "AIC304", alt: 9800, spd: 240, hdg: 120, lat: 28.56, lon: 77.1, gnd: false },
       { callsign: "IND912", alt: 4500, spd: 180, hdg: 45, lat: 28.61, lon: 77.25, gnd: false },
       { callsign: "UAE77", alt: 10500, spd: 250, hdg: 270, lat: 28.45, lon: 77.02, gnd: false },
-      { callsign: "AIC420", alt: 220, spd: 15, hdg: 90, lat: 28.56, lon: 77.09, gnd: true }
+      { callsign: "AIC420", alt: 220, spd: 15, hdg: 90, lat: 28.56, lon: 77.09, gnd: true },
     ];
     setFlights(initialFlights);
     setLastUpdated(new Date().toLocaleTimeString());
@@ -1673,11 +1982,14 @@ function FlightPanel({ isConnected, devMode }: FlightPanelProps) {
             lat: f.lat + latDelta,
             lon: f.lon + lonDelta,
           };
-        })
+        }),
       );
       const ts = new Date().toLocaleTimeString();
       setLastUpdated(ts);
-      setDebugLog((prev) => [`[${ts}] Simulated ADS-B update processed: 4 targets active`, ...prev.slice(0, 19)]);
+      setDebugLog((prev) => [
+        `[${ts}] Simulated ADS-B update processed: 4 targets active`,
+        ...prev.slice(0, 19),
+      ]);
     }, 3000);
 
     return () => clearInterval(simInterval);
@@ -1894,9 +2206,7 @@ function FlightPanel({ isConnected, devMode }: FlightPanelProps) {
       {devMode && (
         <div className="pixel-card p-4 border-red-500/30">
           <div className="flex items-center justify-between mb-3">
-            <div className="font-pixel text-[10px] text-red-400">
-              ▲ FLIGHT DEBUG PANEL
-            </div>
+            <div className="font-pixel text-[10px] text-red-400">▲ FLIGHT DEBUG PANEL</div>
             <button
               onClick={() => setShowDebug(!showDebug)}
               className="font-pixel text-[9px] px-3 py-1 border border-red-500/40 text-red-400 hover:bg-red-950/20"
@@ -1908,7 +2218,11 @@ function FlightPanel({ isConnected, devMode }: FlightPanelProps) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono-pixel text-xs mb-3">
             <div className="bg-black/60 p-2 border border-red-500/20">
               <div className="text-red-400/60 text-[10px]">ESP32 STATUS</div>
-              <div className={isConnected ? "text-green-400" : "text-[color:var(--as-yellow)] font-bold"}>
+              <div
+                className={
+                  isConnected ? "text-green-400" : "text-[color:var(--as-yellow)] font-bold"
+                }
+              >
                 {isConnected ? "CONNECTED" : "DEMO MODE ACTIVE"}
               </div>
             </div>
@@ -1938,7 +2252,10 @@ function FlightPanel({ isConnected, devMode }: FlightPanelProps) {
                   </div>
                 ) : (
                   debugLog.map((line, i) => (
-                    <div key={i} className="text-[11px] font-mono-pixel text-[color:var(--as-neon)]/70 border-b border-red-500/10 py-0.5">
+                    <div
+                      key={i}
+                      className="text-[11px] font-mono-pixel text-[color:var(--as-neon)]/70 border-b border-red-500/10 py-0.5"
+                    >
                       {line}
                     </div>
                   ))
@@ -2045,7 +2362,11 @@ function PetPanel({ isConnected }: PetPanelProps) {
 
   const [heapHistory, setHeapHistory] = useState<{ time: string; heap: number }[]>([]);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([
-    { time: new Date().toLocaleTimeString(), text: "System monitoring initialised.", type: "system" },
+    {
+      time: new Date().toLocaleTimeString(),
+      text: "System monitoring initialised.",
+      type: "system",
+    },
   ]);
 
   const lastStatusRef = useRef<PetStatus | null>(null);
@@ -2084,7 +2405,7 @@ function PetPanel({ isConnected }: PetPanelProps) {
             const hrs = Math.floor(sec / 3600);
             const mins = Math.floor((sec % 3600) / 60);
             const secs = sec % 60;
-            const timeStr = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            const timeStr = `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
             return {
               time: timeStr,
               text: evt.text,
@@ -2135,7 +2456,7 @@ function PetPanel({ isConnected }: PetPanelProps) {
     const nowStr = new Date().toLocaleTimeString();
     setTimeline([
       { time: nowStr, text: "Cyber-Pet consciousness linked in Demo Mode", type: "system" },
-      { time: nowStr, text: "Began observing simulated desktop focus", type: "activity" }
+      { time: nowStr, text: "Began observing simulated desktop focus", type: "activity" },
     ]);
 
     const history = [];
@@ -2150,9 +2471,11 @@ function PetPanel({ isConnected }: PetPanelProps) {
 
     const simInterval = setInterval(() => {
       const ts = new Date().toLocaleTimeString();
-      
+
       setStatus((prev) => {
-        const nextHeap = Math.round(180000 + Math.sin(Date.now() / 15000) * 4000 + Math.random() * 1500);
+        const nextHeap = Math.round(
+          180000 + Math.sin(Date.now() / 15000) * 4000 + Math.random() * 1500,
+        );
         const acts = ["coding", "typing", "thinking", "music"];
         const emos = ["happy", "idle", "excited", "thinking", "love"];
         const nextAct = acts[Math.floor(Math.random() * acts.length)];
@@ -2163,11 +2486,11 @@ function PetPanel({ isConnected }: PetPanelProps) {
             `Activity transition to: ${nextAct}`,
             `Emotion state set to: ${nextEmo}`,
             "Mock PC Agent reported active keystrokes",
-            "Pet status heartbeat logged successfully"
+            "Pet status heartbeat logged successfully",
           ];
           setTimeline((t) => [
             ...t.slice(-29),
-            { time: ts, text: events[Math.floor(Math.random() * events.length)], type: "activity" }
+            { time: ts, text: events[Math.floor(Math.random() * events.length)], type: "activity" },
           ]);
         }
 
@@ -2181,7 +2504,10 @@ function PetPanel({ isConnected }: PetPanelProps) {
 
       setHeapHistory((prev) => [
         ...prev.slice(-29),
-        { time: ts.slice(-8), heap: (180000 + Math.sin(Date.now() / 15000) * 4000 + Math.random() * 1500) / 1024 },
+        {
+          time: ts.slice(-8),
+          heap: (180000 + Math.sin(Date.now() / 15000) * 4000 + Math.random() * 1500) / 1024,
+        },
       ]);
     }, 3000);
 
@@ -2325,8 +2651,16 @@ function PetPanel({ isConnected }: PetPanelProps) {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={heapHistory}>
                 <YAxis hide={true} domain={["dataMin - 5", "dataMax + 5"]} />
-                <Tooltip contentStyle={{ backgroundColor: "#06080e", borderColor: "var(--as-neon)" }} />
-                <Line type="monotone" dataKey="heap" stroke="var(--as-neon)" strokeWidth={1} dot={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#06080e", borderColor: "var(--as-neon)" }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="heap"
+                  stroke="var(--as-neon)"
+                  strokeWidth={1}
+                  dot={false}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>

@@ -5,10 +5,5 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  plugins: [
-    TanStackRouterVite(),
-    viteReact(),
-    tsconfigPaths(),
-    tailwindcss(),
-  ],
+  plugins: [TanStackRouterVite(), viteReact(), tsconfigPaths(), tailwindcss()],
 });
