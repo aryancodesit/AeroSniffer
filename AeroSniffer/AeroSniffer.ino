@@ -337,7 +337,7 @@ static bool handle_global_command(const String& line) {
     
     if (cmd == "GET_PET_STATUS") {
       Serial.printf("RES:{\"emotion\":\"%s\",\"mood\":\"%s\",\"activity\":\"%s\",\"face\":\"%s\",\"wifi\":\"%s\",\"heap\":%d,\"fps\":%d,\"mode\":%d,\"flights\":%lu,\"networks\":%lu,\"coding\":%lu,\"hours\":%lu,\"fl_seen_today\":%lu,\"fl_seen_lifetime\":%lu,\"fl_last_count\":%lu,\"fl_max_seen\":%lu}\n",
-                    EmotionEngine.getEmotionStr(), MoodEngine::moodName(g_creature.mood), EmotionEngine.getActivityStr(),
+                    EmotionEngine.getEmotionStr(), MoodEngineClass::moodName(g_creature.mood), EmotionEngine.getActivityStr(),
                     sys_current_face.c_str(),
                     WiFiService.isConnected() ? sys_wifi_ssid.c_str() : "disconnected",
                     ESP.getFreeHeap(), 30, g_mode,
