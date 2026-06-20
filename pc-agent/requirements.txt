@@ -5,7 +5,7 @@
 
 # Core (all platforms)
 pyserial>=3.5          # USB Serial communication with ESP32
-psutil>=5.9.0          # CPU, RAM, process monitoring
+psutil>=7.2.2          # CPU, RAM, process monitoring
 pynput>=1.8.2          # Keyboard activity detection (cross-platform)
 
 # ── Windows only (uncomment if on Windows) ──────────────────────
