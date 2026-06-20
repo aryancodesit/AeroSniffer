@@ -5,6 +5,7 @@
 #include "AeroSnifferOS.h"
 #include "Config.h"
 #include "Companion/AttentionEngine.h"
+#include "Companion/MoodEngine.h"
 #include <math.h>
 
 extern TFT_eSPI tft;
