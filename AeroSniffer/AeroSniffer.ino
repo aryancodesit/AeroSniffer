@@ -22,6 +22,8 @@
 
 #include <WiFi.h>
 #include "Config.h"
+#include "Companion/AttentionEngine.h"
+#include "Companion/MoodEngine.h"
 #include "Mode1_Pet.h"
 #include "Mode2_Security.h"
 #include "Mode3_Aviation.h"
@@ -54,6 +56,10 @@ bool    sec_hud_mode = true;
 bool    avi_hud_mode = true;
 
 // ── WiFi Event Logger ────────────────────────────────────────────
+static void ae_event_callback(EventType event, void* data) {
+  AttentionEngine.queueEvent(event, data);
+}
+
 void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
 {
     switch(event)
@@ -331,7 +337,7 @@ static bool handle_global_command(const String& line) {
     
     if (cmd == "GET_PET_STATUS") {
       Serial.printf("RES:{\"emotion\":\"%s\",\"mood\":\"%s\",\"activity\":\"%s\",\"face\":\"%s\",\"wifi\":\"%s\",\"heap\":%d,\"fps\":%d,\"mode\":%d,\"flights\":%lu,\"networks\":%lu,\"coding\":%lu,\"hours\":%lu,\"fl_seen_today\":%lu,\"fl_seen_lifetime\":%lu,\"fl_last_count\":%lu,\"fl_max_seen\":%lu}\n",
-                    EmotionEngine.getEmotionStr(), EmotionEngine.getMoodStr(), EmotionEngine.getActivityStr(),
+                    EmotionEngine.getEmotionStr(), MoodEngine::moodName(g_creature.mood), EmotionEngine.getActivityStr(),
                     sys_current_face.c_str(),
                     WiFiService.isConnected() ? sys_wifi_ssid.c_str() : "disconnected",
                     ESP.getFreeHeap(), 30, g_mode,
@@ -555,6 +561,7 @@ void task_core1(void*) {
   // Initial mode boot
   setup_mode(g_mode);
   uint32_t last_heartbeat = 0;
+  uint32_t last_ae_tick = millis();
 
   for (;;) {
     // ── Heartbeat (every 1s) ────────────────────────────────
@@ -564,8 +571,16 @@ void task_core1(void*) {
       Serial.println("[FACE] heartbeat");
     }
 
+    // ── Tick Attention Engine ────────────────────────────────
+    uint32_t ae_delta = now - last_ae_tick;
+    last_ae_tick = now;
+    AttentionEngine.tick(ae_delta);
+
     // ── Tick Emotion Engine ──────────────────────────────────
     EmotionEngine.tick();
+
+    // ── Tick Mood Engine ─────────────────────────────────────
+    MoodEngine.tick(ae_delta);
 
     // ── Non-Blocking Serial Processing ───────────────────────
     process_serial_commands();
@@ -581,8 +596,12 @@ void task_core1(void*) {
       g_mode_transitioning = true;
       Serial.printf("[MODE] Transitioning: %d -> %d\n", g_active_mode, g_mode);
       StorageService.saveMode(g_mode);
+      Serial.println("[DBG] BEFORE teardown");
       teardown_mode(g_active_mode);
+      Serial.println("[DBG] AFTER teardown");
       Serial.printf("[MODE] Teardown of mode %d complete\n", g_active_mode);
+      AttentionEngine.pause();
+      Serial.println("[DBG] AFTER pause");
 
       // Mode transition splash
       DisplayService.clear();
@@ -597,14 +616,19 @@ void task_core1(void*) {
       DisplayService.commit();
       delay(600);
 
+      Serial.println("[DBG] AFTER splash");
       g_active_mode = g_mode;
+      Serial.println("[DBG] BEFORE setup");
       setup_mode(g_mode);
+      Serial.println("[DBG] AFTER setup");
       #if HAS_TOUCH
         _touch_start = 0;
         _touch_active = false;
         _touch_last_change = millis();
       #endif
       Serial.printf("[MODE] Setup of mode %d complete\n", g_active_mode);
+      AttentionEngine.resume();
+      Serial.println("[DBG] AFTER resume");
       g_mode_transitioning = false;
     }
 
@@ -643,6 +667,19 @@ void setup() {
   // ── Initialize OS Services ───────────────────────────────────────
   StorageService.begin();
   EmotionEngine.begin();
+  MoodEngine.begin();
+  AttentionEngine.begin();
+
+  // ── Subscribe Attention Engine to EventBus events ────────────
+  EventBus.subscribe(EVENT_ATTACK_DEAUTH, ae_event_callback);
+  EventBus.subscribe(EVENT_ATTACK_EVILTWIN, ae_event_callback);
+  EventBus.subscribe(EVENT_FLIGHT_DETECTED, ae_event_callback);
+  EventBus.subscribe(EVENT_WIFI_CONNECTING, ae_event_callback);
+  EventBus.subscribe(EVENT_WIFI_CONNECTED, ae_event_callback);
+  EventBus.subscribe(EVENT_TOUCH_SHORT, ae_event_callback);
+  EventBus.subscribe(EVENT_FLIGHT_RARE, ae_event_callback);
+  EventBus.subscribe(EVENT_WIFI_DISCONNECTED, ae_event_callback);
+
   WiFiService.begin();
   DisplayService.begin();
 

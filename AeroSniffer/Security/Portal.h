@@ -1244,7 +1244,7 @@ void portal_core1_task() {
                             EmotionEngine.setMood(MOOD_RELAXED);
                         } else {
                             EmotionEngine.setEmotion(EMOTION_CURIOUS);
-                            EmotionEngine.setMood(MOOD_SUSPICIOUS);
+                            EmotionEngine.setMood(MOOD_ANXIOUS);
                         }
                     } else {
                         // Fall back to calm monitoring if alerts are old

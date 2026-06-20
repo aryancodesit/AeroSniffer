@@ -128,7 +128,7 @@ void pet_core0_task() {
   if (now - last_serial_rx_ms > 15000) {
     if (last_standalone_weather_fetch == 0 || now - last_standalone_weather_fetch > 900000) {
       last_standalone_weather_fetch = now;
-      pet_fetch_standalone_weather();
+      // pet_fetch_standalone_weather();  // DISABLED: isolation test for udp_new_ip_type
     }
   }
   vTaskDelay(pdMS_TO_TICKS(1000));

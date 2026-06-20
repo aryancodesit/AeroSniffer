@@ -4,6 +4,7 @@
 // ================================================================
 #include "AeroSnifferOS.h"
 #include "Config.h"
+#include "Companion/AttentionEngine.h"
 #include <math.h>
 
 extern TFT_eSPI tft;
@@ -12,6 +13,7 @@ extern TFT_eSPI tft;
 CreatureState g_creature = {
   EMOTION_CALM,
   MOOD_RELAXED,
+  0,     // mood_strength
   ACTIVITY_IDLE,
   false, // WiFi connected
   0,     // Uptime minutes
@@ -30,6 +32,8 @@ CreatureState g_creature = {
 EventBusClass EventBus;
 TimelineClass Timeline;
 FaceEngineClass FaceEngine;
+AttentionEngineClass AttentionEngine;
+MoodEngineClass MoodEngine;
 WiFiServiceClass WiFiService;
 DisplayServiceClass DisplayService;
 StorageServiceClass StorageService;
@@ -108,10 +112,8 @@ void EmotionEngineClass::begin() {
 
   // Force IDLE on boot
   current_emotion = EMOTION_CALM;
-  current_mood = MOOD_RELAXED;
   current_activity = ACTIVITY_IDLE;
   g_creature.emotion = EMOTION_CALM;
-  g_creature.mood = MOOD_RELAXED;
   g_creature.activity = ACTIVITY_IDLE;
 
   // Initialize flight statistics service
@@ -150,7 +152,6 @@ void EmotionEngineClass::handleEvent(EventType event, void* data) {
     case EVENT_PC_CODING:
       setActivity(ACTIVITY_CODING);
       setEmotion(EMOTION_CALM);
-      setMood(MOOD_FOCUSED);
       transient_until = 0;
       Timeline.logEvent("Started Coding", "activity");
       g_creature.interactions_today++;
@@ -162,7 +163,6 @@ void EmotionEngineClass::handleEvent(EventType event, void* data) {
     case EVENT_PC_GAMING:
       setActivity(ACTIVITY_TYPING);
       setEmotion(EMOTION_EXCITED);
-      setMood(MOOD_EXCITED);
       transient_until = now + 5000;
       Timeline.logEvent("Started Gaming", "activity");
       g_creature.interactions_today++;
@@ -172,7 +172,6 @@ void EmotionEngineClass::handleEvent(EventType event, void* data) {
     case EVENT_PC_MUSIC:
       setActivity(ACTIVITY_MUSIC);
       setEmotion(EMOTION_HAPPY);
-      setMood(MOOD_RELAXED);
       transient_until = now + 5000;
       Timeline.logEvent("Listening to Music", "activity");
       break;
@@ -180,7 +179,6 @@ void EmotionEngineClass::handleEvent(EventType event, void* data) {
     case EVENT_PC_TYPING:
       setActivity(ACTIVITY_TYPING);
       setEmotion(EMOTION_CURIOUS);
-      setMood(MOOD_FOCUSED);
       transient_until = now + 8000;
       Serial.println("[PC] Typing start");
       Timeline.logEvent("Typing detected", "activity");
@@ -189,7 +187,6 @@ void EmotionEngineClass::handleEvent(EventType event, void* data) {
     case EVENT_PC_IDLE:
       setActivity(ACTIVITY_IDLE);
       setEmotion(EMOTION_CALM);
-      setMood(MOOD_RELAXED);
       transient_until = 0;
       Timeline.logEvent("PC Idle State", "activity");
       break;
@@ -208,7 +205,6 @@ void EmotionEngineClass::handleEvent(EventType event, void* data) {
 
       setActivity(ACTIVITY_WATCHING_FLIGHTS);
       setEmotion(EMOTION_CURIOUS);
-      setMood(MOOD_FOCUSED);
       transient_until = now + 8000;
 
       if (count == 0) {
@@ -234,7 +230,6 @@ void EmotionEngineClass::handleEvent(EventType event, void* data) {
 
     case EVENT_FLIGHT_RARE:
       setEmotion(EMOTION_SURPRISED);
-      setMood(MOOD_EXCITED);
       transient_until = now + 5000;
       Timeline.logEvent("Rare flight detected!", "flight");
       break;
@@ -242,7 +237,6 @@ void EmotionEngineClass::handleEvent(EventType event, void* data) {
     case EVENT_ATTACK_DEAUTH:
       setActivity(ACTIVITY_SCANNING_NETWORKS);
       setEmotion(EMOTION_ALERT);
-      setMood(MOOD_VIGILANT);
       transient_until = now + 5000;
       Timeline.logEvent("Deauth attack alert!", "network");
       break;
@@ -250,7 +244,6 @@ void EmotionEngineClass::handleEvent(EventType event, void* data) {
     case EVENT_ATTACK_EVILTWIN:
       setActivity(ACTIVITY_SCANNING_NETWORKS);
       setEmotion(EMOTION_ALERT);
-      setMood(MOOD_SUSPICIOUS);
       transient_until = now + 5000;
       Timeline.logEvent("Evil twin AP detected!", "network");
       break;
@@ -260,7 +253,6 @@ void EmotionEngineClass::handleEvent(EventType event, void* data) {
       StorageService.incrementStat("td_net", 1);
       StorageService.incrementStat("nets_seen", 1);
       setEmotion(EMOTION_ALERT);
-      setMood(MOOD_SUSPICIOUS);
       transient_until = now + 5000;
       Timeline.logEvent("Discovered AP", "network");
       break;
@@ -268,21 +260,18 @@ void EmotionEngineClass::handleEvent(EventType event, void* data) {
 
     case EVENT_DEVICE_TRUSTED:
       setEmotion(EMOTION_HAPPY);
-      setMood(MOOD_RELAXED);
       transient_until = now + 5000;
       Timeline.logEvent("Trusted device detected", "security");
       break;
 
     case EVENT_DEVICE_FAMILIAR:
       setEmotion(EMOTION_HAPPY);
-      setMood(MOOD_RELAXED);
       transient_until = now + 5000;
       Timeline.logEvent("Familiar device detected", "security");
       break;
 
     case EVENT_DEVICE_UNKNOWN:
       setEmotion(EMOTION_CURIOUS);
-      setMood(MOOD_SUSPICIOUS);
       transient_until = now + 5000;
       Timeline.logEvent("Unknown device detected", "security");
       break;
@@ -296,7 +285,6 @@ void EmotionEngineClass::handleEvent(EventType event, void* data) {
         setEmotion(tapEmotions[idx]);
       }
       transient_until = now + 5000;
-      setMood(MOOD_RELAXED);
       g_creature.interactions_today++;
       StorageService.incrementStat("td_int", 1);
       g_creature.friendship_level = std::min<uint32_t>(1000U, g_creature.friendship_level + 2);
@@ -418,7 +406,9 @@ void EmotionEngineClass::setEmotion(EmotionType e) {
 }
 
 void EmotionEngineClass::setMood(MoodType m) {
-  current_mood = m;
+  // Bridge: MoodEngine owns mood. This write will be overwritten
+  // by MoodEngine.tick() on the next cycle. Retained for Portal.h
+  // compatibility — will be removed in a later sprint.
   g_creature.mood = m;
 }
 
@@ -441,8 +431,6 @@ void EmotionEngineClass::forceIdle() {
     last_emotion_decay = millis();
     sys_current_face = "idle";
   }
-  current_mood = MOOD_RELAXED;
-  g_creature.mood = MOOD_RELAXED;
   current_activity = ACTIVITY_IDLE;
   g_creature.activity = ACTIVITY_IDLE;
 }
@@ -470,11 +458,6 @@ const char* EmotionEngineClass::emotionToDisplayName(EmotionType e) const {
 
 const char* EmotionEngineClass::getEmotionStr() const {
   return emotionToDisplayName(current_emotion);
-}
-
-const char* EmotionEngineClass::getMoodStr() const {
-  const char* names[] = {"Relaxed", "Focused", "Suspicious", "Excited", "Vigilant", "Bored"};
-  return (current_mood < MOOD_COUNT) ? names[current_mood] : "Unknown";
 }
 
 const char* EmotionEngineClass::getActivityStr() const {
@@ -566,15 +549,37 @@ void FaceEngineClass::updateAnimations(int frame) {
     }
   }
   
-  if (now > anim_look_next) {
-    if (g_creature.emotion == EMOTION_CALM || g_creature.emotion == EMOTION_CURIOUS) {
-      anim_look_x = random(-6, 7);
-      anim_look_y = random(-4, 5);
-    } else {
-      anim_look_x = 0;
-      anim_look_y = 0;
+  // ── Attention-driven gaze ──────────────────────────────────
+  // Use target for direction, strength (0-100) for magnitude.
+  // As strength decays toward 0, gaze gradually returns to
+  // neutral, then resumes random wandering.
+  // [Sprint 2A] FaceEngine now consumes the V2.5 structured
+  // attention model. The V2.4 attention_state shim is retained
+  // elsewhere for rollback safety and will be removed in 2B.
+  if (g_creature.attention.target == TARGET_THREAT) {
+    anim_look_x = 0;
+    anim_look_y = 0;                               // dead ahead, locked
+  } else if (g_creature.attention.target == TARGET_USER) {
+    anim_look_x = 0;
+    anim_look_y = -(1 + (g_creature.attention.strength / 33));  // -1 to -3, upward engaged
+  } else if (g_creature.attention.target == TARGET_FLIGHT) {
+    anim_look_x = 0;
+    anim_look_y = -(1 + (g_creature.attention.strength / 25));  // -1 to -4, skyward
+  } else if (g_creature.attention.strength >= 25) {
+    anim_look_x = 0;
+    anim_look_y = -1;                              // mild curiosity
+  } else {
+    // SOFT_FOCUS & TARGET_NONE + low strength — existing random wandering
+    if (now > anim_look_next) {
+      if (g_creature.emotion == EMOTION_CALM || g_creature.emotion == EMOTION_CURIOUS) {
+        anim_look_x = random(-6, 7);
+        anim_look_y = random(-4, 5);
+      } else {
+        anim_look_x = 0;
+        anim_look_y = 0;
+      }
+      anim_look_next = now + random(1000, 4000);
     }
-    anim_look_next = now + random(1000, 4000);
   }
 
   // Bounce animation when happy, excited, or loving
