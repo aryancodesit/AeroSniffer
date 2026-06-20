@@ -32,6 +32,7 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
   // SOURCE_TOUCH since last tick.  This avoids EventBus access
   // while still detecting each distinct touch.
   if (g_creature.attention.source == SOURCE_TOUCH && !_prev_was_touch_source) {
+    Serial.printf("[MOODDBG] touch recorded count=%u\n", _touch_count + 1);
     recordTouch(now);
   }
   _prev_was_touch_source = (g_creature.attention.source == SOURCE_TOUCH);
@@ -69,6 +70,15 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
   // The condition uses _touch_count + positive emotion recency (60s
   // window) — not instantaneous emotion — so the ~5s emotion lifetime
   // does not reset the hold-off.
+  { // TEMP: log playful entry state every ~1s
+    static uint32_t last_log = 0;
+    if (now - last_log >= 1000) {
+      last_log = now;
+      uint32_t pos_age = now - _last_positive_emotion;
+      Serial.printf("[MOODDBG] touches=%u pos_age=%u holdoff=%u\n",
+        _touch_count, pos_age, _playful_condition_met_since ? (now - _playful_condition_met_since) : 0);
+    }
+  }
   if (playfulEntryCondition()) {
     if (_playful_condition_met_since == 0) {
       _playful_condition_met_since = now;
