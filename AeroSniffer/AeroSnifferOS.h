@@ -72,14 +72,10 @@ enum EmotionType {
 };
 
 enum MoodType {
-  MOOD_RELAXED = 0,
-  MOOD_FOCUSED,
-  MOOD_SUSPICIOUS,
-  MOOD_EXCITED,
-  MOOD_VIGILANT,
-  MOOD_BORED,
-  MOOD_ANXIOUS,
-  MOOD_COUNT
+  MOOD_RELAXED  = 0,
+  MOOD_PLAYFUL  = 1,
+  MOOD_ANXIOUS  = 2,
+  MOOD_COUNT    = 3
 };
 
 enum ActivityType {
@@ -114,6 +110,7 @@ enum AttentionSource : uint8_t {
 struct CreatureState {
   EmotionType emotion;
   MoodType mood;
+  uint8_t mood_strength;
   ActivityType activity;
   bool wifi_connected;
   uint32_t uptime_minutes;
@@ -142,7 +139,6 @@ extern CreatureState g_creature;
 class EmotionEngineClass {
 private:
   EmotionType current_emotion = EMOTION_CALM;
-  MoodType current_mood = MOOD_RELAXED;
   ActivityType current_activity = ACTIVITY_IDLE;
   uint32_t last_activity_change = 0;
   uint32_t last_emotion_decay = 0;
@@ -154,7 +150,6 @@ public:
   void handleEvent(EventType event, void* data);
   
   EmotionType getEmotion() const { return current_emotion; }
-  MoodType getMood() const { return current_mood; }
   ActivityType getActivity() const { return current_activity; }
   
   void setEmotion(EmotionType e);
@@ -164,7 +159,6 @@ public:
   
   uint8_t getRobotFace() const; // Maps to Companion Mode Face ID
   const char* getEmotionStr() const;
-  const char* getMoodStr() const;
   const char* getActivityStr() const;
   const char* emotionToDisplayName(EmotionType e) const;
 };
@@ -336,7 +330,9 @@ public:
   void resetDaily();
 };
 
-// ── Global Service Instances ────────────────────────────────────
+// ── Mood Engine ───────────────────────────────────────────────────
+class MoodEngineClass;
+extern MoodEngineClass MoodEngine;
 class AttentionEngineClass;
 extern AttentionEngineClass AttentionEngine;
 extern EventBusClass EventBus;
