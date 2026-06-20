@@ -569,15 +569,26 @@ void FaceEngineClass::updateAnimations(int frame) {
   }
   
   // ── Attention-driven gaze ──────────────────────────────────
-  // Override random wandering when the creature has a target.
-  // WATCHING (1): look upward, alert
-  // THREAT_LOCK (2): centre dead ahead, intense focus
-  if (g_creature.attention_state == 1) {
-    anim_look_x = 0; anim_look_y = -2;
-  } else if (g_creature.attention_state == 2) {
-    anim_look_x = 0; anim_look_y = 0;
+  // Use target for direction, strength (0-100) for magnitude.
+  // As strength decays toward 0, gaze gradually returns to
+  // neutral, then resumes random wandering.
+  // [Sprint 2A] FaceEngine now consumes the V2.5 structured
+  // attention model. The V2.4 attention_state shim is retained
+  // elsewhere for rollback safety and will be removed in 2B.
+  if (g_creature.attention.target == TARGET_THREAT) {
+    anim_look_x = 0;
+    anim_look_y = 0;                               // dead ahead, locked
+  } else if (g_creature.attention.target == TARGET_USER) {
+    anim_look_x = 0;
+    anim_look_y = -(1 + (g_creature.attention.strength / 33));  // -1 to -3, upward engaged
+  } else if (g_creature.attention.target == TARGET_FLIGHT) {
+    anim_look_x = 0;
+    anim_look_y = -(1 + (g_creature.attention.strength / 25));  // -1 to -4, skyward
+  } else if (g_creature.attention.strength >= 25) {
+    anim_look_x = 0;
+    anim_look_y = -1;                              // mild curiosity
   } else {
-    // SOFT_FOCUS (0) — existing random wandering
+    // SOFT_FOCUS & TARGET_NONE + low strength — existing random wandering
     if (now > anim_look_next) {
       if (g_creature.emotion == EMOTION_CALM || g_creature.emotion == EMOTION_CURIOUS) {
         anim_look_x = random(-6, 7);
