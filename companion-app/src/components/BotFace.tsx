@@ -32,31 +32,86 @@ export const FACE_META: Record<
 > = {
   // Core Emotions
   idle: { label: "idle", sub: "neutral / standby", color: "#38e1ff", group: "CORE EMOTIONS" },
-  happy: { label: "happy", sub: "positive action / greeting", color: "#4af0bc", group: "CORE EMOTIONS" },
-  excited: { label: "excited", sub: "new connection / task", color: "#ffd23f", group: "CORE EMOTIONS" },
-  sleepy: { label: "sleepy", sub: "idle timeout / low battery", color: "#6d8cff", group: "CORE EMOTIONS" },
-  thinking: { label: "thinking", sub: "processing / waiting", color: "#b86bff", group: "CORE EMOTIONS" },
+  happy: {
+    label: "happy",
+    sub: "positive action / greeting",
+    color: "#4af0bc",
+    group: "CORE EMOTIONS",
+  },
+  excited: {
+    label: "excited",
+    sub: "new connection / task",
+    color: "#ffd23f",
+    group: "CORE EMOTIONS",
+  },
+  sleepy: {
+    label: "sleepy",
+    sub: "idle timeout / low battery",
+    color: "#6d8cff",
+    group: "CORE EMOTIONS",
+  },
+  thinking: {
+    label: "thinking",
+    sub: "processing / waiting",
+    color: "#b86bff",
+    group: "CORE EMOTIONS",
+  },
   sad: { label: "sad", sub: "disconnect / task fail", color: "#ff5466", group: "CORE EMOTIONS" },
-  surprised: { label: "surprised", sub: "new notification / drop", color: "#e8fff5", group: "CORE EMOTIONS" },
+  surprised: {
+    label: "surprised",
+    sub: "new notification / drop",
+    color: "#e8fff5",
+    group: "CORE EMOTIONS",
+  },
   love: { label: "love", sub: "paired device / uptime", color: "#ff4fd8", group: "CORE EMOTIONS" },
 
   // Security
-  sec_scanning: { label: "scanning", sub: "sweeping channels", color: "#ff8a3d", group: "SECURITY" },
-  sec_intrusion: { label: "intrusion", sub: "network anomaly / unknown device", color: "#ff3b30", group: "SECURITY" },
+  sec_scanning: {
+    label: "scanning",
+    sub: "sweeping channels",
+    color: "#ff8a3d",
+    group: "SECURITY",
+  },
+  sec_intrusion: {
+    label: "intrusion",
+    sub: "network anomaly / unknown device",
+    color: "#ff3b30",
+    group: "SECURITY",
+  },
 
   // Aviation
-  avi_radar: { label: "radar sweep", sub: "tracking ADS-B airspace", color: "#ffcc00", group: "AVIATION" },
+  avi_radar: {
+    label: "radar sweep",
+    sub: "tracking ADS-B airspace",
+    color: "#ffcc00",
+    group: "AVIATION",
+  },
   avi_lock: { label: "target locked", sub: "icao24 lock-on", color: "#00e5ff", group: "AVIATION" },
-  avi_disabled: { label: "aviation disabled", sub: "aviation mode is toggled off", color: "#ff453a", group: "AVIATION" },
+  avi_disabled: {
+    label: "aviation disabled",
+    sub: "aviation mode is toggled off",
+    color: "#ff453a",
+    group: "AVIATION",
+  },
 
   // System
   sys_boot: { label: "booting", sub: "loading kernel modules", color: "#a8b3cf", group: "SYSTEM" },
   sys_prefs: { label: "preferences", sub: "modifying settings", color: "#af52de", group: "SYSTEM" },
-  sys_error: { label: "system error", sub: "hardware exception", color: "#ff453a", group: "SYSTEM" },
+  sys_error: {
+    label: "system error",
+    sub: "hardware exception",
+    color: "#ff453a",
+    group: "SYSTEM",
+  },
 
   // Secret
   sec_matrix: { label: "matrix", sub: "digital rain stream", color: "#30d158", group: "SECRET" },
-  sec_retro: { label: "retro game", sub: "space invader arcade", color: "#bf5af2", group: "SECRET" },
+  sec_retro: {
+    label: "retro game",
+    sub: "space invader arcade",
+    color: "#bf5af2",
+    group: "SECRET",
+  },
   sec_rainbow: { label: "rainbow", sub: "chroma color cycle", color: "#ff375f", group: "SECRET" },
 };
 
@@ -108,8 +163,12 @@ export function BotFace({ state, size = 280, followCursor = false, className }: 
     return () => clearInterval(t);
   }, []);
 
-  const eyeOffX = ["idle", "happy", "love", "surprised", "sec_rainbow"].includes(state) ? offset.x : 0;
-  const eyeOffY = ["idle", "happy", "love", "surprised", "sec_rainbow"].includes(state) ? offset.y : 0;
+  const eyeOffX = ["idle", "happy", "love", "surprised", "sec_rainbow"].includes(state)
+    ? offset.x
+    : 0;
+  const eyeOffY = ["idle", "happy", "love", "surprised", "sec_rainbow"].includes(state)
+    ? offset.y
+    : 0;
 
   return (
     <div
@@ -199,7 +258,7 @@ export function BotFace({ state, size = 280, followCursor = false, className }: 
         </defs>
 
         <rect width="24" height="16" fill="#05070c" />
-        
+
         {/* subtle bezel dots */}
         {[1, 22].map((x) =>
           [1, 14].map((y) => (
@@ -221,7 +280,13 @@ export function BotFace({ state, size = 280, followCursor = false, className }: 
           stroke={state === "sec_rainbow" ? "currentColor" : c}
           className={state === "sec_rainbow" ? "anim-rainbow-fill" : ""}
         >
-          <Face state={state} color={state === "sec_rainbow" ? "currentColor" : c} eyeOffX={eyeOffX} eyeOffY={eyeOffY} blink={blink} />
+          <Face
+            state={state}
+            color={state === "sec_rainbow" ? "currentColor" : c}
+            eyeOffX={eyeOffX}
+            eyeOffY={eyeOffY}
+            blink={blink}
+          />
         </g>
       </svg>
     </div>
@@ -330,8 +395,25 @@ function Face({
       return (
         <>
           {/* animated stars flashing */}
-          <rect x={3} y={2} width="1" height="1" fill={color} stroke="none" className="anim-pulse" />
-          <rect x={20} y={3} width="1" height="1" fill={color} stroke="none" className="anim-pulse" style={{ animationDelay: "0.5s" }} />
+          <rect
+            x={3}
+            y={2}
+            width="1"
+            height="1"
+            fill={color}
+            stroke="none"
+            className="anim-pulse"
+          />
+          <rect
+            x={20}
+            y={3}
+            width="1"
+            height="1"
+            fill={color}
+            stroke="none"
+            className="anim-pulse"
+            style={{ animationDelay: "0.5s" }}
+          />
           <Eye x={lx} y={ey} color={color} shape="wide" blink={blink} />
           <Eye x={rx} y={ey} color={color} shape="wide" blink={blink} />
           <rect x={11} y={12} width="2" height="2" fill={color} stroke="none" />
@@ -365,8 +447,25 @@ function Face({
       return (
         <>
           {/* animated floating thought dots */}
-          <rect x={19} y={3} width="1" height="1" fill={color} stroke="none" className="anim-pulse" />
-          <rect x={21} y={3} width="1" height="1" fill={color} stroke="none" className="anim-pulse" style={{ animationDelay: "0.4s" }} />
+          <rect
+            x={19}
+            y={3}
+            width="1"
+            height="1"
+            fill={color}
+            stroke="none"
+            className="anim-pulse"
+          />
+          <rect
+            x={21}
+            y={3}
+            width="1"
+            height="1"
+            fill={color}
+            stroke="none"
+            className="anim-pulse"
+            style={{ animationDelay: "0.4s" }}
+          />
           <Eye x={lx} y={ey} color={color} shape="up" blink={blink} />
           <Eye x={rx} y={ey} color={color} shape="up" blink={blink} />
           <rect x={10} y={12} width="3" height="1" fill={color} stroke="none" />
@@ -376,7 +475,15 @@ function Face({
       return (
         <>
           {/* animated teardrop falling */}
-          <rect x={5} y={ey + 3} width="1" height="1" fill={color} stroke="none" className="anim-sweat" />
+          <rect
+            x={5}
+            y={ey + 3}
+            width="1"
+            height="1"
+            fill={color}
+            stroke="none"
+            className="anim-sweat"
+          />
           <Eye x={lx} y={ey + 1} color={color} shape="small" blink={blink} />
           <Eye x={rx} y={ey + 1} color={color} shape="small" blink={blink} />
           <rect x={9} y={13} width="1" height="1" fill={color} stroke="none" />
@@ -417,7 +524,16 @@ function Face({
       return (
         <>
           {/* scanning line sweep */}
-          <rect x="1" y="0" width="22" height="1" fill={color} stroke="none" className="anim-sweep" opacity="0.4" />
+          <rect
+            x="1"
+            y="0"
+            width="22"
+            height="1"
+            fill={color}
+            stroke="none"
+            className="anim-sweep"
+            opacity="0.4"
+          />
           {/* scan radar eyes */}
           <g fill={color} stroke="none">
             {/* shifting look */}
@@ -442,12 +558,44 @@ function Face({
           </g>
           <Eye x={lx} y={ey} color={color} shape="small" blink={false} />
           <Eye x={rx} y={ey} color={color} shape="small" blink={false} />
-          
+
           {/* flashing alerts */}
-          <rect x="2" y="3" width="1" height="6" fill={color} stroke="none" className="anim-pulse" />
-          <rect x="2" y="10" width="1" height="1" fill={color} stroke="none" className="anim-pulse" />
-          <rect x="21" y="3" width="1" height="6" fill={color} stroke="none" className="anim-pulse" />
-          <rect x="21" y="10" width="1" height="1" fill={color} stroke="none" className="anim-pulse" />
+          <rect
+            x="2"
+            y="3"
+            width="1"
+            height="6"
+            fill={color}
+            stroke="none"
+            className="anim-pulse"
+          />
+          <rect
+            x="2"
+            y="10"
+            width="1"
+            height="1"
+            fill={color}
+            stroke="none"
+            className="anim-pulse"
+          />
+          <rect
+            x="21"
+            y="3"
+            width="1"
+            height="6"
+            fill={color}
+            stroke="none"
+            className="anim-pulse"
+          />
+          <rect
+            x="21"
+            y="10"
+            width="1"
+            height="1"
+            fill={color}
+            stroke="none"
+            className="anim-pulse"
+          />
 
           {/* angry mouth */}
           <g fill={color} stroke="none">
@@ -463,16 +611,11 @@ function Face({
       return (
         <>
           {/* Warning outline triangle */}
-          <polygon
-            points="12,2 20,13 4,13"
-            fill="none"
-            stroke={color}
-            strokeWidth="1"
-          />
+          <polygon points="12,2 20,13 4,13" fill="none" stroke={color} strokeWidth="1" />
           {/* Exclamation point inside warning sign */}
           <rect x="11" y="5" width="2" height="4" fill={color} stroke="none" />
           <rect x="11" y="10" width="2" height="2" fill={color} stroke="none" />
-          
+
           <text
             x="12"
             y="15"
@@ -492,9 +635,25 @@ function Face({
           {/* Center circular radar overlay */}
           <circle cx="12" cy="8" r="6" stroke={color} strokeWidth="1" fill="none" opacity="0.3" />
           <circle cx="12" cy="8" r="3" stroke={color} strokeWidth="1" fill="none" opacity="0.2" />
-          <line x1="12" y1="8" x2="18" y2="8" stroke={color} strokeWidth="1" className="anim-rotate" />
+          <line
+            x1="12"
+            y1="8"
+            x2="18"
+            y2="8"
+            stroke={color}
+            strokeWidth="1"
+            className="anim-rotate"
+          />
           {/* mini dot for target */}
-          <rect x="15" y="5" width="1" height="1" fill={color} stroke="none" className="anim-pulse" />
+          <rect
+            x="15"
+            y="5"
+            width="1"
+            height="1"
+            fill={color}
+            stroke="none"
+            className="anim-pulse"
+          />
         </>
       );
     case "avi_lock":
@@ -539,7 +698,14 @@ function Face({
             {/* track 2 */}
             <rect x="4" y="10" width="16" height="1" opacity="0.3" />
             {/* knob 2 */}
-            <rect x="13" y="9" width="2" height="3" className="anim-knob" style={{ animationDelay: "1s" }} />
+            <rect
+              x="13"
+              y="9"
+              width="2"
+              height="3"
+              className="anim-knob"
+              style={{ animationDelay: "1s" }}
+            />
           </g>
         </>
       );
@@ -576,8 +742,24 @@ function Face({
             <rect x="21" y="4" width="1" height="4" />
           </g>
           {/* outline of simple eyes */}
-          <rect x={lx + 1} y={ey + 1} width="2" height="2" fill="#05070c" stroke={color} strokeWidth="1" />
-          <rect x={rx + 1} y={ey + 1} width="2" height="2" fill="#05070c" stroke={color} strokeWidth="1" />
+          <rect
+            x={lx + 1}
+            y={ey + 1}
+            width="2"
+            height="2"
+            fill="#05070c"
+            stroke={color}
+            strokeWidth="1"
+          />
+          <rect
+            x={rx + 1}
+            y={ey + 1}
+            width="2"
+            height="2"
+            fill="#05070c"
+            stroke={color}
+            strokeWidth="1"
+          />
         </>
       );
     case "sec_retro":
@@ -589,7 +771,7 @@ function Face({
               {/* invader pixels on 16x8 scale */}
               <rect x="5" y="0" width="1" height="1" />
               <rect x="10" y="0" width="1" height="1" />
-              
+
               <rect x="0" y="1" width="1" height="1" />
               <rect x="2" y="1" width="1" height="1" />
               <rect x="13" y="1" width="1" height="1" />
