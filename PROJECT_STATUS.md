@@ -8,12 +8,7 @@
 |--------|-------------|--------|
 | **Sprint 1** | Companion Intelligence Foundation | ✅ Committed, hardware-validated |
 | **Sprint 2A** | FaceEngine Attention Migration | ✅ Committed, hardware-validated |
-
-### In Progress
-
-| Sprint | Description | Status |
-|--------|-------------|--------|
-| — | Next V2.5 milestone | Planning |
+| **Sprint 2B** | Compatibility Shim Removal | ✅ Committed |
 
 ### Blocked
 
@@ -35,6 +30,7 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 
 | Date | Commit | Description |
 |------|--------|-------------|
+| 2026-06-20 | `05762ec` | Sprint 2B: Shim removal |
 | 2026-06-20 | `c3a6480` | Sprint 2A: FaceEngine attention migration |
 | 2026-06-20 | `69ea694` | Governance: SECURITY.md, PR template |
 | 2026-06-20 | `16db15f` | Sprint 1: Companion intelligence foundation |

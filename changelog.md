@@ -3,7 +3,10 @@
 ## [v2.5-sprint2a] — 2026-06-20
 
 ### Added
-- **V2.5 Sprint 1 — Companion Intelligence Foundation**: Structured attention model with `AttentionTarget`/`AttentionSource` enums, `attention.strength` (0-100), fixed-point 3-zone decay, priority preemption, event-to-attention mapping, queue integration, pause/resume lifecycle, compatibility shim
+- **V2.5 Sprint 2B — Compatibility Shim Removal**: Removed `attention_state` field from `CreatureState`, shim write from `AeroSniffer.ino` and `AttentionEngine::publish()`, and `getState()` method (zero remaining callers). Zero behavioral change — FaceEngine already consumed structured fields since Sprint 2A.
+
+### Added
+- **V2.5 Sprint 1 — Companion Intelligence Foundation**: Structured attention model with `AttentionTarget`/`AttentionSource` enums, `attention.strength` (0-100), fixed-point 3-zone decay, priority preemption, event-to-attention mapping, queue integration, pause/resume lifecycle, V2.4 `attention_state` rollback shim (removed in Sprint 2B)
 - **V2.5 Sprint 2A — FaceEngine Attention Migration**: FaceEngine gaze now driven by `g_creature.attention.{target,strength}` instead of `attention_state`. TARGET_THREAT locks center, TARGET_USER scales upward gaze with strength (-1 to -3), TARGET_FLIGHT scales skyward gaze (-1 to -4), TARGET_NONE + strength≥25 gives mild curiosity (-1)
 
 ### Fixed

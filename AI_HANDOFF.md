@@ -2,7 +2,7 @@
 
 ## Current State
 
-V2.5 Sprint 1 (Companion Intelligence Foundation) and Sprint 2A (FaceEngine Attention Migration) are complete, committed, and hardware-validated. The structured attention model (`target`/`source`/`strength`) is live across all three modes (Pet, Security, Aviation). FaceEngine now consumes the structured fields for gaze direction and magnitude. The V2.4 compatibility shim (`attention_state`) remains active for rollback safety; removal planned for Sprint 2B.
+V2.5 Sprint 1 (Companion Intelligence Foundation), Sprint 2A (FaceEngine Attention Migration), and Sprint 2B (Shim Removal) are complete, committed, and hardware-validated. The structured attention model (`target`/`source`/`strength`) is live across all three modes (Pet, Security, Aviation). FaceEngine consumes the structured fields for gaze direction and magnitude. The V2.4 `attention_state` shim has been fully removed.
 
 ### What's Working
 - All three modes boot, render, and respond to touch
@@ -55,23 +55,16 @@ V2.5 Sprint 1 (Companion Intelligence Foundation) and Sprint 2A (FaceEngine Atte
 
 ## Next Phase
 
-### Sprint 2B — Shim Removal
-- Remove `attention_state` field from `CreatureState` (`AeroSnifferOS.h:136`)
-- Remove shim write from `AeroSniffer.ino:577`
-- Remove shim write from `AttentionEngine::publish()` (`AttentionEngine.cpp:166`)
-- (Optional) remove `getState()` from `AttentionEngine.h` if no other callers
-
 ### Sprint 3 — Mood System
 - EmotionLayer (if scoped)
 - MoodLayer (if scoped)
 - MemoryLayer (if scoped)
 
 ## File Map
-- `AeroSniffer/AeroSnifferOS.h:97-137` — `AttentionTarget`, `AttentionSource` enums, `CreatureState` with structured `attention` + shim
+- `AeroSniffer/AeroSnifferOS.h:97-133` — `AttentionTarget`, `AttentionSource` enums, `CreatureState` with structured `attention`
 - `AeroSniffer/AttentionEngine.cpp` — queue, state machine, decay, publish, event mapping (sketch root)
 - `AeroSniffer/Companion/AttentionEngine.h` — class declaration, spinlock, structured attention fields
 - `AeroSniffer/AeroSnifferOS.cpp:571-602` — FaceEngine gaze driven by `target`/`strength`
-- `AeroSniffer/AeroSniffer.ino:577` — shim write (to be removed in Sprint 2B)
 - `AeroSniffer/AeroSnifferOS.cpp` — global `AttentionEngine` + `FaceEngine` instances
 - `docs/V2.5_SPRINT1_SPEC.md` — Sprint 1 implementation specification
 - `docs/V2.5_ATTENTION_MODEL.md` — attention data model
@@ -79,5 +72,5 @@ V2.5 Sprint 1 (Companion Intelligence Foundation) and Sprint 2A (FaceEngine Atte
 ## Git
 - Branch: `feature/v2.5-creature-brain`
 - Tag: (next release)
-- Commits: Sprint 1 (`16db15f`), Dependabot (`6a900b2`), Governance (`69ea694`), Sprint 2A (`c3a6480`)
+- Commits: Sprint 1 (`16db15f`), Dependabot (`6a900b2`), Governance (`69ea694`), Sprint 2A (`c3a6480`), Sprint 2B (`05762ec`)
 - Upstream: `origin/feature/v2.5-creature-brain`
