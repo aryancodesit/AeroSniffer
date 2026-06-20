@@ -1,5 +1,5 @@
 // ================================================================
-//  Companion/MoodEngine.cpp  —  Slow Behavioral Observer (V2.5)
+//  MoodEngine.cpp  —  Slow Behavioral Observer (V2.5)
 //  AeroSniffer Companion Layer | C++ Implementation
 // ================================================================
 #include "Companion/MoodEngine.h"
