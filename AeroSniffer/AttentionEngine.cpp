@@ -162,8 +162,6 @@ void AttentionEngineClass::publish() {
   g_creature.attention.source   = _source;
   g_creature.attention.strength = _strength;
 
-  // V2.4 compatibility shim — remove in Phase B
-  g_creature.attention_state    = (uint8_t)_state;
 }
 
 // ── Event → Attention Mapping ────────────────────────────────────

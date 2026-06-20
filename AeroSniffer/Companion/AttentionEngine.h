@@ -35,8 +35,6 @@ public:
     STATE_WATCHING    = 1,
     STATE_THREAT_LOCK = 2
   };
-  AttentionState getState() const { return _state; }
-
 private:
   // ── Event Queue ──────────────────────────────────────────────
   static constexpr size_t QUEUE_SIZE = 16;

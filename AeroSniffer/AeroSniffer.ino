@@ -574,7 +574,6 @@ void task_core1(void*) {
     uint32_t ae_delta = now - last_ae_tick;
     last_ae_tick = now;
     AttentionEngine.tick(ae_delta);
-    g_creature.attention_state = AttentionEngine.getState();
 
     // ── Tick Emotion Engine ──────────────────────────────────
     EmotionEngine.tick();

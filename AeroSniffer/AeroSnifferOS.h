@@ -131,10 +131,8 @@ struct CreatureState {
     AttentionSource source;    // Which domain triggered focus
     uint8_t         strength;  // 0–100, 0 = idle, 100 = locked
   } attention;
-
-  // DEPRECATED: V2.4 compatibility shim — removed in Phase B
-  uint8_t attention_state;
 };
+
 
 extern CreatureState g_creature;
 

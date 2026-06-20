@@ -1,5 +1,33 @@
 # Changelog
 
+## [v2.5-sprint2a] — 2026-06-20
+
+### Added
+- **V2.5 Sprint 1 — Companion Intelligence Foundation**: Structured attention model with `AttentionTarget`/`AttentionSource` enums, `attention.strength` (0-100), fixed-point 3-zone decay, priority preemption, event-to-attention mapping, queue integration, pause/resume lifecycle, compatibility shim
+- **V2.5 Sprint 2A — FaceEngine Attention Migration**: FaceEngine gaze now driven by `g_creature.attention.{target,strength}` instead of `attention_state`. TARGET_THREAT locks center, TARGET_USER scales upward gaze with strength (-1 to -3), TARGET_FLIGHT scales skyward gaze (-1 to -4), TARGET_NONE + strength≥25 gives mild curiosity (-1)
+
+### Fixed
+- **MAX_SUBSCRIBERS 24→32**: EventBus subscriber exhaustion — EmotionEngine used 22 slots, leaving only 2 for AttentionEngine. All events now route correctly.
+- **portMUX spinlock init**: `portMUX_TYPE _mux = {}` → `portMUX_INITIALIZER_UNLOCKED`. Root cause of touch-triggered IWDT reboots.
+- **Serial removed from critical sections**: `Serial.println()` inside `portENTER_CRITICAL()` removed from `AttentionEngine::queueEvent()`.
+
+### Hardware Validated
+- All three modes (Pet, Security, Aviation) stable with touch, WiFi, mode transitions
+- `[ATTN] SOFT_FOCUS -> WATCHING (TOUCH_SHORT)` and `[ATTN] WATCHING -> SOFT_FOCUS (decay)` confirmed
+- Sprint 2A gaze behavior confirmed: correct eye movement on tap, decay, threat, flight, mode switches
+- No IWDT, no Guru Meditation, no panics
+
+### Remaining
+- B004: `udp_new_ip_type` assertion during HTTP fetch (lwIP lock issue)
+- B006: `netstack cb reg failed with 12308` during Security→Aviation transition
+- B007: Aviation OpenSky HTTPS fetch returning `connection refused`
+- B008: Touch degradation after WiFi activity (`g_block_touch`)
+
+### Metadata
+- Branch: `feature/v2.5-creature-brain`
+- Tag: (next release)
+- Requires: ESP-IDF v5.x, Arduino ESP32 core 3.x
+
 ## [v2.4-transition-stable] — 2026-06-19
 
 ### Added
