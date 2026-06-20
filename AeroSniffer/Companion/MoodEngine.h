@@ -35,8 +35,15 @@ private:
   // Hold-off tracking for upward transitions
   uint32_t  _playful_condition_met_since = 0;
 
+  // Touch history ring buffer (sliding 5-min window for PLAYFUL)
+  uint32_t  _touch_timestamps[10];
+  uint8_t   _touch_count;
+  bool      _prev_was_touch_source;
+
   static uint32_t decayIntervalMs(MoodType m);
   MoodType resolveNextMood();
   bool playfulEntryCondition() const;
   bool anxiousEntryCondition() const;
+  void recordTouch(uint32_t now);
+  void pruneOldTouches(uint32_t now);
 };

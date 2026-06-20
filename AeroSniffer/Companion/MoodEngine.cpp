@@ -12,6 +12,8 @@ void MoodEngineClass::begin() {
   _last_mood_change  = millis();
   _focus_accumulator = 0;
   _playful_condition_met_since = 0;
+  _touch_count       = 0;
+  _prev_was_touch_source = false;
 
   g_creature.mood          = MOOD_RELAXED;
   g_creature.mood_strength = 50;
@@ -24,7 +26,17 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
   uint32_t now = millis();
   MoodType old_mood = _mood;
 
-  // ── 1. Decay current mood strength ───────────────────────────
+  // ── 1. Track touch events via attention.source transitions ──
+  // Detect SOURCE_TOUCH rising edge: attention.source changed to
+  // SOURCE_TOUCH since last tick.  This avoids EventBus access
+  // while still detecting each distinct touch.
+  if (g_creature.attention.source == SOURCE_TOUCH && !_prev_was_touch_source) {
+    recordTouch(now);
+  }
+  _prev_was_touch_source = (g_creature.attention.source == SOURCE_TOUCH);
+  pruneOldTouches(now);
+
+  // ── 2. Decay current mood strength ───────────────────────────
   if (_mood != MOOD_RELAXED && _strength > 0) {
     uint32_t elapsed = now - _last_mood_change;
     uint32_t interval = decayIntervalMs(_mood);
@@ -36,7 +48,7 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
     }
   }
 
-  // ── 2. Track hold-off conditions ─────────────────────────────
+  // ── 3. Track hold-off conditions ─────────────────────────────
   // PLAYFUL hold-off: entry condition must be met continuously for 30s
   if (playfulEntryCondition()) {
     if (_playful_condition_met_since == 0) {
@@ -46,10 +58,10 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
     _playful_condition_met_since = 0;
   }
 
-  // ── 3. Resolve next mood (arbitration) ───────────────────────
+  // ── 4. Resolve next mood (arbitration) ───────────────────────
   MoodType next = resolveNextMood();
 
-  // ── 4. Transition if needed ──────────────────────────────────
+  // ── 5. Transition if needed ──────────────────────────────────
   if (next != _mood) {
     _mood             = next;
     _strength         = 50;
@@ -57,8 +69,27 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
     Serial.printf("[MOOD] %s -> %s\n", moodName(old_mood), moodName(next));
   }
 
-  // ── 5. Publish to CreatureState ──────────────────────────────
+  // ── 6. Publish to CreatureState ──────────────────────────────
   publish();
+}
+
+// ── Touch History ─────────────────────────────────────────────────
+
+void MoodEngineClass::recordTouch(uint32_t now) {
+  if (_touch_count < 10) {
+    _touch_timestamps[_touch_count++] = now;
+  }
+}
+
+void MoodEngineClass::pruneOldTouches(uint32_t now) {
+  uint32_t five_min_ago = now - 300000;
+  uint8_t write_idx = 0;
+  for (uint8_t i = 0; i < _touch_count; i++) {
+    if (_touch_timestamps[i] > five_min_ago) {
+      _touch_timestamps[write_idx++] = _touch_timestamps[i];
+    }
+  }
+  _touch_count = write_idx;
 }
 
 // ── Arbitration (Fixed Priority) ─────────────────────────────────
@@ -74,7 +105,8 @@ MoodType MoodEngineClass::resolveNextMood() {
     return MOOD_ANXIOUS;
   }
 
-  // P4 — PLAYFUL: requires 30s hold-off for upward transition
+  // P4 — PLAYFUL: requires ≥2 touches in 5 min, happy/excited emotion,
+  //               and 30s hold-off for upward transition
   if (_mood == MOOD_RELAXED || _mood == MOOD_PLAYFUL) {
     if (playfulEntryCondition()) {
       if (_playful_condition_met_since > 0 &&
@@ -96,13 +128,14 @@ MoodType MoodEngineClass::resolveNextMood() {
 // ── Entry Conditions ─────────────────────────────────────────────
 
 bool MoodEngineClass::anxiousEntryCondition() const {
-  return g_creature.attention.source == SOURCE_SECURITY;
+  return g_creature.attention.target == TARGET_THREAT &&
+         g_creature.emotion == EMOTION_ALERT;
 }
 
 bool MoodEngineClass::playfulEntryCondition() const {
-  EmotionType e = g_creature.emotion;
-  return (e == EMOTION_HAPPY || e == EMOTION_LOVE ||
-          e == EMOTION_EXCITED || e == EMOTION_SURPRISED);
+  return _touch_count >= 2 &&
+         (g_creature.emotion == EMOTION_HAPPY ||
+          g_creature.emotion == EMOTION_EXCITED);
 }
 
 // ── Publish ───────────────────────────────────────────────────────

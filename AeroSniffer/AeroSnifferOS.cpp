@@ -405,13 +405,6 @@ void EmotionEngineClass::setEmotion(EmotionType e) {
   }
 }
 
-void EmotionEngineClass::setMood(MoodType m) {
-  // Bridge: MoodEngine owns mood. This write will be overwritten
-  // by MoodEngine.tick() on the next cycle. Retained for Portal.h
-  // compatibility — will be removed in a later sprint.
-  g_creature.mood = m;
-}
-
 void EmotionEngineClass::setActivity(ActivityType a) {
   if (current_activity != a) {
     current_activity = a;

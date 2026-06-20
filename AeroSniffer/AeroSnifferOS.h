@@ -153,7 +153,6 @@ public:
   ActivityType getActivity() const { return current_activity; }
   
   void setEmotion(EmotionType e);
-  void setMood(MoodType m);
   void setActivity(ActivityType a);
   void forceIdle();
   
