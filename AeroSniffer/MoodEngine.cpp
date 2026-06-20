@@ -111,10 +111,9 @@ void MoodEngineClass::recordTouch(uint32_t now) {
 }
 
 void MoodEngineClass::pruneOldTouches(uint32_t now) {
-  uint32_t five_min_ago = now - 300000;
   uint8_t write_idx = 0;
   for (uint8_t i = 0; i < _touch_count; i++) {
-    if (_touch_timestamps[i] > five_min_ago) {
+    if ((now - _touch_timestamps[i]) <= 300000) {
       _touch_timestamps[write_idx++] = _touch_timestamps[i];
     }
   }
