@@ -40,6 +40,9 @@ private:
   uint8_t   _touch_count;
   bool      _prev_was_touch_source;
 
+  // Positive emotion recency (PLAYFUL requires positive emotion within ~60s)
+  uint32_t  _last_positive_emotion = 0;
+
   static uint32_t decayIntervalMs(MoodType m);
   MoodType resolveNextMood();
   bool playfulEntryCondition() const;

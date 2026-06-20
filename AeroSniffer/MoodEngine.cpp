@@ -14,6 +14,7 @@ void MoodEngineClass::begin() {
   _playful_condition_met_since = 0;
   _touch_count       = 0;
   _prev_was_touch_source = false;
+  _last_positive_emotion = 0;
 
   g_creature.mood          = MOOD_RELAXED;
   g_creature.mood_strength = 50;
@@ -36,7 +37,22 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
   _prev_was_touch_source = (g_creature.attention.source == SOURCE_TOUCH);
   pruneOldTouches(now);
 
-  // ── 2. Decay current mood strength ───────────────────────────
+  // ── 2. Track positive emotion recency ─────────────────────────
+  // Record last time any positive emotion was seen.  PLAYFUL uses a
+  // 60-second recency window so the 30s hold-off can complete even
+  // though individual emotions only last ~5s before decaying to IDLE.
+  switch (g_creature.emotion) {
+    case EMOTION_HAPPY:
+    case EMOTION_EXCITED:
+    case EMOTION_LOVE:
+    case EMOTION_SURPRISED:
+      _last_positive_emotion = now;
+      break;
+    default:
+      break;
+  }
+
+  // ── 3. Decay current mood strength ───────────────────────────
   if (_mood != MOOD_RELAXED && _strength > 0) {
     uint32_t elapsed = now - _last_mood_change;
     uint32_t interval = decayIntervalMs(_mood);
@@ -48,8 +64,11 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
     }
   }
 
-  // ── 3. Track hold-off conditions ─────────────────────────────
-  // PLAYFUL hold-off: entry condition must be met continuously for 30s
+  // ── 4. Track hold-off conditions ─────────────────────────────
+  // PLAYFUL hold-off: entry condition must be met continuously for 30s.
+  // The condition uses _touch_count + positive emotion recency (60s
+  // window) — not instantaneous emotion — so the ~5s emotion lifetime
+  // does not reset the hold-off.
   if (playfulEntryCondition()) {
     if (_playful_condition_met_since == 0) {
       _playful_condition_met_since = now;
@@ -58,10 +77,10 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
     _playful_condition_met_since = 0;
   }
 
-  // ── 4. Resolve next mood (arbitration) ───────────────────────
+  // ── 5. Resolve next mood (arbitration) ───────────────────────
   MoodType next = resolveNextMood();
 
-  // ── 5. Transition if needed ──────────────────────────────────
+  // ── 6. Transition if needed ──────────────────────────────────
   if (next != _mood) {
     _mood             = next;
     _strength         = 50;
@@ -69,7 +88,7 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
     Serial.printf("[MOOD] %s -> %s\n", moodName(old_mood), moodName(next));
   }
 
-  // ── 6. Publish to CreatureState ──────────────────────────────
+  // ── 7. Publish to CreatureState ──────────────────────────────
   publish();
 }
 
@@ -105,7 +124,7 @@ MoodType MoodEngineClass::resolveNextMood() {
     return MOOD_ANXIOUS;
   }
 
-  // P4 — PLAYFUL: requires ≥2 touches in 5 min, happy/excited emotion,
+  // P4 — PLAYFUL: ≥2 touches in 5 min, positive emotion within 60s,
   //               and 30s hold-off for upward transition
   if (_mood == MOOD_RELAXED || _mood == MOOD_PLAYFUL) {
     if (playfulEntryCondition()) {
@@ -133,11 +152,9 @@ bool MoodEngineClass::anxiousEntryCondition() const {
 }
 
 bool MoodEngineClass::playfulEntryCondition() const {
+  uint32_t now = millis();
   return _touch_count >= 2 &&
-         (g_creature.emotion == EMOTION_HAPPY ||
-          g_creature.emotion == EMOTION_EXCITED ||
-          g_creature.emotion == EMOTION_LOVE ||
-          g_creature.emotion == EMOTION_SURPRISED);
+         (now - _last_positive_emotion < 60000);
 }
 
 // ── Publish ───────────────────────────────────────────────────────
