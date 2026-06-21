@@ -1,5 +1,43 @@
 # Changelog
 
+## [v2.5-mood-consumption] — 2026-06-21
+
+### Added
+- **V2.5 Sprint 3B — Mood Consumption**: FaceEngine reads `g_creature.mood` and `g_creature.mood_strength` to modulate blink interval, idle amplitude, idle speed, and eye wander intensity. Pure consumer layer — no mood generation, no persistence, no portal telemetry, no EventBus additions.
+- **`MoodPresentation` cache struct** inside FaceEngineClass: caches computed blink_ms, idle_amplitude, idle_speed, eye_intensity. Lazy recompute on mood/strength change only (not every frame).
+- **`profileFor(MoodType)` switch-based profile accessor**: returns `MoodProfile{blink_ms, amp, speed, intens}` for each mood. Future-proof — adding a new mood requires only one new case.
+- **Smoothstep interpolation**: `t²(3-2t)` for perceptually even transitions across strength 0–50. Replaces raw linear interpolation.
+- **Blink interval**: mood-modulated with ±500ms jitter (RELAXED 4000ms, PLAYFUL 3000ms, ANXIOUS 2200ms)
+- **Idle bounce amplitude**: mood-modulated multiplier on existing emotion-driven bounce (RELAXED 1.0x, PLAYFUL 1.5x, ANXIOUS 0.5x)
+- **Idle animation speed**: mood-modulated frequency multiplier on bounce and pulse (RELAXED 1.0x, PLAYFUL 1.3x, ANXIOUS 0.8x)
+- **Eye wander intensity**: mood-modulated random wander range for idle gaze (RELAXED 1.0x, PLAYFUL 1.4x, ANXIOUS 0.6x). Attention-driven gaze (THREAT/USER/FLIGHT) intentionally unaffected — reactive behaviors override internal state.
+
+### Architecture
+- One-way data flow preserved: `Attention → Emotion → Mood → Face`
+- Mood only influences presentation — no feedback to attention, emotion, or behavior layers
+- `eye_intensity` applies to idle wander only; attention targets remain authoritative for gaze
+- No new EventBus subscriptions, no spinlocks, no cross-core writes
+
+### Hardware Validated
+- 8+ minute stable run: no reboot, WDT, panic, heap exhaustion, or task crash
+- Touch → Attention → Emotion pipeline intact
+- Mood consumption pipeline: `MoodEngine.publish() → FaceEngine.updateAnimations()` verified in tick order
+- Compile-validated with XIAO_ESP32S3, ESP32 Arduino core 3.x
+
+### Known Limitations
+- Visual differentiation between moods is currently subtle due to small 240×240 display and limited procedural face vocabulary
+- No further tuning planned in V2.5 — future behavioral layers (Memory, Companion Behaviors) expected as primary mood consumers
+
+### Remaining
+- B004: `udp_new_ip_type` assertion during HTTP fetch (lwIP lock issue)
+- B006: `netstack cb reg failed with 12308` during Security→Aviation transition
+- B007: Aviation OpenSky HTTPS fetch returning `connection refused`
+- B008: Touch degradation after WiFi activity (`g_block_touch`)
+
+### Metadata
+- Branch: `feature/v2.5-creature-brain`
+- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`
+
 ## [v2.5-mood-foundation] — 2026-06-21
 
 ### Added

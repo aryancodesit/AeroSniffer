@@ -206,6 +206,18 @@ private:
   };
   Particle active_particles[5];
 
+  // Mood-derived presentation modifiers (Sprint 3B)
+  struct MoodPresentation {
+    uint32_t blink_interval_ms = 4000;
+    float idle_amplitude = 1.0f;
+    float idle_speed = 1.0f;
+    float eye_intensity = 1.0f;
+  };
+  MoodPresentation _mood_pres;
+  MoodType _last_mood = MOOD_RELAXED;
+  uint8_t _last_mood_strength = 0;
+  void recomputeMoodPresentation();
+
 public:
   void begin();
   void updateAnimations(int frame);

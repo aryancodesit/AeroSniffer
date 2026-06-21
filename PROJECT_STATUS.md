@@ -10,6 +10,7 @@
 | **Sprint 2A** | FaceEngine Attention Migration | ✅ Committed, hardware-validated |
 | **Sprint 2B** | Compatibility Shim Removal | ✅ Committed |
 | **Sprint 3A** | Mood Infrastructure | ✅ Committed, hardware-validated |
+| **Sprint 3B** | Mood Consumption | ✅ Committed, compile-validated |
 
 ### Blocked
 
@@ -38,7 +39,8 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 
 | Date | Commit | Description |
 |------|--------|-------------|
-| 2026-06-21 | `(HEAD)` | Sprint 3A: Mood infrastructure closure |
+| 2026-06-21 | `(HEAD)` | Sprint 3B: Mood consumption |
+| 2026-06-21 | `618827a` | Sprint 3A: Mood infrastructure closure |
 | 2026-06-20 | `05762ec` | Sprint 2B: Shim removal |
 | 2026-06-20 | `c3a6480` | Sprint 2A: FaceEngine attention migration |
 | 2026-06-20 | `69ea694` | Governance: SECURITY.md, PR template |
@@ -54,6 +56,6 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 
 ### Next Sprint
 
-**V2.5 Sprint 3B — Mood Consumption**
+**V2.5 Sprint 4 — Memory Layer**
 
-FaceEngine modifiers driven by mood: blink frequency, idle bounce, animation intensity, expression amplification. Pure consumer layer — no mood generation, no persistence, no portal telemetry.
+Persistent creature memory (NVS-backed): name, friendship level, interaction history, mood trends, learned preferences. First cross-session state layer.

@@ -2,7 +2,7 @@
 
 ## Current State
 
-V2.5 Sprint 1 (Companion Intelligence Foundation), Sprint 2A (FaceEngine Attention Migration), Sprint 2B (Shim Removal), and Sprint 3A (Mood Infrastructure) are complete, committed, and hardware-validated. The structured attention model (`target`/`source`/`strength`) is live across all three modes. MoodEngine observes CreatureState and derives mood via fixed-priority arbitration (3 of 7 spec'd moods: RELAXED, PLAYFUL, ANXIOUS). FaceEngine consumes structured attention fields for gaze; mood consumption is Sprint 3B.
+V2.5 Sprint 1 (Companion Intelligence Foundation), Sprint 2A (FaceEngine Attention Migration), Sprint 2B (Shim Removal), Sprint 3A (Mood Infrastructure), and Sprint 3B (Mood Consumption) are complete, committed, and hardware/compile-validated. The structured attention model is live across all three modes. MoodEngine observes CreatureState and derives mood via fixed-priority arbitration. FaceEngine now consumes mood for blink interval, idle amplitude/speed, and eye wander intensity via a cached `MoodPresentation` struct with smoothstep interpolation and lazy recompute.
 
 ### What's Working
 - All three modes boot, render, and respond to touch
@@ -15,6 +15,7 @@ V2.5 Sprint 1 (Companion Intelligence Foundation), Sprint 2A (FaceEngine Attenti
   - TARGET_NONE + strength<25: random wandering (unchanged)
 - MoodEngine: RELAXED (default), PLAYFUL (≥2 touches/5min + positive emotion 60s recency + 30s hold-off), ANXIOUS (TARGET_THREAT + EMOTION_ALERT, immediate bypass)
 - Mood decay: fixed-point, 36s/unit for PLAYFUL (30 min total), 24s/unit for ANXIOUS (20 min), advances `_last_mood_change` by consumed interval steps (not cumulative re-subtraction)
+- **Sprint 3B — Mood Consumption**: FaceEngine caches a `MoodPresentation` struct with smoothstep-interpolated blink interval, idle amplitude/speed, and eye wander intensity. Lazy recompute only on mood/strength change. `eye_intensity` applies to idle wander only (attention-driven gaze is reactive, unaffected by mood). Mood profile via `profileFor(MoodType)` switch — future-proof for additional moods.
 - Touch history ring buffer (10 slots, sliding 5-min window, SOURCE_TOUCH rising edge detection)
 - `[ATTN] SOFT_FOCUS -> WATCHING (TOUCH_SHORT)` and decay confirmed on hardware
 - `[MOOD] RELAXED -> PLAYFUL -> RELAXED` cycle validated
@@ -29,7 +30,10 @@ V2.5 Sprint 1 (Companion Intelligence Foundation), Sprint 2A (FaceEngine Attenti
 - Mode switch `delay(500)` — removed; 600ms splash kept for visual feedback
 
 ### Uncommitted Changes
-- Working tree has Sprint 3A closure edits (PROJECT_STATUS.md, AI_HANDOFF.md, CHANGELOG.md, soak logging removed).
+- Working tree has Sprint 3B closure edits (PROJECT_STATUS.md, AI_HANDOFF.md, CHANGELOG.md, Sprint 3B implementation).
+
+### Sprint 3B Note
+Sprint 3B completed successfully. Mood now influences FaceEngine presentation through blink interval, idle amplitude/speed, and eye wander intensity. Hardware validation confirmed system stability. Visual differentiation between moods is currently subtle due to small display size and limited procedural face vocabulary — no further tuning planned in V2.5. Future behavioral layers (Memory, Companion Behaviors) are expected to become the primary consumers of mood state.
 
 ## Known Issues to Resolve (in priority order)
 
@@ -59,13 +63,11 @@ V2.5 Sprint 1 (Companion Intelligence Foundation), Sprint 2A (FaceEngine Attenti
 
 ## Next Phase
 
-### Sprint 3B — Mood Consumption
-- FaceEngine modifiers: blink frequency, idle bounce, animation intensity, expression amplification
-- Mood→Emotion feedback explicitly excluded (one-way data flow)
-- No new mood generation, no persistence, no portal telemetry
+### Sprint 4 — Memory Layer (Next)
+Persistent creature memory (NVS-backed): name, friendship level, interaction history per session, mood trends, learned preferences. First cross-session state layer. Scope planning needed — TBD whether V2.5 or V2.6.
 
 ### Future Sprints
-- Sprint 4 — Memory Layer (not yet started)
+- Sprint 4+ — Companion Behaviors (mood-driven behavioral decisions, not yet planned)
 
 ## File Map
 - `AeroSniffer/AeroSnifferOS.h:74-79` — `MoodType` enum (RELAXED=0, PLAYFUL=1, ANXIOUS=2, MOOD_COUNT=3)
@@ -88,5 +90,5 @@ V2.5 Sprint 1 (Companion Intelligence Foundation), Sprint 2A (FaceEngine Attenti
 ## Git
 - Branch: `feature/v2.5-creature-brain`
 - Tags: `v2.5-attention-complete` (Sprint 2B), `v2.5-mood-foundation` (Sprint 3A)
-- Commits: Sprint 1 (`16db15f`), Dependabot (`6a900b2`), Governance (`69ea694`), Sprint 2A (`c3a6480`), Sprint 2B (`05762ec`), Sprint 3A (`(HEAD)`)
+- Commits: Sprint 3B `(HEAD)`, Sprint 3A `618827a`, Sprint 2B `05762ec`, Sprint 2A `c3a6480`, Governance `69ea694`, Dependabot `6a900b2`, Sprint 1 `16db15f`
 - Upstream: `origin/feature/v2.5-creature-brain`
