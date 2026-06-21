@@ -9,6 +9,7 @@
 | **Sprint 1** | Companion Intelligence Foundation | ✅ Committed, hardware-validated |
 | **Sprint 2A** | FaceEngine Attention Migration | ✅ Committed, hardware-validated |
 | **Sprint 2B** | Compatibility Shim Removal | ✅ Committed |
+| **Sprint 3A** | Mood Infrastructure | ✅ Committed, hardware-validated |
 
 ### Blocked
 
@@ -26,10 +27,18 @@ None.
 
 See [BUG_LOG.md](BUG_LOG.md) for full details.
 
+### Tags
+
+| Tag | Description |
+|-----|-------------|
+| `v2.5-attention-complete` | Sprint 2B — attention layer stable |
+| `v2.5-mood-foundation` | Sprint 3A — mood infrastructure stable |
+
 ### Recent Commits
 
 | Date | Commit | Description |
 |------|--------|-------------|
+| 2026-06-21 | `(HEAD)` | Sprint 3A: Mood infrastructure closure |
 | 2026-06-20 | `05762ec` | Sprint 2B: Shim removal |
 | 2026-06-20 | `c3a6480` | Sprint 2A: FaceEngine attention migration |
 | 2026-06-20 | `69ea694` | Governance: SECURITY.md, PR template |
@@ -41,3 +50,10 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 - Active: `feature/v2.5-creature-brain`
 - Upstream: `origin/feature/v2.5-creature-brain`
 - Base: `main`
+- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`
+
+### Next Sprint
+
+**V2.5 Sprint 3B — Mood Consumption**
+
+FaceEngine modifiers driven by mood: blink frequency, idle bounce, animation intensity, expression amplification. Pure consumer layer — no mood generation, no persistence, no portal telemetry.

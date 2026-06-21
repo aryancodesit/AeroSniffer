@@ -1,5 +1,51 @@
 # Changelog
 
+## [v2.5-mood-foundation] — 2026-06-21
+
+### Added
+- **V2.5 Sprint 3A — Mood Infrastructure**: MoodEngine as slow behavioral observer operating on hour-scale. Reads CreatureState after Attention+Emotion publish — no EventBus access, no spinlocks, single consumer on Core 1.
+- **MoodType enum**: `RELAXED=0`, `PLAYFUL=1`, `ANXIOUS=2`, `MOOD_COUNT=3`
+- **`uint8_t mood_strength`** in `CreatureState` for fixed-point decay tracking
+- **Fixed-priority arbitration**: ANXIOUS (P1, immediate) > PLAYFUL (P4, 30s hold-off) > RELAXED (P7, default). ANXIOUS bypasses hold-off.
+- **Touch history ring buffer**: 10 slots, sliding 5-min window, SOURCE_TOUCH rising edge detection (no EventBus dependency)
+- **PLAYFUL entry**: ≥2 touches in 5 min + positive emotion (HAPPY/EXCITED/LOVE/SURPRISED) within 60s recency window
+- **ANXIOUS entry**: `attention.target == TARGET_THREAT` + `emotion == EMOTION_ALERT`
+- **Fixed-point decay**: PLAYFUL = 36s/unit (30 min total), ANXIOUS = 24s/unit (20 min). Advances `_last_mood_change` by consumed interval steps — no cumulative re-subtraction.
+- **Serial visibility**: `[MOOD] RELAXED -> PLAYFUL` on transition
+- **GET_PET_STATUS**: uses `MoodEngine.moodName(g_creature.mood)` for human-readable mood
+- **Tick wiring**: `Attention → Emotion → Mood → Face` in Core 1 loop (`AeroSniffer.ino:577-583`)
+
+### Fixed
+- **`AeroSnifferOS.cpp` missing `#include "Companion/MoodEngine.h"`** — was causing `MoodEngineClass` incomplete type
+- **`MoodEngine::moodName()` → `MoodEngine.moodName()`** — dot notation on global instance
+- **`pruneOldTouches()` unsigned underflow**: `now - 300000` when uptime <5 min produced ~4.29B wraparound — fixed to rollover-safe `(now - _touch_timestamps[i]) <= 300000`
+- **PLAYFUL emotion condition too strict**: required continuous HAPPY/EXCITED for 30s, but emotions last ~5s — fixed with 60s emotion recency window via `_last_positive_emotion`
+- **Mood strength decay cumulative**: every tick recomputed elapsed/interval and subtracted from strength — fixed by advancing `_last_mood_change += steps * interval`
+
+### Removed
+- **EmotionEngine::setMood() bridge**: 5 Portal.h call sites deleted — MoodEngine is sole writer of `g_creature.mood` and `g_creature.mood_strength`
+
+### Hardware Validated
+- RELAXED → PLAYFUL → RELAXED cycle: touch → emotion → hold-off → transition → decay → return
+- ANXIOUS immediate transition (threat + alert)
+- Touch history pruning (5-min sliding window)
+- 30-min soak test for PLAYFUL strength decay (50 units × 36s/unit)
+- No IWDT, no Guru Meditation, no panics
+- Cross-core ownership audit: MoodEngine writes only `g_creature.{mood,mood_strength}`
+- Three-bug checklist re-verified (subscriber, spinlock, cross-core, ownership, tick-order, co-dependency)
+
+### Remaining
+- B004: `udp_new_ip_type` assertion during HTTP fetch (lwIP lock issue)
+- B006: `netstack cb reg failed with 12308` during Security→Aviation transition
+- B007: Aviation OpenSky HTTPS fetch returning `connection refused`
+- B008: Touch degradation after WiFi activity (`g_block_touch`)
+
+### Metadata
+- Branch: `feature/v2.5-creature-brain`
+- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`
+- Sprint 3A validated in Pet/Companion mode only (MoodEngine has no mode dependency)
+- Requires: ESP-IDF v5.x, Arduino ESP32 core 3.x
+
 ## [v2.5-sprint2a] — 2026-06-20
 
 ### Added

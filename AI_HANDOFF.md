@@ -2,7 +2,7 @@
 
 ## Current State
 
-V2.5 Sprint 1 (Companion Intelligence Foundation), Sprint 2A (FaceEngine Attention Migration), and Sprint 2B (Shim Removal) are complete, committed, and hardware-validated. The structured attention model (`target`/`source`/`strength`) is live across all three modes (Pet, Security, Aviation). FaceEngine consumes the structured fields for gaze direction and magnitude. The V2.4 `attention_state` shim has been fully removed.
+V2.5 Sprint 1 (Companion Intelligence Foundation), Sprint 2A (FaceEngine Attention Migration), Sprint 2B (Shim Removal), and Sprint 3A (Mood Infrastructure) are complete, committed, and hardware-validated. The structured attention model (`target`/`source`/`strength`) is live across all three modes. MoodEngine observes CreatureState and derives mood via fixed-priority arbitration (3 of 7 spec'd moods: RELAXED, PLAYFUL, ANXIOUS). FaceEngine consumes structured attention fields for gaze; mood consumption is Sprint 3B.
 
 ### What's Working
 - All three modes boot, render, and respond to touch
@@ -13,7 +13,11 @@ V2.5 Sprint 1 (Companion Intelligence Foundation), Sprint 2A (FaceEngine Attenti
   - TARGET_FLIGHT: skyward, strength-scaled (-1 to -4)
   - TARGET_NONE + strength≥25: mild curiosity (y=-1)
   - TARGET_NONE + strength<25: random wandering (unchanged)
+- MoodEngine: RELAXED (default), PLAYFUL (≥2 touches/5min + positive emotion 60s recency + 30s hold-off), ANXIOUS (TARGET_THREAT + EMOTION_ALERT, immediate bypass)
+- Mood decay: fixed-point, 36s/unit for PLAYFUL (30 min total), 24s/unit for ANXIOUS (20 min), advances `_last_mood_change` by consumed interval steps (not cumulative re-subtraction)
+- Touch history ring buffer (10 slots, sliding 5-min window, SOURCE_TOUCH rising edge detection)
 - `[ATTN] SOFT_FOCUS -> WATCHING (TOUCH_SHORT)` and decay confirmed on hardware
+- `[MOOD] RELAXED -> PLAYFUL -> RELAXED` cycle validated
 - Mode transitions Pet→Security→Aviation→Pet clean in all directions
 - EmotionEngine ticks independently
 - Touch input (tap, long press) works across all modes
@@ -25,7 +29,7 @@ V2.5 Sprint 1 (Companion Intelligence Foundation), Sprint 2A (FaceEngine Attenti
 - Mode switch `delay(500)` — removed; 600ms splash kept for visual feedback
 
 ### Uncommitted Changes
-- None — working tree is clean.
+- Working tree has Sprint 3A closure edits (PROJECT_STATUS.md, AI_HANDOFF.md, CHANGELOG.md, soak logging removed).
 
 ## Known Issues to Resolve (in priority order)
 
@@ -55,22 +59,34 @@ V2.5 Sprint 1 (Companion Intelligence Foundation), Sprint 2A (FaceEngine Attenti
 
 ## Next Phase
 
-### Sprint 3 — Mood System
-- EmotionLayer (if scoped)
-- MoodLayer (if scoped)
-- MemoryLayer (if scoped)
+### Sprint 3B — Mood Consumption
+- FaceEngine modifiers: blink frequency, idle bounce, animation intensity, expression amplification
+- Mood→Emotion feedback explicitly excluded (one-way data flow)
+- No new mood generation, no persistence, no portal telemetry
+
+### Future Sprints
+- Sprint 4 — Memory Layer (not yet started)
 
 ## File Map
+- `AeroSniffer/AeroSnifferOS.h:74-79` — `MoodType` enum (RELAXED=0, PLAYFUL=1, ANXIOUS=2, MOOD_COUNT=3)
+- `AeroSniffer/AeroSnifferOS.h:113` — `uint8_t mood_strength` in `CreatureState`
 - `AeroSniffer/AeroSnifferOS.h:97-133` — `AttentionTarget`, `AttentionSource` enums, `CreatureState` with structured `attention`
+- `AeroSniffer/AeroSnifferOS.cpp:571-602` — FaceEngine gaze driven by `target`/`strength`
+- `AeroSniffer/AeroSnifferOS.cpp:13-29` — `g_creature` aggregate initializer with `mood_strength=0`
 - `AeroSniffer/AttentionEngine.cpp` — queue, state machine, decay, publish, event mapping (sketch root)
 - `AeroSniffer/Companion/AttentionEngine.h` — class declaration, spinlock, structured attention fields
-- `AeroSniffer/AeroSnifferOS.cpp:571-602` — FaceEngine gaze driven by `target`/`strength`
-- `AeroSniffer/AeroSnifferOS.cpp` — global `AttentionEngine` + `FaceEngine` instances
+- `AeroSniffer/Companion/MoodEngine.h` — class declaration, touch history ring buffer, arbitration
+- `AeroSniffer/MoodEngine.cpp` — implementation: fixed-priority arbitration, fixed-point decay, touch tracking
+- `AeroSniffer/AeroSniffer.ino:577-583` — tick order: Attention→Emotion→Mood→Face
+- `AeroSniffer/AeroSniffer.ino:340` — GET_PET_STATUS: `MoodEngine.moodName(g_creature.mood)`
+- `AeroSniffer/Security/Portal.h:1240-1258` — EmotionEngine emotion-only calls (setMood bridge removed)
+- `docs/V2.5_SPRINT3_MOOD_SPEC.md` — full Mood System spec (12 sections)
+- `docs/V2.5_ATTENTION_RETROSPECTIVE.md` — Sprint 1–2B retrospective
 - `docs/V2.5_SPRINT1_SPEC.md` — Sprint 1 implementation specification
 - `docs/V2.5_ATTENTION_MODEL.md` — attention data model
 
 ## Git
 - Branch: `feature/v2.5-creature-brain`
-- Tag: (next release)
-- Commits: Sprint 1 (`16db15f`), Dependabot (`6a900b2`), Governance (`69ea694`), Sprint 2A (`c3a6480`), Sprint 2B (`05762ec`)
+- Tags: `v2.5-attention-complete` (Sprint 2B), `v2.5-mood-foundation` (Sprint 3A)
+- Commits: Sprint 1 (`16db15f`), Dependabot (`6a900b2`), Governance (`69ea694`), Sprint 2A (`c3a6480`), Sprint 2B (`05762ec`), Sprint 3A (`(HEAD)`)
 - Upstream: `origin/feature/v2.5-creature-brain`
