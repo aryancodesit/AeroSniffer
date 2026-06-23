@@ -1,5 +1,5 @@
 // ================================================================
-//  Companion/MoodEngine.cpp  —  Slow Behavioral Observer (V2.5)
+//  MoodEngine.cpp  —  Slow Behavioral Observer (V2.5)
 //  AeroSniffer Companion Layer | C++ Implementation
 // ================================================================
 #include "Companion/MoodEngine.h"
@@ -12,6 +12,9 @@ void MoodEngineClass::begin() {
   _last_mood_change  = millis();
   _focus_accumulator = 0;
   _playful_condition_met_since = 0;
+  _touch_count       = 0;
+  _prev_was_touch_source = false;
+  _last_positive_emotion = 0;
 
   g_creature.mood          = MOOD_RELAXED;
   g_creature.mood_strength = 50;
@@ -24,20 +27,51 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
   uint32_t now = millis();
   MoodType old_mood = _mood;
 
-  // ── 1. Decay current mood strength ───────────────────────────
+  // ── 1. Track touch events via attention.source transitions ──
+  // Detect SOURCE_TOUCH rising edge: attention.source changed to
+  // SOURCE_TOUCH since last tick.  This avoids EventBus access
+  // while still detecting each distinct touch.
+  if (g_creature.attention.source == SOURCE_TOUCH && !_prev_was_touch_source) {
+    recordTouch(now);
+  }
+  _prev_was_touch_source = (g_creature.attention.source == SOURCE_TOUCH);
+  pruneOldTouches(now);
+
+  // ── 2. Track positive emotion recency ─────────────────────────
+  // Record last time any positive emotion was seen.  PLAYFUL uses a
+  // 60-second recency window so the 30s hold-off can complete even
+  // though individual emotions only last ~5s before decaying to IDLE.
+  switch (g_creature.emotion) {
+    case EMOTION_HAPPY:
+    case EMOTION_EXCITED:
+    case EMOTION_LOVE:
+    case EMOTION_SURPRISED:
+      _last_positive_emotion = now;
+      break;
+    default:
+      break;
+  }
+
+  // ── 3. Decay current mood strength ───────────────────────────
   if (_mood != MOOD_RELAXED && _strength > 0) {
     uint32_t elapsed = now - _last_mood_change;
     uint32_t interval = decayIntervalMs(_mood);
-    uint8_t decayed = elapsed / interval;
-    if (decayed > _strength) {
-      _strength = 0;
-    } else {
-      _strength -= decayed;
+    if (elapsed >= interval) {
+      uint8_t steps = elapsed / interval;
+      if (steps > _strength) {
+        _strength = 0;
+      } else {
+        _strength -= steps;
+      }
+      _last_mood_change += steps * interval;
     }
   }
 
-  // ── 2. Track hold-off conditions ─────────────────────────────
-  // PLAYFUL hold-off: entry condition must be met continuously for 30s
+  // ── 4. Track hold-off conditions ─────────────────────────────
+  // PLAYFUL hold-off: entry condition must be met continuously for 30s.
+  // The condition uses _touch_count + positive emotion recency (60s
+  // window) — not instantaneous emotion — so the ~5s emotion lifetime
+  // does not reset the hold-off.
   if (playfulEntryCondition()) {
     if (_playful_condition_met_since == 0) {
       _playful_condition_met_since = now;
@@ -46,10 +80,10 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
     _playful_condition_met_since = 0;
   }
 
-  // ── 3. Resolve next mood (arbitration) ───────────────────────
+  // ── 5. Resolve next mood (arbitration) ───────────────────────
   MoodType next = resolveNextMood();
 
-  // ── 4. Transition if needed ──────────────────────────────────
+  // ── 6. Transition if needed ──────────────────────────────────
   if (next != _mood) {
     _mood             = next;
     _strength         = 50;
@@ -57,8 +91,26 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
     Serial.printf("[MOOD] %s -> %s\n", moodName(old_mood), moodName(next));
   }
 
-  // ── 5. Publish to CreatureState ──────────────────────────────
+  // ── 7. Publish to CreatureState ──────────────────────────────
   publish();
+}
+
+// ── Touch History ─────────────────────────────────────────────────
+
+void MoodEngineClass::recordTouch(uint32_t now) {
+  if (_touch_count < 10) {
+    _touch_timestamps[_touch_count++] = now;
+  }
+}
+
+void MoodEngineClass::pruneOldTouches(uint32_t now) {
+  uint8_t write_idx = 0;
+  for (uint8_t i = 0; i < _touch_count; i++) {
+    if ((now - _touch_timestamps[i]) <= 300000) {
+      _touch_timestamps[write_idx++] = _touch_timestamps[i];
+    }
+  }
+  _touch_count = write_idx;
 }
 
 // ── Arbitration (Fixed Priority) ─────────────────────────────────
@@ -74,7 +126,8 @@ MoodType MoodEngineClass::resolveNextMood() {
     return MOOD_ANXIOUS;
   }
 
-  // P4 — PLAYFUL: requires 30s hold-off for upward transition
+  // P4 — PLAYFUL: ≥2 touches in 5 min, positive emotion within 60s,
+  //               and 30s hold-off for upward transition
   if (_mood == MOOD_RELAXED || _mood == MOOD_PLAYFUL) {
     if (playfulEntryCondition()) {
       if (_playful_condition_met_since > 0 &&
@@ -96,13 +149,14 @@ MoodType MoodEngineClass::resolveNextMood() {
 // ── Entry Conditions ─────────────────────────────────────────────
 
 bool MoodEngineClass::anxiousEntryCondition() const {
-  return g_creature.attention.source == SOURCE_SECURITY;
+  return g_creature.attention.target == TARGET_THREAT &&
+         g_creature.emotion == EMOTION_ALERT;
 }
 
 bool MoodEngineClass::playfulEntryCondition() const {
-  EmotionType e = g_creature.emotion;
-  return (e == EMOTION_HAPPY || e == EMOTION_LOVE ||
-          e == EMOTION_EXCITED || e == EMOTION_SURPRISED);
+  uint32_t now = millis();
+  return _touch_count >= 2 &&
+         (now - _last_positive_emotion < 60000);
 }
 
 // ── Publish ───────────────────────────────────────────────────────

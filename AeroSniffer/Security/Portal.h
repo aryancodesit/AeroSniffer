@@ -1238,23 +1238,18 @@ void portal_core1_task() {
                     if (alert_age < 15) { // Only change emotion for relatively fresh alerts
                         if (last_alert->severity == THREAT_CRITICAL) {
                             EmotionEngine.setEmotion(EMOTION_ANGRY);
-                            EmotionEngine.setMood(MOOD_ANXIOUS);
                         } else if (last_alert->type == THREAT_TRUSTED_RETURN) {
                             EmotionEngine.setEmotion(EMOTION_LOVE);
-                            EmotionEngine.setMood(MOOD_RELAXED);
                         } else {
                             EmotionEngine.setEmotion(EMOTION_CURIOUS);
-                            EmotionEngine.setMood(MOOD_ANXIOUS);
                         }
                     } else {
                         // Fall back to calm monitoring if alerts are old
                         EmotionEngine.setEmotion(EMOTION_CALM);
-                        EmotionEngine.setMood(MOOD_RELAXED);
                     }
                 }
             } else {
                 EmotionEngine.setEmotion(EMOTION_CALM);
-                EmotionEngine.setMood(MOOD_RELAXED);
             }
         }
     }

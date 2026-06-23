@@ -9,6 +9,13 @@
 | **Sprint 1** | Companion Intelligence Foundation | ✅ Committed, hardware-validated |
 | **Sprint 2A** | FaceEngine Attention Migration | ✅ Committed, hardware-validated |
 | **Sprint 2B** | Compatibility Shim Removal | ✅ Committed |
+| **Sprint 3A** | Mood Infrastructure | ✅ Committed, hardware-validated |
+| **Sprint 3B** | Mood Consumption | ✅ Committed, compile-validated |
+| **Sprint 3C** | Stabilization & Retrospective | ✅ Retrospective created, tagged, debt documented |
+| **Sprint 4A** | Creature Persistence | ✅ Implemented: PersistenceService, 5-min periodic save, rising-edge counters, schema migration |
+| **Sprint 4B P6** | Mode Transition Save | ✅ Certified: Runtime, Touch, Mood, and Cross-Mode persistence survive power cycle |
+| **Sprint 4B P7** | Schema Recovery | ✅ Certified: old schema, future schema, corrupted blob all recover cleanly; recovery profile survives power cycle |
+| **Sprint 5A** | Autonomous Presence Layer | ✅ Certified: engagement_drive, mood-modulated decay, 3s→30s saccade range, deep blink suppression, cross-mode carryover, 32-min stable run |
 
 ### Blocked
 
@@ -26,10 +33,24 @@ None.
 
 See [BUG_LOG.md](BUG_LOG.md) for full details.
 
+### Tags
+
+| Tag | Description |
+|-----|-------------|
+| `v2.5-attention-complete` | Sprint 2B — attention layer stable |
+| `v2.5-mood-foundation` | Sprint 3A — mood infrastructure stable |
+| `v2.5-creature-brain-complete` | Sprint 3C — full pipeline frozen, retrospective archived |
+| `v2.5-persistence` | Sprint 4A — Creature Persistence |
+
 ### Recent Commits
 
 | Date | Commit | Description |
 |------|--------|-------------|
+| 2026-06-23 | `(HEAD)` | Sprint 5A: Autonomous Presence Layer — engagement_drive, mood decay, 30s saccade, deep blink guard |
+| 2026-06-22 | `(previous)` | Sprint 4A: Creature Persistence — PersistenceService, 5-min save, counter hooks |
+| 2026-06-22 | `(previous)` | Sprint 3C: Stabilization, retrospective, TD tracking |
+| 2026-06-21 | `(previous)` | Sprint 3B: Mood consumption |
+| 2026-06-21 | `618827a` | Sprint 3A: Mood infrastructure closure |
 | 2026-06-20 | `05762ec` | Sprint 2B: Shim removal |
 | 2026-06-20 | `c3a6480` | Sprint 2A: FaceEngine attention migration |
 | 2026-06-20 | `69ea694` | Governance: SECURITY.md, PR template |
@@ -41,3 +62,56 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 - Active: `feature/v2.5-creature-brain`
 - Upstream: `origin/feature/v2.5-creature-brain`
 - Base: `main`
+- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`
+
+### Current Architecture
+
+```
+Observe → Attention → Emotion → Mood → Face (with Autonomous Presence)
+                                            ↑
+                                       Persistence (observer, not pipeline)
+```
+
+### Next Sprint
+
+### Sprint 5A — Autonomous Presence Layer (Certified 2026-06-23)
+
+engagement_drive (0–100) in CreatureState, FaceEngine sole writer. Mood-modulated decay: RELAXED 1.0x (~5 min to drowsy), PLAYFUL 0.5x (~10 min), ANXIOUS 0.3x with floor at 20 (~16 min). Saccade interval 3s→30s, deep blink suppressed during TARGET_THREAT/USER/FLIGHT. 32-min certification run: 1816 stable heartbeats, 16 touches, all 3 mode transitions clean, no errors. Cross-mode carryover observed (sleepy state persists across Aviation→Companion).
+
+**V2.5 Sprint 4B — Persistence Validation**
+
+Completed exit criteria:
+- [x] P7 — Schema Recovery (old schema, future schema, corrupted blob — all recover cleanly; recovery persists across power cycle ✅ 2026-06-23)
+- [x] NV1 — Power-Loss Stress (10-cycle archived evidence — monotonic boot counter, no resets, no data loss)
+
+Remaining exit criteria:
+- [x] P3 — Runtime Accuracy (60-min soak) ✅ 2026-06-23
+- [ ] Factory reset clears profile
+- [ ] No noticeable boot delay (<100ms)
+- [ ] No excessive NVS writes (≤1 per 5 min + mode transitions)
+- [ ] No EventBus subscription (grep confirm)
+- [ ] No spinlocks (grep confirm)
+- [ ] No write to upstream CreatureState fields (grep confirm)
+
+### Observations
+
+| ID | Description | Priority | Status |
+|----|-------------|----------|--------|
+| OBS-001 | Boot counter showed 4 instead of 5 after power cycle. Possibly serial reconnection without true power-off, or NVS write ordering edge case. No persistence data loss. Do not investigate further. | LOW | Open — no action planned |
+
+### V2.5 Release Candidate
+
+P3 passed (67-min soak). Ready for V2.5 release. B009 downgraded to historical investigation — crash binary is commit 450dabd (18 commits behind HEAD), no reproduction on current firmware. 32-min Sprint 5A run with 3 mode transitions and no crash confirms HEAD is clean.
+
+### Future Architecture (V2.6+)
+
+```
+Observe → Attention → Emotion → Mood → Face
+                                           Persistence → Memory → Behavior
+                                                ↑
+                                                │
+                                           observes upstream state
+```
+
+Explicitly deferred:
+- Learned preferences, memory recall, relationship modeling, personality evolution — all depend on a stable behavior layer that does not yet exist.

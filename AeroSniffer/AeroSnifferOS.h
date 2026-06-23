@@ -123,6 +123,7 @@ struct CreatureState {
   uint32_t friendship_level;
   int8_t pc_cpu;  // Last PC CPU telemetry reading
   int8_t pc_ram;  // Last PC RAM telemetry reading
+  uint8_t engagement_drive;  // 0–100, runtime-only autonomous presence
   struct {
     AttentionTarget target;    // What the creature is focused on
     AttentionSource source;    // Which domain triggered focus
@@ -153,7 +154,6 @@ public:
   ActivityType getActivity() const { return current_activity; }
   
   void setEmotion(EmotionType e);
-  void setMood(MoodType m);
   void setActivity(ActivityType a);
   void forceIdle();
   
@@ -206,6 +206,24 @@ private:
     uint16_t color;
   };
   Particle active_particles[5];
+
+  // Mood-derived presentation modifiers (Sprint 3B)
+  struct MoodPresentation {
+    uint32_t blink_interval_ms = 4000;
+    float idle_amplitude = 1.0f;
+    float idle_speed = 1.0f;
+    float eye_intensity = 1.0f;
+  };
+  MoodPresentation _mood_pres;
+  MoodType _last_mood = MOOD_RELAXED;
+  uint8_t _last_mood_strength = 0;
+
+  // Autonomous presence drive (V2.5 Sprint 5A)
+  float _engagement_level = 100.0f;
+  float _eyelid_factor = 1.0f;
+  int _deep_blink_hold = 0;
+  uint32_t _last_frame_ms = 0;
+  void recomputeMoodPresentation();
 
 public:
   void begin();
@@ -335,6 +353,8 @@ class MoodEngineClass;
 extern MoodEngineClass MoodEngine;
 class AttentionEngineClass;
 extern AttentionEngineClass AttentionEngine;
+class PersistenceService;
+extern PersistenceService CreaturePersistence;
 extern EventBusClass EventBus;
 extern EmotionEngineClass EmotionEngine;
 extern WiFiServiceClass WiFiService;

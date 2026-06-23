@@ -5,9 +5,27 @@
 #include "AeroSnifferOS.h"
 #include "Config.h"
 #include "Companion/AttentionEngine.h"
+#include "Companion/MoodEngine.h"
 #include <math.h>
 
 extern TFT_eSPI tft;
+
+// Mood profile accessor (Sprint 3B)
+// Future-proof: adding a new mood type requires only a new case here.
+struct MoodProfile {
+  uint32_t blink_ms;
+  float    amp;
+  float    speed;
+  float    intens;
+};
+
+static MoodProfile profileFor(MoodType mood) {
+  switch (mood) {
+    case MOOD_PLAYFUL: return {3000, 1.5f, 1.3f, 1.4f};
+    case MOOD_ANXIOUS: return {2200, 0.5f, 0.8f, 0.6f};
+    default:           return {4000, 1.0f, 1.0f, 1.0f};  // RELAXED + unknown/future moods degrade gracefully
+  }
+}
 
 // ── Central State Definition ─────────────────────────────────────
 CreatureState g_creature = {
@@ -25,7 +43,8 @@ CreatureState g_creature = {
   0,     // Interactions today
   0,     // Friendship level
   0,     // pc_cpu
-  0      // pc_ram
+  0,     // pc_ram
+  100    // engagement_drive — start fully alert
 };
 
 // ── Global instances ─────────────────────────────────────────────
@@ -405,13 +424,6 @@ void EmotionEngineClass::setEmotion(EmotionType e) {
   }
 }
 
-void EmotionEngineClass::setMood(MoodType m) {
-  // Bridge: MoodEngine owns mood. This write will be overwritten
-  // by MoodEngine.tick() on the next cycle. Retained for Portal.h
-  // compatibility — will be removed in a later sprint.
-  g_creature.mood = m;
-}
-
 void EmotionEngineClass::setActivity(ActivityType a) {
   if (current_activity != a) {
     current_activity = a;
@@ -511,6 +523,16 @@ static void local_draw_dotted_frown(TFT_eSprite* spr, int cx, int cy, int width,
   spr->fillRect(cx + width / 2, cy + drop, 4, 4, color);
 }
 
+static constexpr float ENGAGEMENT_DECAY_PER_SEC = 0.333f;
+
+static float engagementMoodMultiplier(MoodType m) {
+  switch (m) {
+    case MOOD_PLAYFUL: return 0.5f;  // stays alert 2x longer
+    case MOOD_ANXIOUS: return 0.3f;  // barely decays — hyper-vigilant
+    default:           return 1.0f;  // RELAXED — normal decay
+  }
+}
+
 void FaceEngineClass::begin() {
   anim_blink_scale = 1.0f;
   anim_is_blinking = false;
@@ -521,14 +543,85 @@ void FaceEngineClass::begin() {
   strcpy(status_l1, "AeroSniffer OS");
   strcpy(status_l2, "system");
   for (int i = 0; i < 5; i++) active_particles[i].type = 0;
+
+  _engagement_level = 100.0f;
+  _eyelid_factor = 1.0f;
+  _deep_blink_hold = 0;
+  _last_frame_ms = millis();
+  g_creature.engagement_drive = 100;
+
+  _last_mood         = g_creature.mood;
+  _last_mood_strength = g_creature.mood_strength;
+  recomputeMoodPresentation();
+}
+
+void FaceEngineClass::recomputeMoodPresentation() {
+  MoodType m = g_creature.mood;
+  if (m >= MOOD_COUNT) m = MOOD_RELAXED;
+
+  MoodProfile relaxed = profileFor(MOOD_RELAXED);
+  MoodProfile target  = profileFor(m);
+
+  // RELAXED mood or zero strength always yields RELAXED defaults
+  if (m == MOOD_RELAXED || g_creature.mood_strength == 0) {
+    _mood_pres.blink_interval_ms = relaxed.blink_ms;
+    _mood_pres.idle_amplitude    = relaxed.amp;
+    _mood_pres.idle_speed        = relaxed.speed;
+    _mood_pres.eye_intensity     = relaxed.intens;
+    return;
+  }
+
+  // Smoothstep interpolation from RELAXED baseline to target mood at full strength
+  float t = g_creature.mood_strength / 50.0f;
+  float e = t * t * (3.0f - 2.0f * t);
+
+  int32_t blink_delta = (int32_t)target.blink_ms - (int32_t)relaxed.blink_ms;
+  _mood_pres.blink_interval_ms = (uint32_t)((int32_t)relaxed.blink_ms + (int32_t)(blink_delta * e));
+  _mood_pres.idle_amplitude    = relaxed.amp    + (target.amp    - relaxed.amp)    * e;
+  _mood_pres.idle_speed        = relaxed.speed  + (target.speed  - relaxed.speed)  * e;
+  _mood_pres.eye_intensity     = relaxed.intens + (target.intens - relaxed.intens) * e;
 }
 
 void FaceEngineClass::updateAnimations(int frame) {
   uint32_t now = millis();
-  
+  uint32_t dt_ms = now - _last_frame_ms;
+  _last_frame_ms = now;
+
+  // ── Autonomous Presence: engagement drive (V2.5 Sprint 5A) ──
+  // Decay toward 0 over time; reset on any interaction.
+  float decay = ENGAGEMENT_DECAY_PER_SEC * engagementMoodMultiplier(g_creature.mood) * (dt_ms / 1000.0f);
+  float floor_val = (g_creature.mood == MOOD_ANXIOUS) ? 20.0f : 0.0f;
+  _engagement_level = max(floor_val, _engagement_level - decay);
+
+  // Reset on touch or any attention target (orienting response)
+  if (g_creature.attention.source == SOURCE_TOUCH || g_creature.attention.target != TARGET_NONE) {
+    _engagement_level = 100.0f;
+  }
+
+  g_creature.engagement_drive = (uint8_t)(_engagement_level + 0.5f);
+
+  // ── Eyelid factor: smooth lerp toward engagement-based drowsiness ──
+  float drowsiness = 1.0f - (g_creature.engagement_drive / 100.0f);
+  float target_eyelid = 1.0f - pow(drowsiness, 1.5f) * 0.7f;  // minimum ~0.3 at drive=0
+  _eyelid_factor = _eyelid_factor * 0.95f + target_eyelid * 0.05f;
+
+  // ── Update mood presentation if mood or strength changed (Sprint 3B) ─
+  if (g_creature.mood != _last_mood || g_creature.mood_strength != _last_mood_strength) {
+    _last_mood         = g_creature.mood;
+    _last_mood_strength = g_creature.mood_strength;
+    recomputeMoodPresentation();
+  }
+
+  // ── Blink with deep blink probability from engagement ─────────
   if (now > anim_blink_next && !anim_is_blinking) {
     anim_is_blinking = true;
     anim_blink_scale = 1.0f;
+
+    int deep_chance = 0;
+    if (g_creature.attention.target == TARGET_NONE) {
+      deep_chance = max(0, 60 - (int)g_creature.engagement_drive * 75 / 100);  // 60% at 0, 0% at 80+
+    }
+    _deep_blink_hold = (random(100) < deep_chance) ? 2 : 0;
   }
   
   if (anim_is_blinking) {
@@ -538,14 +631,18 @@ void FaceEngineClass::updateAnimations(int frame) {
       anim_blink_scale = 0.0f;
     }
     if (anim_blink_scale <= 0.0f && frame % 3 == 0) {
-      anim_blink_scale = 0.1f;
+      if (_deep_blink_hold > 0) {
+        _deep_blink_hold--;
+      } else {
+        anim_blink_scale = 0.1f;
+      }
     } else if (anim_blink_scale > 0.0f && anim_blink_scale < 1.0f) {
       anim_blink_scale += 0.2f;
     }
     if (anim_blink_scale >= 1.0f) {
       anim_blink_scale = 1.0f;
       anim_is_blinking = false;
-      anim_blink_next = now + random(2000, 6000);
+      anim_blink_next = now + _mood_pres.blink_interval_ms + random(-500, 500);
     }
   }
   
@@ -569,29 +666,40 @@ void FaceEngineClass::updateAnimations(int frame) {
     anim_look_x = 0;
     anim_look_y = -1;                              // mild curiosity
   } else {
-    // SOFT_FOCUS & TARGET_NONE + low strength — existing random wandering
+    // SOFT_FOCUS & TARGET_NONE + low strength — random wandering
+    // Sprint 3B: eye_intensity applies only to idle wander, NOT to attention-driven
+    // gaze (THREAT/USER/FLIGHT).  Attention targets are reactive behaviors triggered
+    // by external stimuli — they should produce the same response regardless of mood.
+    // Mood colors internal/expressive behavior only (idle gaze, blink rate, sway).
+    // V2.5 Sprint 5A: saccade interval driven by engagement_drive
     if (now > anim_look_next) {
       if (g_creature.emotion == EMOTION_CALM || g_creature.emotion == EMOTION_CURIOUS) {
-        anim_look_x = random(-6, 7);
-        anim_look_y = random(-4, 5);
+        int range_x = (int)(6.0f * _mood_pres.eye_intensity);
+        int range_y = (int)(4.0f * _mood_pres.eye_intensity);
+        anim_look_x = random(-range_x, range_x + 1);
+        anim_look_y = random(-range_y, range_y + 1);
       } else {
         anim_look_x = 0;
         anim_look_y = 0;
       }
-      anim_look_next = now + random(1000, 4000);
+      // Saccade interval: 3s at full engagement, 30s at drowsy
+      int base_interval = 3000 + (100 - (int)g_creature.engagement_drive) * 270;
+      int jitter = base_interval / 2;
+      int next_interval = base_interval + random(-jitter, jitter + 1);
+      anim_look_next = now + max(1000, next_interval);
     }
   }
 
-  // Bounce animation when happy, excited, or loving
+  // Bounce animation when happy, excited, or loving — mood-modulated (Sprint 3B)
   if (g_creature.emotion == EMOTION_EXCITED || g_creature.emotion == EMOTION_HAPPY || g_creature.emotion == EMOTION_LOVE) {
-    anim_bounce_y = (int)(sin(frame * 0.4f) * 4.0f);
+    anim_bounce_y = (int)(sin(frame * 0.4f * _mood_pres.idle_speed) * 4.0f * _mood_pres.idle_amplitude);
   } else {
     anim_bounce_y = 0;
   }
 
-  // Pulse animation when excited or alert
+  // Pulse animation when excited or alert — mood-modulated speed (Sprint 3B)
   if (g_creature.emotion == EMOTION_EXCITED || g_creature.emotion == EMOTION_ALERT) {
-    anim_pulse_scale = 1.0f + sin(frame * 0.3f) * 0.15f;
+    anim_pulse_scale = 1.0f + sin(frame * 0.3f * _mood_pres.idle_speed) * 0.15f;
   } else {
     anim_pulse_scale = 1.0f;
   }
@@ -612,7 +720,8 @@ void FaceEngineClass::renderEmotionLayer(TFT_eSprite* spr, int frame) {
     default:                color = C_IDLE; break;
   }
   
-  int h = (int)(32 * anim_blink_scale * anim_pulse_scale);
+  // V2.5 Sprint 5A: default eye height modulated by engagement_drive (drowsy eyelid)
+  int h = (int)(32 * anim_blink_scale * anim_pulse_scale * _eyelid_factor);
   int y = 90 + anim_bounce_y + (32 - h) / 2;
   
   // Custom eye shapes based on emotion

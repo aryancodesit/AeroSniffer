@@ -1,5 +1,26 @@
 # Bug Log — AeroSniffer V2.4
 
+## Technical Debt
+
+### TD-011 — MoodEngine `_last_mood_change` dual-purpose
+- **File**: `Companion/MoodEngine.h:32`, `MoodEngine.cpp`
+- **Description**: `_last_mood_change` serves as both mood-entry timestamp and decay accumulator. Decay advances `_last_mood_change += steps * interval`, corrupting `timeSinceCurrentMood()`.
+- **Fix**: Split into `_last_mood_transition` (set on adoption) + `_last_decay_tick` (advanced on each decay step)
+- **When**: Before any feature that queries mood age
+
+### TD-012 — No compile-time EventBus capacity assertion
+- **File**: `AeroSnifferOS.h:44`
+- **Description**: `MAX_SUBSCRIBERS 32` is hardcoded — adding a subscriber can silently overflow
+- **Fix**: Add `static_assert(registered <= MAX_SUBSCRIBERS)` or switch to dynamic allocation
+- **When**: Before adding any new EventBus subscriber
+
+### TD-013 — `_playful_condition_met_since` not reset on mood departure
+- **File**: `MoodEngine.cpp`
+- **Description**: Only reset when condition is unmet; not cleared when mood transitions away from PLAYFUL
+- **Risk**: If PLAYFUL is preempted by ANXIOUS, hold-off timer may carry stale value
+- **Fix**: Clear `_playful_condition_met_since = 0` on any mood transition away from RELAXED/PLAYFUL
+- **When**: Next MoodEngine maintenance pass
+
 ## Resolved
 
 ### B001 — TFT_eSPI display fails to initialize on DeskBuddy 2.0
