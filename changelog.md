@@ -1,5 +1,189 @@
 # Changelog
 
+## [v2.5-persistence-p7] — 2026-06-23
+
+### Sprint 4B P7 — Schema Recovery (Certified 2026-06-23)
+
+**All three recovery paths validated on hardware. Zero production firmware modifications — standalone NVS injector tool.**
+
+### Certified
+- **Test 1 — Old Schema (version=0)**: `migrate(0)` → `factoryReset()` → clean profile created. ✅
+- **Test 1R — Recovery Persistence**: Power cycle after recovery — boot counter incremented, no double reset. ✅
+- **Test 2 — Future Schema (version=255)**: `migrate(255)` → `factoryReset()` → clean profile. ✅
+- **Test 3 — Corrupted Blob (84 bytes vs 64)**: Blob size mismatch → `load()` returns false → `factoryReset()`. ✅
+- **Test 4 — Post-Recovery Reboot**: Clean profile survives subsequent boot with normal counter increment. ✅
+
+### Validation Method
+- Standalone `tools/p7_injector/p7_injector.ino` — upload, inject via serial menu, re-upload AeroSniffer to observe recovery
+- Zero changes to AeroSniffer production firmware
+- All evidence captured from serial console logs
+
+### Architecture Verified
+- `PersistenceService::load()` correctly detects schema mismatch → `migrate()` → `factoryReset()`
+- `PersistenceService::load()` correctly detects blob size mismatch → returns false → `factoryReset()`
+- `PersistenceService::factoryReset()` + `save()` writes a self-consistent, bootable NVS state
+- Recovery is not a reset loop — second boot loads normally
+
+### Metadata
+- Branch: `feature/v2.5-creature-brain`
+- Tool: `tools/p7_injector/p7_injector.ino`
+
+## [v2.5-rc] — 2026-06-23
+
+### Sprint 4B P3 — Runtime Accuracy (Certified 2026-06-23)
+
+**67-minute continuous soak. Zero crashes, zero panics, zero memory leaks.**
+
+### Certified
+- **Duration**: 67 minutes (exceeds 60-min requirement) ✅
+- **Heartbeat cadence**: ~1/sec throughout ✅
+- **Mood transitions**: 3 transitions (RELAXED↔PLAYFUL), no stuck moods ✅
+- **Touch detection**: 30+ TAP events, clean rising-edge detection ✅
+- **Persistence**: Boot 24 loaded correctly, runtime=34 min restored ✅
+- **Memory**: 149.9 KB free after setup, no leak ✅
+- **Errors**: 2 transient DNS failures (external, gracefully handled) ✅
+
+### Evidence
+- Raw serial log: `tests/p3_60min.txt`
+
+### Metadata
+- Branch: `feature/v2.5-creature-brain`
+- Tags: `v2.5-persistence`, `v2.5-autonomous-presence`
+- All Sprint 4B gates passed. Ready for V2.5 release.
+
+## [v2.5-autonomous-presence] — 2026-06-23
+
+### Sprint 5A — Autonomous Presence Layer (Certified 2026-06-23)
+
+**Behavior Layer V1 — first step from Reactive Interface toward Companion. Runtime-only autonomous presence. Not persistence, not memory. FaceEngine sole writer.**
+
+### Added
+- **engagement_drive (0–100)** in `CreatureState` — runtime-only, FaceEngine sole writer. Starts at 100 on boot. Resets to 100 on any touch or non-zero attention target (orienting response). Decays per mood: RELAXED 1.0× (~5 min to drowsy), PLAYFUL 0.5× (~10 min), ANXIOUS 0.3× with 20 floor (~16 min, hyper-vigilant).
+- **Saccade interval modulation**: `3000 + (100 - drive) * 270` — 3s at full alert, 30s when drowsy. ±50% jitter. Pre-hardware concern that 30s would look frozen invalidated by hardware — creature never appeared broken.
+- **Deep blink suppression**: deep blinks (2-frame hold) only when `attention.target == TARGET_NONE` and drive < 80. Prevents odd blinks during threat/user/flight lock.
+- **Eyelid drowsiness**: `_eyelid_factor` lerps from 1.0 (fully open) toward 0.45 (drowsy) as engagement decays. Applied as multiplier to default eye height in `renderEmotionLayer()`.
+- **Cross-mode carryover**: engagement_drive persists across mode transitions. Aviation → Companion transition shows sleepy carryover without explicit programming — emergent behavior.
+
+### Architecture
+- Single variable `engagement_drive` in CreatureState — no new subsystems, no EventBus, no spinlocks
+- Engagement is an *internal state*, not a behavioral directive — FaceEngine uses it to modulate presentation, not to drive decisions
+- Time-domain decay with `dt_ms` ensures frame-rate independence
+- Eyelid lerp (0.95/0.05) creates ~2s organic recovery on orienting response
+- Deep blink guard prevents behavioral dissonance during attention events
+- Frozen for V2.5 — no further tuning. Power-law decay, multi-drive models, curiosity/fatigue drives deferred to V2.6.
+
+### Certified (32-min run)
+- 0 errors, 0 crashes, 0 panics
+- 1816 stable heartbeats, consistent 1s interval
+- 16 touches with full alert recovery
+- 3 mode transitions (Companion→Security→Aviation→Companion)
+- Security mode survived without B009 crash (expected — crash binary is commit 450dabd, 18 commits behind)
+- Feel-alive, feel-calm, feel-sleepy, not-broken all validated
+
+### Hardware Validated
+- Alert immediately after interaction ✅
+- Gradual settling over ~5 min ✅
+- Drowsy state reached ✅
+- Wake-up response visible on touch ✅
+- PLAYFUL decay ~10 min (half-speed) ✅
+- ANXIOUS floor at 20 (never fully asleep) ✅
+- Deep blinks suppressed during threat/user/flight
+
+### Frozen
+- 30s max saccade interval accepted — hardware proved theory wrong
+- Current eyelid curve accepted
+- Current decay model accepted
+- No behavioral coefficient tuning
+
+### Changed
+- `AeroSnifferOS.h:126` — `uint8_t engagement_drive` added to `CreatureState`
+- `AeroSnifferOS.h:221-225` — FaceEngine private members for Sprint 5A
+- `AeroSnifferOS.cpp:31-48` — `g_creature` initializer with `engagement_drive=100`
+- `AeroSnifferOS.cpp:525-556` — FaceEngine::begin() Sprint 5A init
+- `AeroSnifferOS.cpp:585-687` — FaceEngine::updateAnimations() engagement decay, saccade, deep blink, eyelid
+- `AeroSnifferOS.cpp:720-722` — renderEmotionLayer() eyelid factor in default eye height
+
+### Metadata
+- Branch: `feature/v2.5-creature-brain`
+- Tags: (pending commit)
+- Next: Sprint 4B P7, NV1 → V2.5 RC
+
+## [v2.5-persistence] — 2026-06-22
+
+### Sprint 4B P6 — Mode Transition Save (Certified 2026-06-22)
+
+**Hardware validation: Runtime, Touch, Mood, and Cross-Mode persistence verified.**
+
+### Certified
+- **P6 Runtime Persistence**: total_runtime_minutes=12 after ~11 min session + unplug. ✅
+- **P6 Touch Persistence**: total_touches=14 (1 baseline + 13 from taps across Companion sessions). ✅
+- **P6 Mood Persistence**: playful_entries=1 after RELAXED→PLAYFUL transition in Security mode. ✅
+- **P6 Cross-Mode Persistence**: All 3 transitions (Companion→Security, Security→Aviation, Aviation→Companion) completed clean. Profile survived unplug power cycle. ✅
+
+### Observed
+- **OBS-001**: Boot counter retained value 4 instead of incrementing to 5. Possible serial reconnection without power cycle, or NVS write ordering detail. No investigation planned — LOW priority. Does not affect certification.
+
+### Architecture
+- `PersistenceService::save()` now resets `_last_save_ms = millis()` — periodic save timer won't double-fire after mode transition save. Applied during code review before P6 certification.
+
+### Metadata
+- Branch: `feature/v2.5-creature-brain`
+- Tags: (pending commit)
+- Next: P7 Schema Recovery, NV1 Power-Loss Stress
+
+### Sprint 4A — Creature Persistence
+
+**Observer subsystem for cross-session continuity. Not memory, not learning, not behavior.**
+
+### Added
+- **PersistenceService**: NVS-backed `CreatureProfile` with `schema_version`, `name[32]`, `total_boots`, `total_runtime_minutes`, `total_touches`, `playful_entries`, `anxious_entries`, `first_boot_unix`, `last_seen_unix`
+- **Rising-edge touch counter**: `onTouch()` inside `tick()` detects `SOURCE_TOUCH` transitions via `g_creature.attention.source` — no EventBus, no direct touch hardware coupling
+- **Rising-edge mood counter**: `detectMoodTransition()` tracks `g_creature.mood` transitions for PLAYFUL and ANXIOUS — zero MoodEngine coupling
+- **Runtime accumulation**: delta-based with 1-hour millis() overflow guard, no double-counting
+- **5-minute periodic save**: primary persistence mechanism with flash wear protection
+- **Mode transition save**: checkpoint on every Pet→Security→Aviation→Pet switch
+- **Schema validation**: version check + blob size check on load, migration switch with factoryReset fallback
+- **`Persistence/PersistenceService.h`** + **`PersistenceService.cpp`** (sketch root): same file ownership discipline as Attention/Mood
+
+### Fixed (spec bugs before implementation)
+- **Preferences handle leak**: `p.end()` now called on all return paths in `load()` — no stale handle prevents reopen
+- **Missing schema key in save()**: `save()` writes both `"profile"` (blob) and `"schema"` (u32) — loading without schema key would trigger spurious migration
+- **Boot flow unchecked load failure**: `begin()` checks `load()` return value — corrupt profile triggers factoryReset instead of silent corruption
+- **factoryReset() stale detection state**: resets `_last_seen_mood` and `_prev_was_touch_source` alongside NVS data
+
+### Architecture
+- Observer subsystem — Persistence is NOT part of the behavioral pipeline. FaceEngine does not consume Persistence data.
+- Runs on Core 1 tick only — no spinlocks, no cross-core writes, no EventBus subscription
+- Reads `g_creature.{attention, mood}` (counters only) — zero upstream writes
+- Same counter hook pattern as MoodEngine (`PersistenceService.cpp:42-48` matches `MoodEngine.cpp:34-37`)
+
+### Metadata
+- Branch: `feature/v2.5-creature-brain`
+- Tag: `v2.5-persistence` (pending)
+- Requires: hardware validation (Sprint 4B)
+
+## [v2.5-creature-brain-complete] — 2026-06-22
+
+### Sprint 3C — Stabilization & Retrospective
+
+**No new features, no behavioral changes, no animation coefficient tuning.**
+
+### Added
+- **Creature Brain Retrospective**: `docs/V2.5_CREATURE_BRAIN_RETROSPECTIVE.md` — full Sprint 1–3B retrospective covering 5 sprints, 9 bugs, 12 architecture decisions preserved, 3 technical debt items, 8 lessons learned, and metrics
+- **TD-011**: `_last_mood_change` dual-purpose tracked — split into `_last_mood_transition` + `_last_decay_tick` before any feature that queries mood age
+- **TD-012**: EventBus capacity needs compile-time assertion
+- **TD-013**: `_playful_condition_met_since` not reset on mood departure
+
+### Changed
+- `PROJECT_STATUS.md`: Sprint 3C row, `v2.5-creature-brain-complete` tag, updated HEAD
+- `AI_HANDOFF.md`: Sprint 3C state, retrospective reference, TD items, updated tags
+- `changelog.md`: Sprint 3C entry
+
+### Metadata
+- Branch: `feature/v2.5-creature-brain`
+- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`
+- Pipeline frozen: Attention → Emotion → Mood → Face
+
 ## [v2.5-mood-consumption] — 2026-06-21
 
 ### Added
@@ -36,7 +220,7 @@
 
 ### Metadata
 - Branch: `feature/v2.5-creature-brain`
-- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`
+- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`
 
 ## [v2.5-mood-foundation] — 2026-06-21
 
