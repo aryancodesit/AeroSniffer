@@ -43,7 +43,8 @@ CreatureState g_creature = {
   0,     // Interactions today
   0,     // Friendship level
   0,     // pc_cpu
-  0      // pc_ram
+  0,     // pc_ram
+  100    // engagement_drive — start fully alert
 };
 
 // ── Global instances ─────────────────────────────────────────────
@@ -522,6 +523,16 @@ static void local_draw_dotted_frown(TFT_eSprite* spr, int cx, int cy, int width,
   spr->fillRect(cx + width / 2, cy + drop, 4, 4, color);
 }
 
+static constexpr float ENGAGEMENT_DECAY_PER_SEC = 0.333f;
+
+static float engagementMoodMultiplier(MoodType m) {
+  switch (m) {
+    case MOOD_PLAYFUL: return 0.5f;  // stays alert 2x longer
+    case MOOD_ANXIOUS: return 0.3f;  // barely decays — hyper-vigilant
+    default:           return 1.0f;  // RELAXED — normal decay
+  }
+}
+
 void FaceEngineClass::begin() {
   anim_blink_scale = 1.0f;
   anim_is_blinking = false;
@@ -532,7 +543,13 @@ void FaceEngineClass::begin() {
   strcpy(status_l1, "AeroSniffer OS");
   strcpy(status_l2, "system");
   for (int i = 0; i < 5; i++) active_particles[i].type = 0;
-  
+
+  _engagement_level = 100.0f;
+  _eyelid_factor = 1.0f;
+  _deep_blink_hold = 0;
+  _last_frame_ms = millis();
+  g_creature.engagement_drive = 100;
+
   _last_mood         = g_creature.mood;
   _last_mood_strength = g_creature.mood_strength;
   recomputeMoodPresentation();
@@ -567,6 +584,26 @@ void FaceEngineClass::recomputeMoodPresentation() {
 
 void FaceEngineClass::updateAnimations(int frame) {
   uint32_t now = millis();
+  uint32_t dt_ms = now - _last_frame_ms;
+  _last_frame_ms = now;
+
+  // ── Autonomous Presence: engagement drive (V2.5 Sprint 5A) ──
+  // Decay toward 0 over time; reset on any interaction.
+  float decay = ENGAGEMENT_DECAY_PER_SEC * engagementMoodMultiplier(g_creature.mood) * (dt_ms / 1000.0f);
+  float floor_val = (g_creature.mood == MOOD_ANXIOUS) ? 20.0f : 0.0f;
+  _engagement_level = max(floor_val, _engagement_level - decay);
+
+  // Reset on touch or any attention target (orienting response)
+  if (g_creature.attention.source == SOURCE_TOUCH || g_creature.attention.target != TARGET_NONE) {
+    _engagement_level = 100.0f;
+  }
+
+  g_creature.engagement_drive = (uint8_t)(_engagement_level + 0.5f);
+
+  // ── Eyelid factor: smooth lerp toward engagement-based drowsiness ──
+  float drowsiness = 1.0f - (g_creature.engagement_drive / 100.0f);
+  float target_eyelid = 1.0f - pow(drowsiness, 1.5f) * 0.7f;  // minimum ~0.3 at drive=0
+  _eyelid_factor = _eyelid_factor * 0.95f + target_eyelid * 0.05f;
 
   // ── Update mood presentation if mood or strength changed (Sprint 3B) ─
   if (g_creature.mood != _last_mood || g_creature.mood_strength != _last_mood_strength) {
@@ -575,9 +612,16 @@ void FaceEngineClass::updateAnimations(int frame) {
     recomputeMoodPresentation();
   }
 
+  // ── Blink with deep blink probability from engagement ─────────
   if (now > anim_blink_next && !anim_is_blinking) {
     anim_is_blinking = true;
     anim_blink_scale = 1.0f;
+
+    int deep_chance = 0;
+    if (g_creature.attention.target == TARGET_NONE) {
+      deep_chance = max(0, 60 - (int)g_creature.engagement_drive * 75 / 100);  // 60% at 0, 0% at 80+
+    }
+    _deep_blink_hold = (random(100) < deep_chance) ? 2 : 0;
   }
   
   if (anim_is_blinking) {
@@ -587,7 +631,11 @@ void FaceEngineClass::updateAnimations(int frame) {
       anim_blink_scale = 0.0f;
     }
     if (anim_blink_scale <= 0.0f && frame % 3 == 0) {
-      anim_blink_scale = 0.1f;
+      if (_deep_blink_hold > 0) {
+        _deep_blink_hold--;
+      } else {
+        anim_blink_scale = 0.1f;
+      }
     } else if (anim_blink_scale > 0.0f && anim_blink_scale < 1.0f) {
       anim_blink_scale += 0.2f;
     }
@@ -623,6 +671,7 @@ void FaceEngineClass::updateAnimations(int frame) {
     // gaze (THREAT/USER/FLIGHT).  Attention targets are reactive behaviors triggered
     // by external stimuli — they should produce the same response regardless of mood.
     // Mood colors internal/expressive behavior only (idle gaze, blink rate, sway).
+    // V2.5 Sprint 5A: saccade interval driven by engagement_drive
     if (now > anim_look_next) {
       if (g_creature.emotion == EMOTION_CALM || g_creature.emotion == EMOTION_CURIOUS) {
         int range_x = (int)(6.0f * _mood_pres.eye_intensity);
@@ -633,7 +682,11 @@ void FaceEngineClass::updateAnimations(int frame) {
         anim_look_x = 0;
         anim_look_y = 0;
       }
-      anim_look_next = now + random(1000, 4000);
+      // Saccade interval: 3s at full engagement, 30s at drowsy
+      int base_interval = 3000 + (100 - (int)g_creature.engagement_drive) * 270;
+      int jitter = base_interval / 2;
+      int next_interval = base_interval + random(-jitter, jitter + 1);
+      anim_look_next = now + max(1000, next_interval);
     }
   }
 
@@ -667,7 +720,8 @@ void FaceEngineClass::renderEmotionLayer(TFT_eSprite* spr, int frame) {
     default:                color = C_IDLE; break;
   }
   
-  int h = (int)(32 * anim_blink_scale * anim_pulse_scale);
+  // V2.5 Sprint 5A: default eye height modulated by engagement_drive (drowsy eyelid)
+  int h = (int)(32 * anim_blink_scale * anim_pulse_scale * _eyelid_factor);
   int y = 90 + anim_bounce_y + (32 - h) / 2;
   
   // Custom eye shapes based on emotion
