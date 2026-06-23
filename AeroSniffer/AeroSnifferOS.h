@@ -346,6 +346,8 @@ class MoodEngineClass;
 extern MoodEngineClass MoodEngine;
 class AttentionEngineClass;
 extern AttentionEngineClass AttentionEngine;
+class PersistenceService;
+extern PersistenceService CreaturePersistence;
 extern EventBusClass EventBus;
 extern EmotionEngineClass EmotionEngine;
 extern WiFiServiceClass WiFiService;

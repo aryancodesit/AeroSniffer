@@ -24,6 +24,7 @@
 #include "Config.h"
 #include "Companion/AttentionEngine.h"
 #include "Companion/MoodEngine.h"
+#include "Persistence/PersistenceService.h"
 #include "Mode1_Pet.h"
 #include "Mode2_Security.h"
 #include "Mode3_Aviation.h"
@@ -582,6 +583,9 @@ void task_core1(void*) {
     // ── Tick Mood Engine ─────────────────────────────────────
     MoodEngine.tick(ae_delta);
 
+    // ── Tick Persistence Service (observer, not pipeline) ────
+    CreaturePersistence.tick();
+
     // ── Non-Blocking Serial Processing ───────────────────────
     process_serial_commands();
 
@@ -596,6 +600,7 @@ void task_core1(void*) {
       g_mode_transitioning = true;
       Serial.printf("[MODE] Transitioning: %d -> %d\n", g_active_mode, g_mode);
       StorageService.saveMode(g_mode);
+      CreaturePersistence.save();
       Serial.println("[DBG] BEFORE teardown");
       teardown_mode(g_active_mode);
       Serial.println("[DBG] AFTER teardown");
@@ -668,6 +673,7 @@ void setup() {
   StorageService.begin();
   EmotionEngine.begin();
   MoodEngine.begin();
+  CreaturePersistence.begin();
   AttentionEngine.begin();
 
   // ── Subscribe Attention Engine to EventBus events ────────────
