@@ -72,7 +72,8 @@ serial_output.txt
 .idea/
 
 # ── Docs ─────────────────────────────────────────────────────────
-docs/
+docs/*
+!docs/V2.6_*.md
 
 # ── Local AI CLI assistant ──────────────────────────────────────
 aerosniffer-ai.py

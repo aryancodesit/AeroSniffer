@@ -11,6 +11,7 @@
 #include <WiFi.h>
 #include <Preferences.h>
 #include "esp_wifi.h"
+#include "Memory/MemoryTypes.h"
 
 // ── Event Bus Types ─────────────────────────────────────────────
 enum EventType {
@@ -351,6 +352,8 @@ public:
 // ── Mood Engine ───────────────────────────────────────────────────
 class MoodEngineClass;
 extern MoodEngineClass MoodEngine;
+class MemoryEngineClass;
+extern MemoryEngineClass MemoryEngine;
 class AttentionEngineClass;
 extern AttentionEngineClass AttentionEngine;
 class PersistenceService;

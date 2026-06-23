@@ -25,6 +25,7 @@
 #include "Companion/AttentionEngine.h"
 #include "Companion/MoodEngine.h"
 #include "Persistence/PersistenceService.h"
+#include "Memory/MemoryEngine.h"
 #include "Mode1_Pet.h"
 #include "Mode2_Security.h"
 #include "Mode3_Aviation.h"
@@ -55,6 +56,14 @@ bool    sys_aviation_enabled;
 String  sys_current_face = "idle";
 bool    sec_hud_mode = true;
 bool    avi_hud_mode = true;
+
+// ── Memory Event Logger ──────────────────────────────────────────
+static void memory_event_callback(EventType event, void* data) {
+  (void)data;
+  if (event == EVENT_TOUCH_SHORT) {
+    MemoryEngine.onTouchEvent();
+  }
+}
 
 // ── WiFi Event Logger ────────────────────────────────────────────
 static void ae_event_callback(EventType event, void* data) {
@@ -586,6 +595,9 @@ void task_core1(void*) {
     // ── Tick Persistence Service (observer, not pipeline) ────
     CreaturePersistence.tick();
 
+    // ── Tick Memory Engine (observer — reads g_creature) ─────
+    MemoryEngine.tick();
+
     // ── Non-Blocking Serial Processing ───────────────────────
     process_serial_commands();
 
@@ -674,7 +686,11 @@ void setup() {
   EmotionEngine.begin();
   MoodEngine.begin();
   CreaturePersistence.begin();
+  MemoryEngine.begin();
   AttentionEngine.begin();
+
+  // ── Subscribe to EventBus events ──────────────────────────────
+  EventBus.subscribe(EVENT_TOUCH_SHORT, memory_event_callback);
 
   // ── Subscribe Attention Engine to EventBus events ────────────
   EventBus.subscribe(EVENT_ATTACK_DEAUTH, ae_event_callback);

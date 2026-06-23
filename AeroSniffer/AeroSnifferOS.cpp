@@ -6,6 +6,7 @@
 #include "Config.h"
 #include "Companion/AttentionEngine.h"
 #include "Companion/MoodEngine.h"
+#include "Memory/MemoryEngine.h"
 #include <math.h>
 
 extern TFT_eSPI tft;
@@ -591,6 +592,20 @@ void FaceEngineClass::updateAnimations(int frame) {
   // Decay toward 0 over time; reset on any interaction.
   float decay = ENGAGEMENT_DECAY_PER_SEC * engagementMoodMultiplier(g_creature.mood) * (dt_ms / 1000.0f);
   float floor_val = (g_creature.mood == MOOD_ANXIOUS) ? 20.0f : 0.0f;
+
+  // ── V2.6 Memory Layer modulation ────────────────────────────
+  {
+    MemorySummary mem = MemoryEngine.recall();
+    // Rule 1: Recent touch (< 30 min) → slow decay by 20%
+    if (mem.ms_since_last_touch < 1800000) {
+      decay *= 0.80f;
+    }
+    // Rule 2: Prolonged absence (> 30 min, low touch memory) → raised floor
+    if (mem.ms_since_last_touch >= 1800000 && mem.domain_strength[DOMAIN_TOUCH] < 10) {
+      floor_val = max(floor_val, 5.0f);
+    }
+  }
+
   _engagement_level = max(floor_val, _engagement_level - decay);
 
   // Reset on touch or any attention target (orienting response)
