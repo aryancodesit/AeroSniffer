@@ -89,7 +89,7 @@ V2.5 Sprint 1–3C complete. Sprint 4A (Creature Persistence) implemented and **
 - Mode switch `delay(500)` — removed; 600ms splash kept for visual feedback
 
 ### Uncommitted Changes
-- Sprint 2 certification doc updates (PROJECT_STATUS.md, AI_HANDOFF.md, CHANGELOG.md, V2.6_SPRINT2_RESULTS.md) — commit and tag as v2.6-memory-expansion.
+- None. Sprint 2 certified, committed (`497e104`), tagged (`v2.6-memory-expansion`). Working tree clean.
 
 ### Sprint 4A — Creature Persistence (Complete)
 PersistenceService implemented: `CreatureProfile` struct, `load()/save()/factoryReset()`, rising-edge touch/mood counter hooks (no EventBus, no spinlocks, no upstream writes), 5-min periodic save + mode transition checkpoint, Preferences blob storage with schema version validation. Three critical bugs from spec review fixed (Preferences handle leak, missing schema key, unchecked load failure).
