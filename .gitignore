@@ -79,3 +79,7 @@ docs/*
 aerosniffer-ai.py
 .aerosniffer-ai-history
 .aerosniffer-ai-cache/
+
+# Understand Anything knowledge graph output
+UNDERSTAND/
+
