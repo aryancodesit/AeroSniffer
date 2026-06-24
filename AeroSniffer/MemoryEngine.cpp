@@ -1,5 +1,5 @@
-#include "MemoryEngine.h"
-#include "../AeroSnifferOS.h"
+#include "Memory/MemoryEngine.h"
+#include "AeroSnifferOS.h"
 
 MemoryEngineClass MemoryEngine;
 
