@@ -1,5 +1,45 @@
 # Changelog
 
+## [v2.6-sprint1] — 2026-06-24
+
+### V2.6 Sprint 1 — Memory Layer Foundation (Certified 2026-06-24)
+
+**Persistent experiential memory validated on hardware. First time AeroSniffer remembers between interactions within a session.**
+
+### Added
+- **MemoryEngine**: ring buffer storage (64 records max), LittleFS-backed persistence, accumulator-based salience with 60s decay tick
+- **Touch memory formation**: `[MEM] formed TOUCH TAP salience=22 strength=100` on each touch event
+- **Memory recall system**: `[MEM] recall` serial output with record count and strength
+- **Memory decay system**: strength decreases by 1 per ~60s tick when no new formations occur; dedup boosts reset decay timer
+- **Bounded ring buffer**: 64-record capacity verified stable — no unbounded growth observed
+- **Dedup logic**: repeated same-type events boost existing record salience instead of creating duplicates
+
+### Improved
+- Behavioral continuity within session
+
+### Certified (P3 — 60-min hardware soak)
+- 3,425 stable heartbeats, consistent 1s cadence
+- 4 formed events, 2 dedup boosts
+- Decay observed: strength 42→41→40→39→38
+- Record count bounded: 0→4 (stable)
+- 64 touch events processed cleanly
+- Zero WDT, zero panics, zero heap issues
+- Log: `docs/TESTING/v2.6 p3.txt`
+
+### Architecture
+- Accumulator model: strength represents salience, decays when idle, boosts on repeat events
+- LittleFS persistence for cross-boot recall
+- Observes TouchEventBus for formation triggers — no direct touch hardware coupling
+
+### Frozen
+- Accumulator decay model accepted
+- 64-record buffer accepted
+- No further V2.5 behavior tuning — Sprint 2 begins memory formation expansion (duration-aware touch types)
+
+### Metadata
+- Branch: `main`
+- Next: V2.6 Sprint 2 — Touch duration expansion (TAP, DOUBLE_TAP, HOLD, LONG_HOLD, BURST)
+
 ## [v2.5-persistence-p7] — 2026-06-23
 
 ### Sprint 4B P7 — Schema Recovery (Certified 2026-06-23)
