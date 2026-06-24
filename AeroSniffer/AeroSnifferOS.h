@@ -40,6 +40,10 @@ enum EventType {
   EVENT_COUNT
 };
 
+struct TouchEventData {
+  uint16_t duration_ms;
+};
+
 typedef void (*EventCallback)(EventType event, void* eventData);
 
 #define MAX_SUBSCRIBERS 32

@@ -139,10 +139,11 @@ void pet_core1_task() {
   static int frame = 0;
   frame++;
 
-  extern volatile bool g_touch_tap;
-  if (g_touch_tap) {
-    g_touch_tap = false;
-    EventBus.publish(EVENT_TOUCH_SHORT);
+  extern volatile uint16_t g_touch_duration_ms;
+  if (g_touch_duration_ms > 0) {
+    TouchEventData td = { g_touch_duration_ms };
+    g_touch_duration_ms = 0;
+    EventBus.publish(EVENT_TOUCH_SHORT, &td);
   }
 
   // Draw face using modular layers inside FaceEngine

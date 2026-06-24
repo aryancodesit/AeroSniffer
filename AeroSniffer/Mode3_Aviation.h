@@ -145,9 +145,10 @@ void aviation_core1_task() {
   uint32_t now = millis();
 
   // Toggle HUD mode via tap
-  extern volatile bool g_touch_tap;
-  if (g_touch_tap) {
-    g_touch_tap = false;
+  extern volatile uint16_t g_touch_duration_ms;
+  if (g_touch_duration_ms > 0) {
+    TouchEventData td = { g_touch_duration_ms };
+    g_touch_duration_ms = 0;
     avi_hud_mode = !avi_hud_mode;
     Serial.printf("[AVI] Toggle HUD mode: %d\n", avi_hud_mode);
     _atft->fillSprite(TFT_BLACK);

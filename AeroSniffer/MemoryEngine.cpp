@@ -74,7 +74,8 @@ void MemoryEngineClass::tick() {
   }
 }
 
-void MemoryEngineClass::onTouchEvent() {
+void MemoryEngineClass::onTouchEvent(uint16_t duration_ms) {
+  (void)duration_ms;
   touch_events_++;
 }
 

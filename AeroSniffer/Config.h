@@ -150,6 +150,10 @@
 // ── System constants ─────────────────────────────────────────────
 #define TOTAL_MODES       3      // Pet | Security | Aviation
 
+// ── Touch duration thresholds (Sprint 2 — tune after hardware data) ──
+constexpr uint16_t TAP_MAX_MS     = 300;
+constexpr uint16_t HOLD_MAX_MS    = 800;
+
 // ── Wi-Fi Credentials  (Mode 2 scan base / Mode 3 API client) ───
 // These are now loaded from Preferences. Fallback defaults below.
 #define DEFAULT_WIFI_SSID         "YOUR_WIFI_SSID"

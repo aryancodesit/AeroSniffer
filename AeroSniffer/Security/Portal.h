@@ -21,7 +21,7 @@
 #include "ThreatEngine.h"
 
 // ── Extern globals (from AeroSniffer.ino) ───────────────────────
-extern volatile bool g_touch_tap;
+extern volatile uint16_t g_touch_duration_ms;
 
 // ── Static globals ──────────────────────────────────────────────
 static TFT_eSprite* _stft = nullptr;
@@ -1216,8 +1216,9 @@ void portal_core1_task() {
     _threat_count = threat_count();
 
     // Toggle HUD display on tap
-    if (g_touch_tap) {
-        g_touch_tap = false;
+    if (g_touch_duration_ms > 0) {
+        TouchEventData td = { g_touch_duration_ms };
+        g_touch_duration_ms = 0;
         sec_hud_mode = !sec_hud_mode;
         Serial.printf("[SEC] Touch tap detected, sec_hud_mode=%d\n", sec_hud_mode);
     }

@@ -59,15 +59,16 @@ bool    avi_hud_mode = true;
 
 // ── Memory Event Logger ──────────────────────────────────────────
 static void memory_event_callback(EventType event, void* data) {
-  (void)data;
+  TouchEventData* td = (TouchEventData*)data;
   if (event == EVENT_TOUCH_SHORT) {
-    MemoryEngine.onTouchEvent();
+    MemoryEngine.onTouchEvent(td ? td->duration_ms : 0);
   }
 }
 
 // ── WiFi Event Logger ────────────────────────────────────────────
 static void ae_event_callback(EventType event, void* data) {
-  AttentionEngine.queueEvent(event, data);
+  (void)data;
+  AttentionEngine.queueEvent(event, nullptr);
 }
 
 void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
@@ -121,7 +122,7 @@ volatile bool     g_mode_transitioning = false; // Core 0/1 sync: skip Core 0 ta
 volatile uint32_t g_last_btn   = 0;      // Debounce timestamp
 
 // ── Touch interaction signal (shared with Mode 1) ────────────────
-volatile bool     g_touch_tap  = false;  // Short tap detected
+volatile uint16_t g_touch_duration_ms = 0;  // Duration of last short tap (ms)
 volatile bool     g_block_touch = false; // Global block touch flag
 
 // ── FreeRTOS task handles ────────────────────────────────────────
@@ -195,7 +196,7 @@ static void poll_touch_input() {
     } else if (duration > 20) {
       // SHORT TAP → Context interaction (pet pat, etc.)
       Serial.println("[TOUCH] TAP");
-      g_touch_tap = true;
+      g_touch_duration_ms = (uint16_t)duration;
     } else {
       Serial.println("[TOUCH] CHATTER (duration <= 20ms, ignored)");
     }

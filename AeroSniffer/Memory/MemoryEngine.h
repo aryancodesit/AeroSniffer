@@ -11,7 +11,7 @@ public:
   void tick();
   MemorySummary recall();
   void flush();
-  void onTouchEvent();
+  void onTouchEvent(uint16_t duration_ms = 0);
   uint16_t touchEventCount() const { return touch_events_; }
 
 private:
