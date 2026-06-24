@@ -12,7 +12,7 @@ public:
   MemorySummary recall();
   void flush();
   void onTouchEvent(uint16_t duration_ms = 0);
-  uint16_t touchEventCount() const { return touch_events_; }
+  uint16_t touchEventCount() const { return pending_head_ - pending_tail_; }
 
 private:
   void observe();
@@ -36,7 +36,14 @@ private:
   bool         burst_armed_;
 
   uint16_t     touch_taps_session_;
-  uint16_t     touch_events_;
+
+  struct PendingTouch {
+    uint16_t duration_ms;
+  };
+  PendingTouch pending_[8];
+  uint16_t     pending_head_;
+  uint16_t     pending_tail_;
+  uint16_t     dropped_touch_events_;
 
   uint16_t     decay_acc_[DOMAIN_COUNT];
 

@@ -58,6 +58,7 @@ struct MemorySummary {
   uint8_t  significant_present;
   uint16_t ms_since_last_touch;
   uint16_t total_records;
+  uint16_t dropped_touch_events;
 };
 
 #define MEMORY_MAX_RECORDS 64

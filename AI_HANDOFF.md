@@ -2,7 +2,9 @@
 
 ## Current State
 
-**V2.6 Sprint 1 — Memory Layer Foundation is CERTIFIED.** Memory formation, recall, decay, accumulator model, bounded ring buffer (64 records), and LittleFS persistence validated on hardware via 60-min P3 soak. No WDT, no panics, no heap issues. Memory behaves as memory (accumulator decay, dedup boost) rather than persistent event logging — the primary V2.6 architectural risk is retired.
+**V2.6 Sprint 2 — Memory Formation Expansion is CERTIFIED.** Memory now distinguishes 5 touch subtypes (TAP, HOLD, LONG_HOLD, DOUBLE, BURST) via duration-based classification with salience promotion. All 5 subtypes verified on hardware via 30-min soak. Sprint 1 foundation (ring buffer, decay, dedup, LittleFS persistence) remains stable and unmodified.
+
+**V2.6 Sprint 1 — Memory Layer Foundation is CERTIFIED and FROZEN.** Memory formation, recall, decay, accumulator model, bounded ring buffer (64 records), and LittleFS persistence validated on hardware via 60-min P3 soak. No WDT, no panics, no heap issues. Memory behaves as memory (accumulator decay, dedup boost) rather than persistent event logging — the primary V2.6 architectural risk is retired.
 
 V2.5 Sprint 1–3C complete. Sprint 4A (Creature Persistence) implemented and **Sprint 4B P6 (Mode Transition Save) certified**. **Sprint 5A (Autonomous Presence Layer / Behavior Layer V1) certified** — engagement_drive (0–100) in CreatureState, FaceEngine sole writer, mood-modulated decay, 3s→30s saccade range, deep blink suppression during attention lock, cross-mode carryover validated. 32-min certification run: 1816 heartbeats, 16 touches, 3 mode transitions, zero errors. No further tuning planned — behavior numbers frozen. This is **Behavior Layer V1** (one drive, one decay curve, one behavior family), not a full Behavior System — keeps expectations clear for future Memory expansion. A [Creature Brain Retrospective](docs/V2.5_CREATURE_BRAIN_RETROSPECTIVE.md) archives goals, bugs, architecture decisions (12 preserved), technical debt (3 items), and lessons learned. Technical debt item **TD-011** documents the `_last_mood_change` dual-purpose hazard (mood-entry timestamp + decay accumulator) — split into `_last_mood_transition` + `_last_decay_tick` before any feature that queries mood age.
 
@@ -28,8 +30,37 @@ V2.5 Sprint 1–3C complete. Sprint 4A (Creature Persistence) implemented and **
 - Full report: `docs/V2.6_P3_RESULTS.md`
 - Raw log: `docs/TESTING/v2.6 p3.txt`
 
+## V2.6 Sprint 2 — Memory Formation Expansion (Certified)
+
+### Status
+- **CERTIFIED** (30-min hardware soak completed 2026-06-24)
+- **FROZEN** — no further edits except bug fixes
+
+### Features
+- PendingTouch ring buffer (`pending_[8]`) — replaces monolithic `touch_events_` counter
+- Duration-based classification: TAP (≤300ms), HOLD (301–800ms), LONG_HOLD (801–1499ms)
+- Double-tap promotion (gap 50–500ms → TOUCH_DOUBLE)
+- Burst detection (5+ in 10s window → additive TOUCH_BURST)
+- Salience by subtype: TAP 22, HOLD constrain(d/20,22,35), LONG_HOLD constrain(d/30,30,45), DOUBLE 30, BURST 45
+- `touch_duration_ms` stores real duration in every record
+- Overflow guard: `dropped_touch_events_` counter in MemorySummary
+
+### Changes
+- `MemoryEngine.h`: Added `struct PendingTouch`, ring buffer fields (`pending_[8]`, `pending_head_`, `pending_tail_`, `dropped_touch_events_`). Removed `touch_events_`.
+- `MemoryEngine.cpp`: `onTouchEvent()` pushes to ring buffer. `observe()` drains, classifies, deducts salience baseline per subtype, promotes DOUBLE/BURST. Runtime trace: `[MEM] formed TOUCH xxx salience=N strength=100 duration=NNN`. Added `#include "Config.h"`.
+- `MemoryTypes.h`: `dropped_touch_events` field in `MemorySummary`.
+
+### Validation
+- 30-min hardware soak on DeskBuddy 2.0 (3241 line log)
+- All 5 subtypes formed: TAP (88/176/264ms), HOLD (352/440/528/704ms), LONG_HOLD (1232/1496ms), DOUBLE (gap-based), BURST (5+ in 10s)
+- Dedup verified for all 5 subtypes — each boosts +10 within 60s window
+- Mode transitions clean: Pet→Security→Aviation→Pet
+- No WDT, no panics, no heap corruption
+- Full report: `docs/V2.6_SPRINT2_RESULTS.md`
+- Raw log: `docs/TESTING/30MINSOAKTEST.txt`
+
 ### Next Phase
-- **V2.6 Sprint 2**: Touch duration expansion (TAP, DOUBLE_TAP, HOLD, LONG_HOLD, BURST) — still touch-only, still low-risk, still isolated. Security/aviation/mood memory deferred.
+- **V2.6 Sprint 3**: Security/Aviation/Mood memory domains — expand beyond touch-only. Each domain: minimum subtype set, appropriate salience baselines, domain-specific dedup windows, cross-domain salience comparison for behavior-layer entry.
 
 ### What's Working
 - All three modes boot, render, and respond to touch
@@ -58,7 +89,7 @@ V2.5 Sprint 1–3C complete. Sprint 4A (Creature Persistence) implemented and **
 - Mode switch `delay(500)` — removed; 600ms splash kept for visual feedback
 
 ### Uncommitted Changes
-- Working tree has Sprint 4A (PersistenceService.h/cpp, wiring), Sprint 5A (engagement_drive in CreatureState, FaceEngine autonomous presence, deep blink guard), and doc updates (PROJECT_STATUS.md, AI_HANDOFF.md, changelog.md).
+- Sprint 2 certification doc updates (PROJECT_STATUS.md, AI_HANDOFF.md, CHANGELOG.md, V2.6_SPRINT2_RESULTS.md) — commit and tag as v2.6-memory-expansion.
 
 ### Sprint 4A — Creature Persistence (Complete)
 PersistenceService implemented: `CreatureProfile` struct, `load()/save()/factoryReset()`, rising-edge touch/mood counter hooks (no EventBus, no spinlocks, no upstream writes), 5-min periodic save + mode transition checkpoint, Preferences blob storage with schema version validation. Three critical bugs from spec review fixed (Preferences handle leak, missing schema key, unchecked load failure).
@@ -171,8 +202,8 @@ Observe → Attention → Emotion → Mood → Face
 Each layer builds on the one before. Persistence is cross-session data. Memory is structured recall (what happened, when, with whom). Behavior is action selection based on memory + mood. No layer reads or writes upstream fields.
 
 ### Future Sprints
-- **V2.6 Sprint 2**: Touch duration expansion (TAP, DOUBLE_TAP, HOLD, LONG_HOLD, BURST) — still touch-only, still isolated
-- **Memory Domains** (post-Sprint 2): Security memory, Aviation memory, Mood memory — deferred
+- **V2.6 Sprint 3**: Security/Aviation/Mood memory domains — expand beyond touch-only
+- **Memory Domains** (post-Sprint 3): Additional domain subtypes, cross-domain salience comparison
 - **Behavior Layer** (post-Memory): Mood-driven + memory-informed action selection — not yet planned
 
 ## File Map
@@ -206,12 +237,15 @@ Each layer builds on the one before. Persistence is cross-session data. Memory i
 - `docs/V2.5_ATTENTION_MODEL.md` — attention data model
 
 ## File Map (V2.6 additions)
-- `AeroSniffer/MemoryEngine.h` — MemoryEngine class declaration
-- `AeroSniffer/MemoryEngine.cpp` — implementation: ring buffer, formation, decay, dedup, persistence, recall
-- `docs/V2.6_P3_RESULTS.md` — P3 certification report
+- `AeroSniffer/MemoryEngine.h` — MemoryEngine class declaration (PendingTouch ring buffer, all 5 subtypes)
+- `AeroSniffer/MemoryEngine.cpp` — implementation: ring buffer, duration-based classification, formation, decay, dedup, persistence, recall
+- `AeroSniffer/Memory/MemoryTypes.h` — `TouchSubtype` enum (all 5), `MemoryRecord` with `touch_duration_ms`, `MemorySummary` with `dropped_touch_events`
+- `AeroSniffer/Config.h` — `TAP_MAX_MS=300`, `HOLD_MAX_MS=800`
+- `docs/V2.6_P3_RESULTS.md` — Sprint 1 P3 certification report
+- `docs/V2.6_SPRINT2_RESULTS.md` — Sprint 2 certification report (30-min hardware soak)
 
 ## Git
 - Branch: `main`
-- Tags: `v2.5-attention-complete` (Sprint 2B), `v2.5-mood-foundation` (Sprint 3A), `v2.5-creature-brain-complete` (Sprint 3C)
-- Commits: V2.6 Sprint 1 Certified `(HEAD)`, UNDERSTAND gitignore `271d10c`, MemoryEngine fix `9377e1f`, Memory Layer `25da7b7`, Sprint 5A `(previous)`
+- Tags: `v2.5-attention-complete` (Sprint 2B), `v2.5-mood-foundation` (Sprint 3A), `v2.5-creature-brain-complete` (Sprint 3C), `v2.6-memory-expansion` (Sprint 2)
+- Commits: V2.6 Sprint 2 Certified `(HEAD)`, Phase 1 `116658c`, docs `c60d8ff`, Sprint 1 `83cc441`, Sprint 5A `(previous)`
 - Upstream: `origin/main`

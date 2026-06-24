@@ -17,6 +17,7 @@
 | **Sprint 4B P7** | Schema Recovery | ✅ Certified: old schema, future schema, corrupted blob all recover cleanly; recovery profile survives power cycle |
 | **Sprint 5A** | Autonomous Presence Layer | ✅ Certified: engagement_drive, mood-modulated decay, 3s→30s saccade range, deep blink suppression, cross-mode carryover, 32-min stable run |
 | **V2.6 Sprint 1** | Memory Layer Foundation | ✅ Certified: memory formation, recall, decay, accumulator model, bounded ring buffer, LittleFS persistence. P3 passed (60-min hardware soak). |
+| **V2.6 Sprint 2** | Memory Formation Expansion | ✅ Certified: PendingTouch ring buffer, duration-based TAP/HOLD/LONG_HOLD/DOUBLE/BURST classification. 30-min hardware soak. All 5 subtypes verified on hardware. |
 
 ### Blocked
 
@@ -47,17 +48,17 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 
 | Date | Commit | Description |
 |------|--------|-------------|
-| 2026-06-24 | `(HEAD)` | V2.6 Sprint 1 certified — Memory Layer Foundation P3 PASS |
-| 2026-06-24 | `271d10c` | chore: add UNDERSTAND/ to .gitignore |
-| 2026-06-24 | `9377e1f` | fix(v2.6): move MemoryEngine.cpp to root sketch dir for Arduino IDE build |
-| 2026-06-24 | `25da7b7` | feat(v2.6): implement Memory Layer Sprint 1 foundation |
+| 2026-06-24 | `(HEAD)` | V2.6 Sprint 2 certified — Memory Formation Expansion PASS |
+| 2026-06-24 | `116658c` | Phase 1 — TouchEventData pipeline, duration metadata, ae_event_callback safety fix |
+| 2026-06-24 | `c60d8ff` | docs: add CODE_OF_CONDUCT, CONTRIBUTING, and issue templates |
+| 2026-06-24 | `83cc441` | test(v2.6): certify Memory Layer Sprint 1 |
 | 2026-06-23 | `(previous)` | Sprint 5A: Autonomous Presence Layer — engagement_drive, mood decay, 30s saccade, deep blink guard |
 
 ### Branch
 
 - Active: `main`
 - Upstream: `origin/main`
-- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`
+- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`, `v2.6-memory-expansion`
 
 ### Current Architecture
 

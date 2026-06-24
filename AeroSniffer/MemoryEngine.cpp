@@ -1,5 +1,6 @@
 #include "Memory/MemoryEngine.h"
 #include "AeroSnifferOS.h"
+#include "Config.h"
 
 MemoryEngineClass MemoryEngine;
 
@@ -28,7 +29,10 @@ void MemoryEngineClass::begin() {
   burst_count_ = 0;
   burst_armed_ = false;
   touch_taps_session_ = 0;
-  touch_events_ = 0;
+
+  pending_head_ = 0;
+  pending_tail_ = 0;
+  dropped_touch_events_ = 0;
 
   for (uint8_t d = 0; d < DOMAIN_COUNT; d++) {
     decay_acc_[d] = 0;
@@ -75,61 +79,112 @@ void MemoryEngineClass::tick() {
 }
 
 void MemoryEngineClass::onTouchEvent(uint16_t duration_ms) {
-  (void)duration_ms;
-  touch_events_++;
+  PendingTouch& pt = pending_[pending_head_ % 8];
+  pt.duration_ms = duration_ms;
+  pending_head_++;
+  if (pending_head_ - pending_tail_ > 8) {
+    pending_tail_ = pending_head_ - 8;
+    dropped_touch_events_++;
+  }
 }
 
 void MemoryEngineClass::observe() {
   uint32_t now = millis();
 
-  // Defensive: clamp record_count_ before reading
   if (record_count_ > MEMORY_MAX_RECORDS) {
     record_count_ = MEMORY_MAX_RECORDS;
   }
 
-  // Read the EventBus-driven touch counter and process new events
-  uint16_t pending = touch_events_;
-  if (pending == 0) return;
-  touch_events_ = 0;
+  while (pending_tail_ < pending_head_) {
+    PendingTouch& pt = pending_[pending_tail_ % 8];
+    uint16_t duration_ms = pt.duration_ms;
+    pending_tail_++;
 
-  for (uint16_t t = 0; t < pending; t++) {
     // Record tap timestamp in sliding window
     tap_timestamps_[tap_index_ % 8] = now;
     tap_index_++;
     touch_taps_session_++;
 
-    // ── Double-tap detection ──────────────────────────────
-    bool is_double = false;
+    // ── Duration-based classification ──────────────────────
+    uint8_t subtype;
+    uint8_t salience_base;
+
+    if (duration_ms <= TAP_MAX_MS) {
+      subtype = TOUCH_TAP;
+      salience_base = 22;
+    } else if (duration_ms <= HOLD_MAX_MS) {
+      subtype = TOUCH_HOLD;
+      salience_base = constrain(duration_ms / 20, 22, 35);
+    } else {
+      subtype = TOUCH_LONG_HOLD;
+      salience_base = constrain(duration_ms / 30, 30, 45);
+    }
+
+    // ── Double-tap detection (promotes to DOUBLE) ──────────
     if (tap_index_ >= 2) {
       uint32_t gap = tap_timestamps_[(tap_index_ - 1) % 8]
                    - tap_timestamps_[(tap_index_ - 2) % 8];
       if (gap > 50 && gap <= 500) {
-        is_double = true;
+        subtype = TOUCH_DOUBLE;
+        salience_base = 30;
       }
     }
 
-    // ── Burst detection (5+ taps in 10s) ──────────────────
+    // ── Burst window count ────────────────────────────────
     uint8_t count_10s = 0;
     for (uint8_t i = 0; i < 8 && i < tap_index_; i++) {
       if (now - tap_timestamps_[i] <= 10000) count_10s++;
     }
 
+    uint8_t sal = compute_salience(salience_base);
+
+    // ── Form memory record ───────────────────────────────
+    if (!try_dedup(DOMAIN_TOUCH, subtype, sal)) {
+      MemoryRecord rec = {};
+      rec.id = (boot_count_ << 24) | (sequence_++);
+      rec.formed_at_ms = now;
+      rec.category = MEM_CAT_EPISODIC;
+      rec.domain = DOMAIN_TOUCH;
+      rec.subtype = subtype;
+      rec.salience = sal;
+      rec.strength = 100;
+      rec.mood_at_formation = g_creature.mood;
+      rec.attention_at_form = g_creature.attention.target;
+      rec.mode_at_formation = g_creature.activity;
+      rec.data.touch.touch_duration_ms = duration_ms;
+      rec.data.touch.tap_count_window = count_10s;
+
+      if (record_count_ >= MEMORY_MAX_RECORDS) evict_one();
+      records_[head_] = rec;
+      head_ = (head_ + 1) % MEMORY_MAX_RECORDS;
+      if (record_count_ < MEMORY_MAX_RECORDS) record_count_++;
+
+      const char* name =
+        (subtype == TOUCH_TAP) ? "TAP" :
+        (subtype == TOUCH_DOUBLE) ? "DOUBLE" :
+        (subtype == TOUCH_HOLD) ? "HOLD" :
+        (subtype == TOUCH_LONG_HOLD) ? "LONG_HOLD" : "?";
+      Serial.printf("[MEM] formed TOUCH %s salience=%d strength=100 duration=%u\n",
+        name, sal, duration_ms);
+    }
+
+    // ── Burst record (additive, fires once per session) ────
     if (count_10s >= 5 && !burst_armed_) {
       burst_armed_ = true;
-      uint8_t sal = compute_salience(55);
-      if (!try_dedup(DOMAIN_TOUCH, TOUCH_BURST, sal)) {
+      uint8_t burst_sal = compute_salience(45);
+      if (!try_dedup(DOMAIN_TOUCH, TOUCH_BURST, burst_sal)) {
         MemoryRecord rec = {};
         rec.id = (boot_count_ << 24) | (sequence_++);
         rec.formed_at_ms = now;
         rec.category = MEM_CAT_EPISODIC;
         rec.domain = DOMAIN_TOUCH;
         rec.subtype = TOUCH_BURST;
-        rec.salience = sal;
+        rec.salience = burst_sal;
         rec.strength = 100;
         rec.mood_at_formation = g_creature.mood;
         rec.attention_at_form = g_creature.attention.target;
         rec.mode_at_formation = g_creature.activity;
-        rec.data.touch.touch_duration_ms = 0;
+        rec.data.touch.touch_duration_ms = duration_ms;
         rec.data.touch.tap_count_window = count_10s;
 
         if (record_count_ >= MEMORY_MAX_RECORDS) evict_one();
@@ -137,34 +192,7 @@ void MemoryEngineClass::observe() {
         head_ = (head_ + 1) % MEMORY_MAX_RECORDS;
         if (record_count_ < MEMORY_MAX_RECORDS) record_count_++;
 
-        Serial.printf("[MEM] formed TOUCH BURST salience=%d strength=100\n", sal);
-      }
-    }
-
-    // ── Normal tap formation (TOUCH_TAP) ────────────────────
-    if (!is_double) {
-      uint8_t sal = compute_salience(20);
-      if (!try_dedup(DOMAIN_TOUCH, TOUCH_TAP, sal)) {
-        MemoryRecord rec = {};
-        rec.id = (boot_count_ << 24) | (sequence_++);
-        rec.formed_at_ms = now;
-        rec.category = MEM_CAT_EPISODIC;
-        rec.domain = DOMAIN_TOUCH;
-        rec.subtype = TOUCH_TAP;
-        rec.salience = sal;
-        rec.strength = 100;
-        rec.mood_at_formation = g_creature.mood;
-        rec.attention_at_form = g_creature.attention.target;
-        rec.mode_at_formation = g_creature.activity;
-        rec.data.touch.touch_duration_ms = 0;
-        rec.data.touch.tap_count_window = count_10s;
-
-        if (record_count_ >= MEMORY_MAX_RECORDS) evict_one();
-        records_[head_] = rec;
-        head_ = (head_ + 1) % MEMORY_MAX_RECORDS;
-        if (record_count_ < MEMORY_MAX_RECORDS) record_count_++;
-
-        Serial.printf("[MEM] formed TOUCH TAP salience=%d strength=100\n", sal);
+        Serial.printf("[MEM] formed TOUCH BURST salience=%d strength=100\n", burst_sal);
       }
     }
   }
@@ -206,10 +234,13 @@ bool MemoryEngineClass::try_dedup(uint8_t domain, uint8_t subtype, uint8_t salie
       rec.formed_at_ms = now;
       if (rec.strength < 100) rec.strength = 100;
 
-      Serial.printf("[MEM] dedup %s boosted salience=%d\n",
+      const char* stype_name =
         (subtype == TOUCH_TAP) ? "TAP" :
         (subtype == TOUCH_DOUBLE) ? "DOUBLE" :
-        (subtype == TOUCH_BURST) ? "BURST" : "?", rec.salience);
+        (subtype == TOUCH_HOLD) ? "HOLD" :
+        (subtype == TOUCH_LONG_HOLD) ? "LONG_HOLD" :
+        (subtype == TOUCH_BURST) ? "BURST" : "?";
+      Serial.printf("[MEM] dedup %s boosted salience=%d\n", stype_name, rec.salience);
       return true;
     }
   }
@@ -307,6 +338,7 @@ MemorySummary MemoryEngineClass::recall() {
     ? (uint16_t)((now - newest_touch_ms > 0xFFFF) ? 0xFFFF : (now - newest_touch_ms))
     : 0xFFFF;
   summary.total_records = record_count_;
+  summary.dropped_touch_events = dropped_touch_events_;
 
   return summary;
 }
