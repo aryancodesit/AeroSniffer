@@ -1,0 +1,46 @@
+name: Firmware Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'AeroSniffer/**'
+      - 'AeroSniffer.ino'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'AeroSniffer/**'
+      - 'AeroSniffer.ino'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install arduino-cli
+        uses: arduino/setup-arduino-cli@v1
+
+      - name: Configure arduino-cli
+        run: |
+          arduino-cli config init --overwrite
+          arduino-cli config set board_manager.additional_urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+
+      - name: Update core index
+        run: arduino-cli core update-index
+
+      - name: Install ESP32 core
+        run: arduino-cli core install esp32:esp32
+
+      - name: Install TFT_eSPI
+        run: arduino-cli lib install "TFT_eSPI"
+
+      - name: Configure TFT_eSPI for DeskBuddy 2.0
+        run: |
+          cp "AeroSniffer/TFT_eSPI_UserSetup.h" "$HOME/Arduino/libraries/TFT_eSPI/User_Setup.h"
+
+      - name: Compile firmware
+        run: arduino-cli compile --fqbn esp32:esp32:seeed_xiao_esp32s3 AeroSniffer/
