@@ -188,6 +188,8 @@ def cmd_install():
     libs = deps["libraries"]
     board_url = board["core_url"]
 
+    run(["arduino-cli", "config", "init"], check=False)
+
     if not is_board_url_configured(board_url):
         run(["arduino-cli", "config", "add", "board_manager.additional_urls", board_url])
 
