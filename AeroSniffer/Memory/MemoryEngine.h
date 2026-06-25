@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include "MemoryTypes.h"
+#include "AeroSnifferOS.h"
 
 class MemoryEngineClass {
 public:
@@ -12,15 +13,43 @@ public:
   MemorySummary recall();
   void flush();
   void onTouchEvent(uint16_t duration_ms = 0);
+  void onSecurityEvent(EventType event, void* data = nullptr);
+  void onFlightEvent(EventType event, void* data = nullptr);
   uint16_t touchEventCount() const { return pending_head_ - pending_tail_; }
 
 private:
   void observe();
   void decay();
   void prune();
-  bool try_dedup(uint8_t domain, uint8_t subtype, uint8_t salience);
+  bool try_dedup(uint8_t domain, uint8_t subtype, uint8_t salience, uint32_t source_id = 0);
   uint8_t compute_salience(uint8_t base);
   uint8_t evict_one();
+
+  void observe_security(uint8_t subtype, uint8_t event_count, uint8_t threat_level, uint32_t source_id);
+  void observe_aviation(uint8_t subtype, uint32_t icao24, int16_t alt, uint8_t rare);
+  void observe_mood(uint8_t subtype, uint8_t mood, uint8_t prev_mood, uint16_t duration_min);
+
+  struct {
+    uint8_t  pending_subtype;
+    uint8_t  pending_count;
+    uint8_t  pending_threat_level;
+    uint32_t deauth_window_start;
+    uint8_t  deauth_count;
+    bool     suspicious_formed;
+  } sec_;
+
+  struct {
+    uint32_t last_flight_ms;
+    uint32_t last_quiet_sky_ms;
+    bool     flight_pending;
+    bool     pending_is_rare;
+  } avi_;
+
+  struct {
+    uint8_t  last_known_mood;
+    uint32_t current_since_ms;
+    uint8_t  last_period_type;
+  } mood_;
 
   MemoryRecord records_[MEMORY_MAX_RECORDS];
   uint16_t     record_count_;
@@ -30,9 +59,6 @@ private:
 
   uint32_t     tap_timestamps_[8];
   uint8_t      tap_index_;
-  uint32_t     double_tap_last_ms_;
-  uint32_t     burst_window_start_;
-  uint8_t      burst_count_;
   bool         burst_armed_;
 
   uint16_t     touch_taps_session_;

@@ -28,8 +28,28 @@ enum TouchSubtype : uint8_t {
   TOUCH_LONG_HOLD = 0x05
 };
 
+enum SecuritySubtype : uint8_t {
+  SEC_DEVICE_APPEARED       = 0x10,
+  SEC_SUSPICIOUS_ACTIVITY   = 0x11,
+  SEC_THREAT_DETECTED       = 0x12
+};
+
+enum AviationSubtype : uint8_t {
+  AVI_AIRCRAFT_SPOTTED      = 0x20,
+  AVI_QUIET_SKY_PERIOD      = 0x21,
+  AVI_UNUSUAL_TRAFFIC_EVENT = 0x22
+};
+
+enum MoodSubtype : uint8_t {
+  MOOD_LONG_RELAXED_PERIOD  = 0x30,
+  MOOD_LONG_PLAYFUL_PERIOD  = 0x31,
+  MOOD_LONG_ANXIOUS_PERIOD  = 0x32,
+  MOOD_TRANSITION           = 0x33
+};
+
 struct MemoryRecord {
   uint32_t id;
+  uint32_t source_id;
   uint32_t formed_at_ms;
   uint8_t  category;
   uint8_t  domain;
@@ -47,6 +67,23 @@ struct MemoryRecord {
       uint8_t  tap_count_window;
       uint8_t  _pad[13];
     } touch;
+    struct {
+      uint8_t  threat_level;
+      uint8_t  event_count;
+      uint8_t  _pad[14];
+    } security;
+    struct {
+      uint32_t icao24;
+      int16_t  altitude_ft;
+      uint8_t  is_rare;
+      uint8_t  _pad[9];
+    } aviation;
+    struct {
+      uint8_t  mood;
+      uint8_t  prev_mood;
+      uint16_t duration_min;
+      uint8_t  _pad[12];
+    } mood_event;
     uint8_t raw[16];
   } data;
 };
@@ -62,5 +99,8 @@ struct MemorySummary {
 };
 
 #define MEMORY_MAX_RECORDS 64
+
+static_assert(sizeof(MemoryRecord) == 40, "MemoryRecord must be 40 bytes");
+static_assert(sizeof(MemoryRecord::data) == 16, "MemoryRecord data union must be 16 bytes");
 
 #endif
