@@ -35,6 +35,11 @@
 #include <Preferences.h>
 #include <ArduinoJson.h>
 
+// ── Build version (injected by CI, fallback for local builds) ───
+#ifndef FW_VERSION
+#define FW_VERSION "local-dev"
+#endif
+
 // ── Global TFT instance ──────────────────────────────────────────
 TFT_eSPI tft = TFT_eSPI();
 
@@ -255,9 +260,9 @@ static void show_splash() {
   tft.setTextColor(0x4208);
   tft.setCursor(cx - 74, cy + 66);
   #ifdef HW_DESKBUDDY_2
-    tft.print("XIAO ESP32S3 | FreeRTOS | v2.0");
+    tft.print("XIAO ESP32S3 | FreeRTOS | " FW_VERSION);
   #else
-    tft.print("ESP32-S3 | FreeRTOS | v1.0");
+    tft.print("ESP32-S3 | FreeRTOS | " FW_VERSION);
   #endif
 
   // Mode icons
@@ -348,7 +353,7 @@ static bool handle_global_command(const String& line) {
     String cmd = line.substring(4);
 
     if (cmd == "PING") {
-      Serial.printf("RES:{\"ok\":true,\"fw\":\"2.0\",\"mode\":%d,\"hw\":\"deskbuddy2\"}\n", g_mode + 1);
+      Serial.printf("RES:{\"ok\":true,\"fw\":%s,\"mode\":%d,\"hw\":\"deskbuddy2\"}\n", FW_VERSION, g_mode + 1);
       return true;
     }
 
