@@ -24,9 +24,6 @@ void MemoryEngineClass::begin() {
   initialized_ = false;
 
   tap_index_ = 0;
-  double_tap_last_ms_ = 0;
-  burst_window_start_ = 0;
-  burst_count_ = 0;
   burst_armed_ = false;
   touch_taps_session_ = 0;
 
@@ -47,6 +44,25 @@ void MemoryEngineClass::begin() {
   // PersistenceService stores boot_count; read it from NVS directly via StorageService
   boot_count_ = StorageService.getStat("boot_count", 0);
   sequence_ = 0;
+
+  // ── Security domain state ──
+  sec_.pending_subtype = 0;
+  sec_.pending_count = 0;
+  sec_.pending_threat_level = 0;
+  sec_.deauth_window_start = millis();
+  sec_.deauth_count = 0;
+  sec_.suspicious_formed = false;
+
+  // ── Aviation domain state ──
+  avi_.last_flight_ms = millis();
+  avi_.last_quiet_sky_ms = 0;
+  avi_.flight_pending = false;
+  avi_.pending_is_rare = false;
+
+  // ── Mood domain state ──
+  mood_.last_known_mood = (uint8_t)g_creature.mood;
+  mood_.current_since_ms = millis();
+  mood_.last_period_type = 0xFF;
 
   initialized_ = true;
   Serial.printf("[MEM] begin -> %d records (boot=%u)\n", record_count_, boot_count_);
@@ -88,6 +104,83 @@ void MemoryEngineClass::onTouchEvent(uint16_t duration_ms) {
   }
 }
 
+// ── Security event callback (runs on Core 0 — sets flags only) ────
+void MemoryEngineClass::onSecurityEvent(EventType event, void* data) {
+  (void)data;
+  uint32_t now = millis();
+
+  switch (event) {
+    case EVENT_ATTACK_DEAUTH: {
+      // Reset window if expired
+      if (now - sec_.deauth_window_start > 60000) {
+        sec_.deauth_window_start = now;
+        sec_.deauth_count = 0;
+        sec_.suspicious_formed = false;
+      }
+      sec_.deauth_count++;
+
+      // Evaluate thresholds — set pending flags, do NOT form records
+      if (sec_.deauth_count >= 5) {
+        sec_.pending_threat_level = (sec_.deauth_count * 20 > 100) ? 100 : (uint8_t)(sec_.deauth_count * 20);
+        sec_.pending_count = sec_.deauth_count;
+        sec_.pending_subtype = SEC_THREAT_DETECTED;
+        __sync_synchronize();
+        // Reset window — burst escalated to threat level
+        sec_.deauth_window_start = now;
+        sec_.deauth_count = 0;
+        sec_.suspicious_formed = false;
+      } else if (sec_.deauth_count >= 2 && !sec_.suspicious_formed) {
+        sec_.pending_threat_level = (uint8_t)(sec_.deauth_count * 20);
+        sec_.pending_count = sec_.deauth_count;
+        sec_.suspicious_formed = true;
+        sec_.pending_subtype = SEC_SUSPICIOUS_ACTIVITY;
+        __sync_synchronize();
+        // Do NOT reset window — continue counting toward THREAT
+      }
+      break;
+    }
+    case EVENT_ATTACK_EVILTWIN: {
+      sec_.pending_threat_level = 90;
+      sec_.pending_count = 1;
+      sec_.pending_subtype = SEC_THREAT_DETECTED;
+      __sync_synchronize();
+      break;
+    }
+    case EVENT_DEVICE_TRUSTED:
+    case EVENT_DEVICE_FAMILIAR:
+    case EVENT_DEVICE_UNKNOWN: {
+      sec_.pending_threat_level = 10;
+      sec_.pending_count = 1;
+      sec_.pending_subtype = SEC_DEVICE_APPEARED;
+      __sync_synchronize();
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+// ── Aviation event callback (runs on Core 0 — sets flags only) ────
+void MemoryEngineClass::onFlightEvent(EventType event, void* data) {
+  uint32_t now = millis();
+  avi_.last_flight_ms = now;
+
+  switch (event) {
+    case EVENT_FLIGHT_DETECTED: {
+      avi_.flight_pending = true;
+      avi_.pending_is_rare = false;
+      break;
+    }
+    case EVENT_FLIGHT_RARE: {
+      avi_.flight_pending = true;
+      avi_.pending_is_rare = true;
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 void MemoryEngineClass::observe() {
   uint32_t now = millis();
 
@@ -95,6 +188,7 @@ void MemoryEngineClass::observe() {
     record_count_ = MEMORY_MAX_RECORDS;
   }
 
+  // ── TOUCH: drain pending buffer (unchanged from Sprint 2) ──
   while (pending_tail_ < pending_head_) {
     PendingTouch& pt = pending_[pending_tail_ % 8];
     uint16_t duration_ms = pt.duration_ms;
@@ -159,13 +253,7 @@ void MemoryEngineClass::observe() {
       head_ = (head_ + 1) % MEMORY_MAX_RECORDS;
       if (record_count_ < MEMORY_MAX_RECORDS) record_count_++;
 
-      const char* name =
-        (subtype == TOUCH_TAP) ? "TAP" :
-        (subtype == TOUCH_DOUBLE) ? "DOUBLE" :
-        (subtype == TOUCH_HOLD) ? "HOLD" :
-        (subtype == TOUCH_LONG_HOLD) ? "LONG_HOLD" : "?";
-      Serial.printf("[MEM] formed TOUCH %s salience=%d strength=100 duration=%u\n",
-        name, sal, duration_ms);
+
     }
 
     // ── Burst record (additive, fires once per session) ────
@@ -192,8 +280,71 @@ void MemoryEngineClass::observe() {
         head_ = (head_ + 1) % MEMORY_MAX_RECORDS;
         if (record_count_ < MEMORY_MAX_RECORDS) record_count_++;
 
-        Serial.printf("[MEM] formed TOUCH BURST salience=%d strength=100\n", burst_sal);
+
       }
+    }
+  }
+
+  // ── Reset burst_armed_ when 10s window has no recent taps ──
+  if (burst_armed_) {
+    bool recent = false;
+    for (uint8_t i = 0; i < 8 && i < tap_index_; i++) {
+      if (now - tap_timestamps_[i] <= 10000) { recent = true; break; }
+    }
+    if (!recent) burst_armed_ = false;
+  }
+
+  // ── SECURITY: consume pending flags (set by onSecurityEvent) ──
+  __sync_synchronize();
+  if (sec_.pending_subtype != 0) {
+    uint8_t st = sec_.pending_subtype;
+    uint8_t cnt = sec_.pending_count;
+    uint8_t tl = sec_.pending_threat_level;
+    sec_.pending_subtype = 0;
+    __sync_synchronize();
+    observe_security(st, cnt, tl, 0);
+  }
+
+  // ── AVIATION: consume pending flight events ──
+  if (avi_.flight_pending) {
+    avi_.flight_pending = false;
+    uint8_t avi_subtype = avi_.pending_is_rare ? AVI_UNUSUAL_TRAFFIC_EVENT : AVI_AIRCRAFT_SPOTTED;
+    observe_aviation(avi_subtype, 0, -1, avi_.pending_is_rare ? 1 : 0);
+  }
+
+  // ── AVIATION: quiet sky check (time-based) ──
+  if (avi_.last_flight_ms > 0 && now - avi_.last_flight_ms >= 1800000) {
+    if (now - avi_.last_quiet_sky_ms >= 3600000) {
+      observe_aviation(AVI_QUIET_SKY_PERIOD, 0, -1, 0);
+      avi_.last_quiet_sky_ms = now;
+    }
+  }
+
+  // ── MOOD: poll g_creature.mood ──
+  uint8_t current_mood = (uint8_t)g_creature.mood;
+
+  // 1. Mood transition detection (never deduped)
+  if (current_mood != mood_.last_known_mood) {
+    uint16_t duration = (now - mood_.current_since_ms) / 60000;
+    observe_mood(MOOD_TRANSITION, current_mood, mood_.last_known_mood, duration);
+
+    mood_.last_known_mood = current_mood;
+    mood_.current_since_ms = now;
+    mood_.last_period_type = 0xFF;
+  }
+
+  // 2. Prolonged mood check (30+ min in same mood)
+  uint32_t elapsed_min = (now - mood_.current_since_ms) / 60000;
+  if (elapsed_min >= 30 && mood_.last_period_type != current_mood) {
+    uint8_t new_subtype = 0xFF;
+    switch (current_mood) {
+      case MOOD_RELAXED: new_subtype = MOOD_LONG_RELAXED_PERIOD; break;
+      case MOOD_PLAYFUL: new_subtype = MOOD_LONG_PLAYFUL_PERIOD; break;
+      case MOOD_ANXIOUS: new_subtype = MOOD_LONG_ANXIOUS_PERIOD; break;
+    }
+    if (new_subtype != 0xFF) {
+      observe_mood(new_subtype, current_mood, 0xFF, (uint16_t)elapsed_min);
+      mood_.last_period_type = current_mood;
     }
   }
 }
@@ -218,34 +369,169 @@ uint8_t MemoryEngineClass::compute_salience(uint8_t base) {
   return result;
 }
 
-bool MemoryEngineClass::try_dedup(uint8_t domain, uint8_t subtype, uint8_t salience) {
+// ── try_dedup: domain-specific windows with source_id matching ────
+bool MemoryEngineClass::try_dedup(uint8_t domain, uint8_t subtype, uint8_t salience, uint32_t source_id) {
   uint32_t now = millis();
+
+  uint32_t window_ms;
+  switch (domain) {
+    case DOMAIN_TOUCH:    window_ms = 60000;   break;
+    case DOMAIN_SECURITY: window_ms = 300000;  break;
+    case DOMAIN_AVIATION: window_ms = 180000;  break;
+    case DOMAIN_MOOD:
+      window_ms = (subtype == MOOD_TRANSITION) ? 0 : 300000;
+      break;
+    default:              window_ms = 60000;   break;
+  }
+  if (window_ms == 0) return false;
+
   for (uint16_t i = 0; i < record_count_; i++) {
     auto& rec = records_[i];
     if (rec.domain == domain && rec.subtype == subtype
         && rec.category == MEM_CAT_EPISODIC
-        && (now - rec.formed_at_ms) <= 60000
-        && rec.strength > 50) {
+        && (now - rec.formed_at_ms) <= window_ms
+        && rec.strength > 50
+        && rec.source_id == source_id) {
 
-      // Boost existing record
       uint8_t new_sal = rec.salience + 10;
       if (new_sal > 100) new_sal = 100;
       rec.salience = new_sal;
-      rec.formed_at_ms = now;
-      if (rec.strength < 100) rec.strength = 100;
+      rec.strength = 100;
 
-      const char* stype_name =
-        (subtype == TOUCH_TAP) ? "TAP" :
-        (subtype == TOUCH_DOUBLE) ? "DOUBLE" :
-        (subtype == TOUCH_HOLD) ? "HOLD" :
-        (subtype == TOUCH_LONG_HOLD) ? "LONG_HOLD" :
-        (subtype == TOUCH_BURST) ? "BURST" : "?";
-      Serial.printf("[MEM] dedup %s boosted salience=%d\n", stype_name, rec.salience);
+      // MOOD safety-net: never extend the dedup window
+      if (domain != DOMAIN_MOOD) {
+        rec.formed_at_ms = now;
+      }
+
+
       return true;
     }
   }
   return false;
 }
+
+// ── Security record formation ─────────────────────────────────────
+void MemoryEngineClass::observe_security(uint8_t subtype, uint8_t event_count, uint8_t threat_level, uint32_t source_id) {
+  uint32_t now = millis();
+  uint8_t base_salience;
+  switch (subtype) {
+    case SEC_DEVICE_APPEARED:    base_salience = 25; break;
+    case SEC_SUSPICIOUS_ACTIVITY: base_salience = 38; break;
+    case SEC_THREAT_DETECTED:     base_salience = 50; break;
+    default: return;
+  }
+  uint8_t sal = compute_salience(base_salience);
+
+  if (!try_dedup(DOMAIN_SECURITY, subtype, sal, source_id)) {
+    MemoryRecord rec = {};
+    rec.id = (boot_count_ << 24) | (sequence_++);
+    rec.source_id = source_id;
+    rec.formed_at_ms = now;
+    rec.category = MEM_CAT_EPISODIC;
+    rec.domain = DOMAIN_SECURITY;
+    rec.subtype = subtype;
+    rec.salience = sal;
+    rec.strength = 100;
+    rec.mood_at_formation = g_creature.mood;
+    rec.attention_at_form = g_creature.attention.target;
+    rec.mode_at_formation = g_creature.activity;
+    rec.data.security.threat_level = threat_level;
+    rec.data.security.event_count = event_count;
+
+    if (record_count_ >= MEMORY_MAX_RECORDS) evict_one();
+    records_[head_] = rec;
+    head_ = (head_ + 1) % MEMORY_MAX_RECORDS;
+    if (record_count_ < MEMORY_MAX_RECORDS) record_count_++;
+
+
+  }
+}
+
+// ── Aviation record formation ────────────────────────────────────
+void MemoryEngineClass::observe_aviation(uint8_t subtype, uint32_t icao24, int16_t alt, uint8_t rare) {
+  uint32_t now = millis();
+  uint8_t base_salience;
+  switch (subtype) {
+    case AVI_AIRCRAFT_SPOTTED:      base_salience = 22; break;
+    case AVI_QUIET_SKY_PERIOD:      base_salience = 16; break;
+    case AVI_UNUSUAL_TRAFFIC_EVENT: base_salience = 42; break;
+    default: return;
+  }
+  uint8_t sal = compute_salience(base_salience);
+  uint32_t source_id = icao24;
+
+  if (!try_dedup(DOMAIN_AVIATION, subtype, sal, source_id)) {
+    MemoryRecord rec = {};
+    rec.id = (boot_count_ << 24) | (sequence_++);
+    rec.source_id = source_id;
+    rec.formed_at_ms = now;
+    rec.category = MEM_CAT_EPISODIC;
+    rec.domain = DOMAIN_AVIATION;
+    rec.subtype = subtype;
+    rec.salience = sal;
+    rec.strength = 100;
+    rec.mood_at_formation = g_creature.mood;
+    rec.attention_at_form = g_creature.attention.target;
+    rec.mode_at_formation = g_creature.activity;
+    rec.data.aviation.icao24 = icao24;
+    rec.data.aviation.altitude_ft = alt;
+    rec.data.aviation.is_rare = rare;
+
+    if (record_count_ >= MEMORY_MAX_RECORDS) evict_one();
+    records_[head_] = rec;
+    head_ = (head_ + 1) % MEMORY_MAX_RECORDS;
+    if (record_count_ < MEMORY_MAX_RECORDS) record_count_++;
+
+
+  }
+}
+
+// ── Mood record formation ────────────────────────────────────────
+void MemoryEngineClass::observe_mood(uint8_t subtype, uint8_t mood, uint8_t prev_mood, uint16_t duration_min) {
+  uint32_t now = millis();
+  uint8_t base_salience;
+  switch (subtype) {
+    case MOOD_LONG_RELAXED_PERIOD: base_salience = 25; break;
+    case MOOD_LONG_PLAYFUL_PERIOD: base_salience = 28; break;
+    case MOOD_LONG_ANXIOUS_PERIOD: base_salience = 35; break;
+    case MOOD_TRANSITION:          base_salience = 30; break;
+    default: return;
+  }
+  uint8_t sal = compute_salience(base_salience);
+
+  // MOOD_TRANSITION: never deduped (skip try_dedup entirely)
+  // MOOD_LONG_*: try_dedup with 300s safety-net window
+  bool should_form = (subtype == MOOD_TRANSITION)
+    ? true
+    : !try_dedup(DOMAIN_MOOD, subtype, sal, 0);
+
+  if (should_form) {
+    MemoryRecord rec = {};
+    rec.id = (boot_count_ << 24) | (sequence_++);
+    rec.source_id = 0;
+    rec.formed_at_ms = now;
+    rec.category = MEM_CAT_EPISODIC;
+    rec.domain = DOMAIN_MOOD;
+    rec.subtype = subtype;
+    rec.salience = sal;
+    rec.strength = 100;
+    rec.mood_at_formation = g_creature.mood;
+    rec.attention_at_form = g_creature.attention.target;
+    rec.mode_at_formation = g_creature.activity;
+    rec.data.mood_event.mood = mood;
+    rec.data.mood_event.prev_mood = prev_mood;
+    rec.data.mood_event.duration_min = duration_min;
+
+    if (record_count_ >= MEMORY_MAX_RECORDS) evict_one();
+    records_[head_] = rec;
+    head_ = (head_ + 1) % MEMORY_MAX_RECORDS;
+    if (record_count_ < MEMORY_MAX_RECORDS) record_count_++;
+
+
+  }
+}
+
+// ── Core engine pipeline (unchanged from Sprint 2) ───────────────
 
 void MemoryEngineClass::decay() {
   // Advance accumulators and count pending decrements per domain
@@ -286,6 +572,7 @@ void MemoryEngineClass::prune() {
     }
   }
   record_count_ = write;
+  head_ = record_count_;
 }
 
 uint8_t MemoryEngineClass::evict_one() {
@@ -306,7 +593,7 @@ uint8_t MemoryEngineClass::evict_one() {
     records_[best] = records_[record_count_ - 1];
     record_count_--;
     head_ = record_count_;
-    Serial.printf("[MEM] evicted record %d (strength=%d)\n", best, lowest);
+
   }
   return lowest;
 }
