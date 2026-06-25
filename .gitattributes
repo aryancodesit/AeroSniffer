@@ -1,0 +1,28 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Binary files — never auto-convert
+*.bin binary
+*.hex binary
+*.elf binary
+*.o binary
+*.a binary
+*.lib binary
+*.dll binary
+*.so binary
+*.pyc binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.gif binary
+*.bmp binary
+*.ico binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.7z binary
+*.pdf binary
+*.dat binary
