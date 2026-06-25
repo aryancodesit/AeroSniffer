@@ -1,5 +1,45 @@
 # Changelog
 
+## [v2.6-sprint3] — 2026-06-25
+
+### V2.6 Sprint 3 — Memory Domain Expansion (Implemented)
+
+**MemoryEngine expanded beyond touch-only. Security, Aviation, and Mood memory domains designed and implemented. Additive-only — no changes to any certified subsystem.**
+
+### Added
+- **Security Domain** (`DOMAIN_SECURITY`): 3 subtypes — `SEC_DEVICE_APPEARED` (25), `SEC_SUSPICIOUS_ACTIVITY` (38), `SEC_THREAT_DETECTED` (50). Deauth burst window (60s sliding), threshold-based escalation, dedup window 5 min, half-life 12h.
+- **Aviation Domain** (`DOMAIN_AVIATION`): 3 subtypes — `AVI_AIRCRAFT_SPOTTED` (22), `AVI_QUIET_SKY_PERIOD` (16), `AVI_UNUSUAL_TRAFFIC_EVENT` (42). Event-driven + quiet sky detection (30 min no-flight threshold), dedup window 3 min, half-life 4h.
+- **Mood Domain** (`DOMAIN_MOOD`): 4 subtypes — `MOOD_LONG_RELAXED_PERIOD` (25), `MOOD_LONG_PLAYFUL_PERIOD` (28), `MOOD_LONG_ANXIOUS_PERIOD` (35), `MOOD_TRANSITION` (30). Per-mood period lock (one prolonged record per uninterrupted mood episode). MOOD_TRANSITION never deduped. Half-life 8h.
+- **`source_id`**: `uint32_t source_id` in `MemoryRecord` — ICAO24 for aviation, device hash for security, 0 for touch/mood.
+- **Data union expansion**: `security`, `aviation`, `mood_event` struct members alongside existing `touch`.
+- **Domain-aware decay**: `decay_acc_[DOMAIN_COUNT]` array with per-domain half-life.
+- **MemoryCategory enum**: `MEM_CAT_NONE`, `MEM_CAT_EPISODIC`, `MEM_CAT_FAMILIARITY`, `MEM_CAT_SIGNIFICANT` — future-proofing for Sprint 4 categorization.
+
+### Changed
+- `MemoryTypes.h`: Added `MemoryCategory`, `MemoryDomain`, `SecuritySubtype`, `AviationSubtype`, `MoodSubtype` enums. Added `source_id` field. Expanded data union with 3 new members. Added `MemorySummary` domain_strength array and `dropped_touch_events`.
+- `MemoryEngine.h`: Added domain-specific public methods (`onSecurityEvent`, `onFlightEvent`), private observe helpers (`observe_security`, `observe_aviation`, `observe_mood`), per-domain tracking state (`sec_`, `avi_`, `mood_`), domain decay accumulator array.
+
+### Architecture
+- Memory is an observer — reads EventBus events and `g_creature.mood`. Never writes to any upstream subsystem.
+- Domain formation is additive — all 5 touch subtypes remain unchanged.
+- Salience normalization: no Sprint 3 subtype exceeds 55 without explicit review. Maximum: SEC_THREAT at 50.
+- Cross-domain ring buffer competition is expected and managed via LRU eviction.
+
+### Design Documentation
+- `V2.6_MEMORY_DOMAINS.md` — master domain taxonomy with salience ranges, source_id rules, context multipliers, decay parameters, MemoryRecord layout
+- `V2.6_SECURITY_MEMORY.md` — security domain formation rules, deauth window tracking, anti-flood safeguards
+- `V2.6_AVIATION_MEMORY.md` — aviation domain event-driven + time-based formation, quiet sky cooldown
+- `V2.6_MOOD_MEMORY.md` — mood domain tick-based detection, per-mood period lock, MOOD_TRANSITION never deduped
+
+### Not Certified (Pending Hardware Validation)
+- Sprint 3 has NOT been hardware-certified. Validation requires a 30-min multi-domain soak exercising all 15 subtypes across 4 domains with cross-domain dedup, decay, and regression verification.
+
+### Metadata
+- Branch: `main`
+- Commit: `3023b35`
+- Tags: pending certification
+- Next: Sprint 4 (V2.7) — domain-aware behavior or cross-domain recall
+
 ## [v2.6-sprint1] — 2026-06-24
 
 ### V2.6 Sprint 1 — Memory Layer Foundation (Certified 2026-06-24)
