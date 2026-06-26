@@ -72,6 +72,30 @@ def validate_build_inputs():
         die("missing TFT_eSPI_UserSetup.h — build will produce incorrect pin mappings")
 
 
+def validate_build_environment():
+    """Check that board, core, and libraries are correctly installed before compile."""
+    deps = load_deps()
+    board = deps["board"]
+    libs = deps["libraries"]
+
+    fqbn = board["fqbn"]
+    board_list = run(["arduino-cli", "board", "listall"], capture=True)
+    if fqbn not in board_list.split():
+        die(f"FQBN {fqbn} not found in installed cores. Available XIAO boards:\n" +
+            "\n".join(l for l in board_list.splitlines() if "XIAO" in l))
+
+    core_parts = board["core"].split("@")
+    installed_ver = get_installed_core_version(core_parts[0])
+    if len(core_parts) > 1 and core_parts[1]:
+        if installed_ver != core_parts[1]:
+            die(f"core {core_parts[0]}@{installed_ver} installed, {board['core']} required — run 'releng.py install'")
+
+    for name, ver in libs.items():
+        installed_ver = get_installed_lib_version(name)
+        if installed_ver != ver:
+            die(f"library {name}@{installed_ver} installed, {name}@{ver} required — run 'releng.py install'")
+
+
 def parse_table_output(out):
     """Parse two-column table from arduino-cli output into {key: value}."""
     result = {}
@@ -97,14 +121,12 @@ def get_installed_libs():
         return {}
 
 
-def is_core_installed(name):
-    installed = get_installed_cores()
-    return name in installed
+def get_installed_core_version(name):
+    return get_installed_cores().get(name, "")
 
 
-def is_lib_installed(name):
-    installed = get_installed_libs()
-    return name in installed
+def get_installed_lib_version(name):
+    return get_installed_libs().get(name, "")
 
 
 def is_tree_dirty():
@@ -176,18 +198,34 @@ def cmd_install():
     run(["arduino-cli", "config", "set", "board_manager.additional_urls", board_url])
     run(["arduino-cli", "core", "update-index"])
 
-    core_name = board["core"].split("@")[0]
+    core_parts = board["core"].split("@")
+    core_name = core_parts[0]
+    core_ver = core_parts[1] if len(core_parts) > 1 else ""
 
-    if is_core_installed(core_name):
-        print(f"  Core {core_name} already installed, skipping", file=sys.stderr)
+    installed_ver = get_installed_core_version(core_name)
+    if installed_ver:
+        if installed_ver == core_ver:
+            print(f"  Core {core_name}@{installed_ver} already installed", file=sys.stderr)
+        else:
+            print(f"  warning: core {core_name}@{installed_ver} installed, {core_name}@{core_ver} required — reinstalling", file=sys.stderr)
+            run(["arduino-cli", "core", "uninstall", core_name])
+            spec = f"{core_name}@{core_ver}" if core_ver else core_name
+            run(["arduino-cli", "core", "install", spec])
     else:
-        run(["arduino-cli", "core", "install", core_name])
+        spec = f"{core_name}@{core_ver}" if core_ver else core_name
+        run(["arduino-cli", "core", "install", spec])
 
     for name, ver in libs.items():
-        if is_lib_installed(name):
-            print(f"  Library {name} already installed, skipping", file=sys.stderr)
+        installed_ver = get_installed_lib_version(name)
+        if installed_ver:
+            if installed_ver == ver:
+                print(f"  Library {name}@{installed_ver} already installed", file=sys.stderr)
+            else:
+                print(f"  warning: {name}@{installed_ver} installed, {name}@{ver} required — reinstalling", file=sys.stderr)
+                run(["arduino-cli", "lib", "uninstall", name])
+                run(["arduino-cli", "lib", "install", f"{name}@{ver}"])
         else:
-            run(["arduino-cli", "lib", "install", name])
+            run(["arduino-cli", "lib", "install", f"{name}@{ver}"])
 
     src = SKETCH / "TFT_eSPI_UserSetup.h"
     if src.exists():
@@ -211,6 +249,7 @@ def cmd_build(no_install=False):
         validate_environment()
 
     validate_build_inputs()
+    validate_build_environment()
     deps = load_deps()
     board = deps["board"]
     libs = deps["libraries"]
