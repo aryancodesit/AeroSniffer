@@ -97,18 +97,14 @@ def get_installed_libs():
         return {}
 
 
-def is_core_installed(core_id):
-    name = core_id.split("@")[0]
-    version = core_id.split("@")[1] if "@" in core_id else ""
+def is_core_installed(name):
     installed = get_installed_cores()
-    if not version:
-        return name in installed
-    return installed.get(name) == version
+    return name in installed
 
 
-def is_lib_installed(name, version):
+def is_lib_installed(name):
     installed = get_installed_libs()
-    return installed.get(name) == version
+    return name in installed
 
 
 def is_tree_dirty():
@@ -180,17 +176,18 @@ def cmd_install():
     run(["arduino-cli", "config", "set", "board_manager.additional_urls", board_url])
     run(["arduino-cli", "core", "update-index"])
 
-    if is_core_installed(board["core"]):
-        print(f"  Core {board['core']} already installed, skipping", file=sys.stderr)
+    core_name = board["core"].split("@")[0]
+
+    if is_core_installed(core_name):
+        print(f"  Core {core_name} already installed, skipping", file=sys.stderr)
     else:
-        run(["arduino-cli", "core", "install", board["core"]])
+        run(["arduino-cli", "core", "install", core_name])
 
     for name, ver in libs.items():
-        spec = f"{name}@{ver}"
-        if is_lib_installed(name, ver):
-            print(f"  Library {spec} already installed, skipping", file=sys.stderr)
+        if is_lib_installed(name):
+            print(f"  Library {name} already installed, skipping", file=sys.stderr)
         else:
-            run(["arduino-cli", "lib", "install", spec])
+            run(["arduino-cli", "lib", "install", name])
 
     src = SKETCH / "TFT_eSPI_UserSetup.h"
     if src.exists():
