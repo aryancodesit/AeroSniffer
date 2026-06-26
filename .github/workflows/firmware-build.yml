@@ -2,7 +2,7 @@ name: Firmware Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, releng-validation]
     paths:
       - 'AeroSniffer/**'
       - 'tools/**'
