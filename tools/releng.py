@@ -111,18 +111,6 @@ def is_lib_installed(name, version):
     return installed.get(name) == version
 
 
-def is_board_url_configured(url):
-    try:
-        out = run(["arduino-cli", "config", "dump"], capture=True)
-        for line in out.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("- ") and url in stripped:
-                return True
-        return False
-    except Exception:
-        return False
-
-
 def is_tree_dirty():
     try:
         out = run(["git", "status", "--porcelain"], capture=True)
@@ -188,17 +176,12 @@ def cmd_install():
     libs = deps["libraries"]
     board_url = board["core_url"]
 
-    run(["arduino-cli", "config", "init"], check=False)
-
-    if not is_board_url_configured(board_url):
-        run(["arduino-cli", "config", "add", "board_manager.additional_urls", board_url])
-
-    run(["arduino-cli", "core", "update-index"])
+    run(["arduino-cli", "core", "update-index", "--additional-urls", board_url])
 
     if is_core_installed(board["core"]):
         print(f"  Core {board['core']} already installed, skipping", file=sys.stderr)
     else:
-        run(["arduino-cli", "core", "install", board["core"]])
+        run(["arduino-cli", "core", "install", "--additional-urls", board_url, board["core"]])
 
     for name, ver in libs.items():
         spec = f"{name}@{ver}"
@@ -244,7 +227,7 @@ def cmd_build(no_install=False):
         "arduino-cli", "compile",
         "--fqbn", board["fqbn"],
         "--build-path", str(OUT),
-        "--build-properties", f"build.extra_flags=-include {include_path}",
+        "--build-property", f"build.extra_flags=-include {include_path}",
         str(SKETCH),
     ])
 
