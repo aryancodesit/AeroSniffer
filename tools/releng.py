@@ -176,12 +176,14 @@ def cmd_install():
     libs = deps["libraries"]
     board_url = board["core_url"]
 
-    run(["arduino-cli", "core", "update-index", "--additional-urls", board_url])
+    run(["arduino-cli", "config", "init", "--overwrite"], check=False)
+    run(["arduino-cli", "config", "set", "board_manager.additional_urls", board_url])
+    run(["arduino-cli", "core", "update-index"])
 
     if is_core_installed(board["core"]):
         print(f"  Core {board['core']} already installed, skipping", file=sys.stderr)
     else:
-        run(["arduino-cli", "core", "install", "--additional-urls", board_url, board["core"]])
+        run(["arduino-cli", "core", "install", board["core"]])
 
     for name, ver in libs.items():
         spec = f"{name}@{ver}"
