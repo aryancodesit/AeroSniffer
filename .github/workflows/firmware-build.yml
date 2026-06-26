@@ -32,95 +32,38 @@ jobs:
       - name: Install dependencies
         run: python3 tools/releng.py install
 
-      # ═══════════════════════════════════════════════════════════
-      #  DIAGNOSTICS — collect environment state before build
-      # ═══════════════════════════════════════════════════════════
+      # ═════════════════════════════════════════════════════════
+      #  DIAGNOSTICS — verify TFT_eSPI installation & config
+      # ═════════════════════════════════════════════════════════
+
+      - name: DIAG — arduino-cli config dump
+        run: arduino-cli config dump
 
       - name: DIAG — arduino-cli lib list
         run: arduino-cli lib list
 
-      - name: DIAG — arduino-cli core list
-        run: arduino-cli core list
-
-      - name: DIAG — arduino-cli board details
-        run: arduino-cli board details --fqbn esp32:esp32:XIAO_ESP32S3
-
-      - name: DIAG — arduino-cli compile --show-properties
-        run: arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3 --show-properties AeroSniffer/
-
-      # ═══════════════════════════════════════════════════════════
-      #  DIAGNOSTICS — verbose compile with full command capture
-      # ═══════════════════════════════════════════════════════════
-
-      - name: DIAG — verbose compile (captures compiler command line, -D macros, backend files)
-        id: diag_verbose
+      - name: DIAG — TFT_eSPI installation
         run: |
-          VERSION=$(git describe --tags --dirty 2>/dev/null || echo "local-dev")
-          mkdir -p build
-          echo "#define FW_VERSION \"$VERSION\"" > build/version.h
-          INCLUDE_PATH="$(pwd)/build/version.h"
+          echo "=== pwd ==="
+          pwd
+          echo "=== TFT_eSPI library contents (first 100 lines) ==="
+          ls -R ~/Arduino/libraries/TFT_eSPI 2>/dev/null || echo "(no TFT_eSPI dir found)"
+          echo "=== User_Setup.h ==="
+          cat ~/Arduino/libraries/TFT_eSPI/User_Setup.h 2>/dev/null || echo "(no User_Setup.h found)"
+          echo "=== User_Setup_Select.h ==="
+          cat ~/Arduino/libraries/TFT_eSPI/User_Setup_Select.h 2>/dev/null || echo "(no User_Setup_Select.h found)"
+          echo "=== TFT_eSPI.h processor include guard lines ==="
+          sed -n '92,115p' ~/Arduino/libraries/TFT_eSPI/TFT_eSPI.h 2>/dev/null || echo "(no TFT_eSPI.h)"
 
-          # Run verbose compile, tee full output for artifact + terminal
-          arduino-cli compile \
-            --fqbn esp32:esp32:XIAO_ESP32S3 \
-            --build-path "$(pwd)/build" \
-            --build-property "build.extra_flags=-include ${INCLUDE_PATH}" \
-            --verbose \
-            AeroSniffer/ \
-            2>&1 | tee /tmp/verbose_compile.txt
-
-          # ── Extract compiler -D macros ──
-          echo "═══════════════════════════════════════════"
-          echo "  COMPILER -D MACROS (C++)"
-          echo "═══════════════════════════════════════════"
-          grep -oP '(?<= )-D\w+[^ ]*' /tmp/verbose_compile.txt \
-            | grep -- '^-D' | sort -u || echo "(none found)"
-
-          echo ""
-          echo "═══════════════════════════════════════════"
-          echo "  COMPILER -D MACROS (C)"
-          echo "═══════════════════════════════════════════"
-          grep -oP '(?<= )-D\w+[^ ]*' /tmp/verbose_compile.txt \
-            | grep -- '^-D' | sort -u || echo "(none found)"
-
-          # ── Confirm processor backend ──
-          echo ""
-          echo "═══════════════════════════════════════════"
-          echo "  PROCESSOR BACKEND FILES COMPILED"
-          echo "═══════════════════════════════════════════"
-          for f in TFT_eSPI_ESP32.c TFT_eSPI_ESP32_S3.c TFT_eSPI_ESP32_C3.c; do
-            if grep -q "$f" /tmp/verbose_compile.txt; then
-              echo "  ✅ ${f} — present in compile output"
-            else
-              echo "  ❌ ${f} — NOT in compile output"
-            fi
-          done
-
-          # ── dmaWait symbol reference ──
-          echo ""
-          echo "═══════════════════════════════════════════"
-          echo "  dmaWait REFERENCE ANALYSIS"
-          echo "═══════════════════════════════════════════"
-          if grep -q "dmaWait" /tmp/verbose_compile.txt 2>/dev/null; then
-            echo "  dmaWait referenced in:"
-            grep -n "dmaWait" /tmp/verbose_compile.txt | head -20
-          else
-            echo "  No dmaWait references in verbose output (checking .o symbols)..."
-          fi
-
-      - name: DIAG — upload verbose compile log
-        uses: actions/upload-artifact@v4
-        with:
-          name: verbose-compile-log
-          path: /tmp/verbose_compile.txt
-
-      # ═══════════════════════════════════════════════════════════
-      #  ACTUAL BUILD (through releng.py for artifact generation)
-      # ═══════════════════════════════════════════════════════════
+      # ═════════════════════════════════════════════════════════
+      #  COMPILE — clean build
+      # ═════════════════════════════════════════════════════════
 
       - name: Build firmware
         id: build
         run: |
+          # Remove stale build directory for a clean compile
+          rm -rf build
           python3 tools/releng.py build --no-install > /tmp/releng_version.txt
           echo "VERSION=$(sed 's/^VERSION=//' /tmp/releng_version.txt)" >> "$GITHUB_OUTPUT"
 
