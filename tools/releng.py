@@ -236,12 +236,14 @@ def cmd_build(no_install=False):
     dirty = is_tree_dirty()
     OUT.mkdir(parents=True, exist_ok=True)
 
-    extra_flags = f'-DFW_VERSION="{version}"'
+    inner = f'-DFW_VERSION="{version}"'
+    csv_safe = inner.replace('"', '""')
+    extra_flags = f'build.extra_flags="{csv_safe}"'
     run([
         "arduino-cli", "compile",
         "--fqbn", board["fqbn"],
         "--build-path", str(OUT),
-        "--build-properties", f"build.extra_flags={extra_flags}",
+        "--build-properties", extra_flags,
         str(SKETCH),
     ])
 
