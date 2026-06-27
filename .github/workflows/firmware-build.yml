@@ -68,19 +68,19 @@ jobs:
 
           echo ""
           echo "========== COMPILER -D FLAGS (all) =========="
-          grep -oP '(?<=\s)-D\w[^\s]*' /tmp/verbose_build.txt | grep '^-D' | sort -u
+          grep -oP '(?<=\s)-D\w[^\s]*' /tmp/verbose_build.txt 2>/dev/null | grep '^-D' | sort -u || echo "(could not extract -D flags)"
 
           echo ""
           echo "========== TFT_eSPI FULL COMPILATION COMMAND =========="
-          grep -E "TFT_eSPI\.(cpp|h)" /tmp/verbose_build.txt | head -10
+          grep -E "TFT_eSPI\.(cpp|h)" /tmp/verbose_build.txt 2>/dev/null | head -10 || echo "(no TFT_eSPI matches)"
 
           echo ""
           echo "========== PROCESSOR BACKEND FILES COMPILED =========="
-          grep -E "TFT_eSPI_ESP32\." /tmp/verbose_build.txt
+          grep -E "TFT_eSPI_ESP32\." /tmp/verbose_build.txt 2>/dev/null || echo "(no processor backend matches)"
 
           echo ""
-          echo "========== DMA-RELATED SYMBOLS =========="
-          grep -i "dma" /tmp/verbose_build.txt | head -20
+          echo "========== DMA-RELATED SYMBOLS IN BUILD LOG =========="
+          grep -i "dma" /tmp/verbose_build.txt 2>/dev/null | head -20 || echo "(no dma matches)"
 
           echo ""
           echo "========== sdkconfig.h location =========="
@@ -95,6 +95,13 @@ jobs:
           else
             echo "CONFIG_IDF_TARGET_ESP32S3 NOT found in any sdkconfig.h"
           fi
+
+          echo ""
+          echo "========== CONFIG_IDF_TARGET_ESP32S3 in sdkconfig.h content =========="
+          for f in $(find ~/.arduino15/packages/esp32 -name "sdkconfig.h" 2>/dev/null); do
+            echo "--- $f ---"
+            grep -i "CONFIG_IDF_TARGET" "$f" 2>/dev/null
+          done || echo "(no sdkconfig.h files found)"
 
       - name: INVESTIGATE — upload verbose log
         uses: actions/upload-artifact@v4
