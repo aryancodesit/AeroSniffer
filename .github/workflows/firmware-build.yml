@@ -33,84 +33,74 @@ jobs:
         run: python3 tools/releng.py install
 
       # ═════════════════════════════════════════════════════════
-      #  PREPROCESSOR INVESTIGATION
-      #  Check which processor backend is compiled and whether
-      #  dmaWait() survives preprocessing.
+      #  PREPROCESSOR INVESTIGATION — no heredocs (YAML safety)
       # ═════════════════════════════════════════════════════════
 
-      - name: INVESTIGATE — find dmaWait preprocessing path
+      - name: INVESTIGATE — library state
         run: |
-          set -x
-
-          # 1. arduino-cli lib list — confirm installed version
           echo "=== arduino-cli lib list ==="
           arduino-cli lib list
-
-          # 2. arduino-cli core list — confirm esp32 core version
           echo "=== arduino-cli core list ==="
           arduino-cli core list
-
-          # 3. Check TFT_eSPI library files
           echo "=== TFT_eSPI library structure ==="
           ls -la ~/Arduino/libraries/TFT_eSPI/
           echo "=== User_Setup.h ==="
           cat ~/Arduino/libraries/TFT_eSPI/User_Setup.h
-          echo "=== User_Setup_Select.h (setup lines) ==="
+          echo "=== User_Setup_Select.h setup lines ==="
           grep -n 'include.*User_Setup' ~/Arduino/libraries/TFT_eSPI/User_Setup_Select.h
 
-          # 4. Preprocess a minimal check sketch that includes TFT_eSPI.h
-          mkdir -p /tmp/dma_check
-          cat > /tmp/dma_check/dma_check.ino << 'ENDOFSKETCH'
-          #include <TFT_eSPI.h>
-          TFT_eSPI tft;
-          void setup() {
-            #ifdef CONFIG_IDF_TARGET_ESP32S3
-            #pragma message "DEF:CONFIG_IDF_TARGET_ESP32S3=1"
-            #else
-            #pragma message "DEF:CONFIG_IDF_TARGET_ESP32S3=0"
-            #endif
-            #ifdef ESP32_DMA
-            #pragma message "DEF:ESP32_DMA=1"
-            #else
-            #pragma message "DEF:ESP32_DMA=0"
-            #endif
-            #ifdef TFT_PARALLEL_8_BIT
-            #pragma message "DEF:TFT_PARALLEL_8_BIT=1"
-            #else
-            #pragma message "DEF:TFT_PARALLEL_8_BIT=0"
-            #endif
-            #ifdef SPI_18BIT_DRIVER
-            #pragma message "DEF:SPI_18BIT_DRIVER=1"
-            #else
-            #pragma message "DEF:SPI_18BIT_DRIVER=0"
-            #endif
-          }
-          void loop() {}
-ENDOFSKETCH
+      - name: INVESTIGATE — verbose compile (capture -D flags, backend, preprocessor)
+        run: |
+          # Generate version.h for consistent build flags
+          VERSION=$(git describe --tags --dirty 2>/dev/null || echo "local-dev")
+          mkdir -p build
+          echo "#define FW_VERSION \"$VERSION\"" > build/version.h
+          INCLUDE_PATH="$(pwd)/build/version.h"
 
-          # Compile with verbose to capture compiler command + pragma messages
-          echo "=== Verbose compile with #pragma diagnostics ==="
-          arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3 --verbose /tmp/dma_check 2>&1 | tee /tmp/verbose_dma_check.txt || true
+          # Verbose compile — captures every compiler command even if link fails
+          arduino-cli compile \
+            --fqbn esp32:esp32:XIAO_ESP32S3 \
+            --build-path "$(pwd)/build" \
+            --build-property "build.extra_flags=-include ${INCLUDE_PATH}" \
+            --verbose \
+            AeroSniffer/ \
+            2>&1 | tee /tmp/verbose_build.txt || true
 
-          # 5. Extract -D flags from the compiler command line
-          echo "=== -D flags for TFT_eSPI compilation ==="
-          grep "TFT_eSPI" /tmp/verbose_dma_check.txt | head -5 || echo "(no TFT_eSPI grep match)"
-          # Also check for any g++ line that shows -D flags
-          grep -oP '(?<= )-D\w[^ ]*' /tmp/verbose_dma_check.txt | sort -u || echo "(no -D flags found)"
+          echo ""
+          echo "========== COMPILER -D FLAGS (all) =========="
+          grep -oP '(?<=\s)-D\w[^\s]*' /tmp/verbose_build.txt | grep '^-D' | sort -u
 
-          # 6. Verify CONFIG_IDF_TARGET_ESP32S3 in esp32-hal.h
-          echo "=== esp32-hal.h include of sdkconfig ==="
-          grep -n 'sdkconfig' ~/.arduino15/packages/esp32/hardware/esp32/*/cores/esp32/esp32-hal.h 2>/dev/null || echo "(esp32-hal.h not found at expected path)"
+          echo ""
+          echo "========== TFT_eSPI FULL COMPILATION COMMAND =========="
+          grep -E "TFT_eSPI\.(cpp|h)" /tmp/verbose_build.txt | head -10
 
-          # 7. Check if sdkconfig defines ESP32S3
-          echo "=== sdkconfig.h location ==="
+          echo ""
+          echo "========== PROCESSOR BACKEND FILES COMPILED =========="
+          grep -E "TFT_eSPI_ESP32\." /tmp/verbose_build.txt
+
+          echo ""
+          echo "========== DMA-RELATED SYMBOLS =========="
+          grep -i "dma" /tmp/verbose_build.txt | head -20
+
+          echo ""
+          echo "========== sdkconfig.h location =========="
           find ~/.arduino15/packages/esp32 -name "sdkconfig.h" 2>/dev/null | head -5
+
+          echo ""
+          echo "========== Does sdkconfig.h define CONFIG_IDF_TARGET_ESP32S3? =========="
+          S3_DEF=$(find ~/.arduino15/packages/esp32 -name "sdkconfig.h" -exec grep -l "CONFIG_IDF_TARGET_ESP32S3" {} \; 2>/dev/null | head -1)
+          if [ -n "$S3_DEF" ]; then
+            echo "Found in: $S3_DEF"
+            grep "CONFIG_IDF_TARGET_ESP32S3" "$S3_DEF"
+          else
+            echo "CONFIG_IDF_TARGET_ESP32S3 NOT found in any sdkconfig.h"
+          fi
 
       - name: INVESTIGATE — upload verbose log
         uses: actions/upload-artifact@v4
         with:
-          name: dma-preprocess-investigation
-          path: /tmp/verbose_dma_check.txt
+          name: verbose-build-output
+          path: /tmp/verbose_build.txt
 
       # ═══════════════════════════════════════════════════════════
       #  BUILD
