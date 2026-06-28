@@ -1,0 +1,15 @@
+id: deprecated-example-001
+symptom: "Deprecated: old toolchain path pattern"
+lifecycle: DEPRECATED
+superseded_by: null
+patterns:
+  - 'xtensa-esp32s3-elf-g\+\+'
+trigger: "Old build environment"
+root_cause: "Toolchain path has moved to esp-x32 v2405"
+fix: "Update PATH to point to new toolchain location"
+priority: 3
+confidence_threshold: 0.5
+tags: ["deprecated", "toolchain"]
+first_seen: "2026-01-10"
+resolved: true
+related_files: []

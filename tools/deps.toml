@@ -1,0 +1,12 @@
+[board]
+fqbn = "esp32:esp32:XIAO_ESP32S3"
+core = "esp32:esp32@3.1.0"
+core_url = "https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json"
+
+[libraries]
+TFT_eSPI = "2.5.43"
+ArduinoJson = "6.21.5"
+
+[toolchain]
+arduino_cli = ">= 0.35.0"
+python = ">= 3.11"

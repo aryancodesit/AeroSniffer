@@ -1,5 +1,84 @@
 # Changelog
 
+## [v2.6-releng] — 2026-06-28
+
+### Release Engineering — CI Pipeline, Evidence Framework, Release Certification
+
+**GitHub Actions CI pipeline with automated build, evidence collection, and failure-path resilience. Certified across 5 validation runs. Single production-quality `cmd_ci_build()` entry point.**
+
+### Added
+- **CI Pipeline** (`.github/workflows/firmware-build.yml`): 9-step workflow — checkout, Python setup (pip cache), Arduino cache, dependency install, arduino-cli@v2 setup, firmware build + evidence generation, artifact upload (90-day firmware, 30-day evidence), tag-based release. `if: always()` on all uploads guarantees evidence retention even on failure.
+- **Evidence Framework** (`tools/evidence.py`, `tools/providers/`): Schema v1 manifest with `build_success`, `build_exit_code`, per-provider results. 5 isolated providers: Arduino (cores, libs, boards, pins, partitions, platform.txt), Compiler (defines, flags, version), Git (describe, diff, status, log), Linker (nm symbols, sections, map, largest symbols), TFT (backend detection, DMA context). Provider isolation — one failure never blocks others.
+- **Failure-Path Handling**: `releng.py ci-build` never exits non-zero. Build failure captured via `build/build-failed` sentinel. Evidence generation guaranteed via `try/finally` even on crash. Manifest reports `build_success: false` with `build_exit_code: 1`.
+- **Signature Matcher** (`tools/signatures/`): Lifecycle-aware engine (active/deprecated/experimental/superseded) with 3 regression signatures: core version mismatch, DMA empty stubs, HWCDC serial detection.
+- **Regression Tests** (`tools/tests/`): 26 pytest tests (11 signature + 15 CI pipeline) covering evidence pack validation, scenario ID uniqueness, lifecycle filtering, and `_environment_ready` contract.
+
+### Fixed
+- **`arduino/setup-arduino-cli@v1` → `@v2`**: v1 action cannot match GitHub release tags with `v` prefix (e.g., `v1.5.1`). v2 handles `v` prefix correctly. Root cause of first CI failure.
+- **Evidence `manifest.yaml` previously silent**: `pip install -r tools/requirements.txt` now installs `pyyaml>=6.0` before `releng.py ci-build` runs — no more silent manifest generation failures.
+
+### Changed
+- `tools/releng.py`: Complete rewrite — 454 lines, 6 commands (`install`, `build`, `ci-build`, `evidence`, `version`, `verify`). `cmd_ci_build()` is the single CI entry point. `validate_build_environment()` is the single validation rule source. `_environment_ready()` predicate ensures idempotent install.
+- `.gitignore`: Added `bin/` (local Arduino CLI binary), `.opencode/` (local AI assistant state), `UNDERSTAND/` (knowledge graph output).
+- `tools/requirements.txt`: Single Python dependency manifest — `pyyaml>=6.0`.
+
+### Certified
+- **Cold Cache** (Run #20): 114s — full download + compile + evidence. All caches populated.
+- **Warm Cache** (Run #21): 101s — Arduino cache hit (27s restore), build step 31s faster (compile only).
+- **Failure Path** (Run #22): 56s — `#error "CI TEST"` injected. Evidence uploaded with `build_success: false`. No workflow crash. Zero upload warnings.
+- **Recovery** (Run #23): 87s — revert to clean source, green build restored, no residual state.
+- **Overall**: 95/100 certification score. Pipeline certified for production.
+
+### Validation Artifacts
+- Certification report: `docs/TESTING/RELEASE_ENGINEERING_CERTIFICATION.md`
+- Pre-merge checklist: `docs/TESTING/PRE_MERGE_RELEASE_ENGINEERING_CHECKLIST.md`
+
+### Metadata
+- Branch: `feature/v2.6-releng-validation`
+- Commit: `393d1e8`
+- Tags: pending merge to `main`
+- Requires: Python 3.11+ (runtime), GitHub Actions (CI)
+
+## [v2.6-sprint3] — 2026-06-25
+
+### V2.6 Sprint 3 — Memory Domain Expansion (Implemented)
+
+**MemoryEngine expanded beyond touch-only. Security, Aviation, and Mood memory domains designed and implemented. Additive-only — no changes to any certified subsystem.**
+
+### Added
+- **Security Domain** (`DOMAIN_SECURITY`): 3 subtypes — `SEC_DEVICE_APPEARED` (25), `SEC_SUSPICIOUS_ACTIVITY` (38), `SEC_THREAT_DETECTED` (50). Deauth burst window (60s sliding), threshold-based escalation, dedup window 5 min, half-life 12h.
+- **Aviation Domain** (`DOMAIN_AVIATION`): 3 subtypes — `AVI_AIRCRAFT_SPOTTED` (22), `AVI_QUIET_SKY_PERIOD` (16), `AVI_UNUSUAL_TRAFFIC_EVENT` (42). Event-driven + quiet sky detection (30 min no-flight threshold), dedup window 3 min, half-life 4h.
+- **Mood Domain** (`DOMAIN_MOOD`): 4 subtypes — `MOOD_LONG_RELAXED_PERIOD` (25), `MOOD_LONG_PLAYFUL_PERIOD` (28), `MOOD_LONG_ANXIOUS_PERIOD` (35), `MOOD_TRANSITION` (30). Per-mood period lock (one prolonged record per uninterrupted mood episode). MOOD_TRANSITION never deduped. Half-life 8h.
+- **`source_id`**: `uint32_t source_id` in `MemoryRecord` — ICAO24 for aviation, device hash for security, 0 for touch/mood.
+- **Data union expansion**: `security`, `aviation`, `mood_event` struct members alongside existing `touch`.
+- **Domain-aware decay**: `decay_acc_[DOMAIN_COUNT]` array with per-domain half-life.
+- **MemoryCategory enum**: `MEM_CAT_NONE`, `MEM_CAT_EPISODIC`, `MEM_CAT_FAMILIARITY`, `MEM_CAT_SIGNIFICANT` — future-proofing for Sprint 4 categorization.
+
+### Changed
+- `MemoryTypes.h`: Added `MemoryCategory`, `MemoryDomain`, `SecuritySubtype`, `AviationSubtype`, `MoodSubtype` enums. Added `source_id` field. Expanded data union with 3 new members. Added `MemorySummary` domain_strength array and `dropped_touch_events`.
+- `MemoryEngine.h`: Added domain-specific public methods (`onSecurityEvent`, `onFlightEvent`), private observe helpers (`observe_security`, `observe_aviation`, `observe_mood`), per-domain tracking state (`sec_`, `avi_`, `mood_`), domain decay accumulator array.
+
+### Architecture
+- Memory is an observer — reads EventBus events and `g_creature.mood`. Never writes to any upstream subsystem.
+- Domain formation is additive — all 5 touch subtypes remain unchanged.
+- Salience normalization: no Sprint 3 subtype exceeds 55 without explicit review. Maximum: SEC_THREAT at 50.
+- Cross-domain ring buffer competition is expected and managed via LRU eviction.
+
+### Design Documentation
+- `V2.6_MEMORY_DOMAINS.md` — master domain taxonomy with salience ranges, source_id rules, context multipliers, decay parameters, MemoryRecord layout
+- `V2.6_SECURITY_MEMORY.md` — security domain formation rules, deauth window tracking, anti-flood safeguards
+- `V2.6_AVIATION_MEMORY.md` — aviation domain event-driven + time-based formation, quiet sky cooldown
+- `V2.6_MOOD_MEMORY.md` — mood domain tick-based detection, per-mood period lock, MOOD_TRANSITION never deduped
+
+### Not Certified (Pending Hardware Validation)
+- Sprint 3 has NOT been hardware-certified. Validation requires a 30-min multi-domain soak exercising all 15 subtypes across 4 domains with cross-domain dedup, decay, and regression verification.
+
+### Metadata
+- Branch: `main`
+- Commit: `3023b35`
+- Tags: pending certification
+- Next: Sprint 4 (V2.7) — domain-aware behavior or cross-domain recall
+
 ## [v2.6-sprint1] — 2026-06-24
 
 ### V2.6 Sprint 1 — Memory Layer Foundation (Certified 2026-06-24)

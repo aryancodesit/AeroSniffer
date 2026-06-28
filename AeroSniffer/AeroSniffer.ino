@@ -35,6 +35,11 @@
 #include <Preferences.h>
 #include <ArduinoJson.h>
 
+// ── Build version (injected by CI, fallback for local builds) ───
+#ifndef FW_VERSION
+#define FW_VERSION "local-dev"
+#endif
+
 // ── Global TFT instance ──────────────────────────────────────────
 TFT_eSPI tft = TFT_eSPI();
 
@@ -57,11 +62,27 @@ String  sys_current_face = "idle";
 bool    sec_hud_mode = true;
 bool    avi_hud_mode = true;
 
-// ── Memory Event Logger ──────────────────────────────────────────
 static void memory_event_callback(EventType event, void* data) {
-  TouchEventData* td = (TouchEventData*)data;
-  if (event == EVENT_TOUCH_SHORT) {
-    MemoryEngine.onTouchEvent(td ? td->duration_ms : 0);
+  switch (event) {
+    case EVENT_TOUCH_SHORT: {
+      TouchEventData* td = (TouchEventData*)data;
+      uint16_t dur = td ? td->duration_ms : 0;
+      MemoryEngine.onTouchEvent(dur);
+      break;
+    }
+    case EVENT_ATTACK_DEAUTH:
+    case EVENT_ATTACK_EVILTWIN:
+    case EVENT_DEVICE_TRUSTED:
+    case EVENT_DEVICE_FAMILIAR:
+    case EVENT_DEVICE_UNKNOWN:
+      MemoryEngine.onSecurityEvent(event);
+      break;
+    case EVENT_FLIGHT_DETECTED:
+    case EVENT_FLIGHT_RARE:
+      MemoryEngine.onFlightEvent(event, data);
+      break;
+    default:
+      break;
   }
 }
 
@@ -239,9 +260,9 @@ static void show_splash() {
   tft.setTextColor(0x4208);
   tft.setCursor(cx - 74, cy + 66);
   #ifdef HW_DESKBUDDY_2
-    tft.print("XIAO ESP32S3 | FreeRTOS | v2.0");
+    tft.print("XIAO ESP32S3 | FreeRTOS | " FW_VERSION);
   #else
-    tft.print("ESP32-S3 | FreeRTOS | v1.0");
+    tft.print("ESP32-S3 | FreeRTOS | " FW_VERSION);
   #endif
 
   // Mode icons
@@ -332,7 +353,7 @@ static bool handle_global_command(const String& line) {
     String cmd = line.substring(4);
 
     if (cmd == "PING") {
-      Serial.printf("RES:{\"ok\":true,\"fw\":\"2.0\",\"mode\":%d,\"hw\":\"deskbuddy2\"}\n", g_mode + 1);
+      Serial.printf("RES:{\"ok\":true,\"fw\":%s,\"mode\":%d,\"hw\":\"deskbuddy2\"}\n", FW_VERSION, g_mode + 1);
       return true;
     }
 
@@ -690,8 +711,15 @@ void setup() {
   MemoryEngine.begin();
   AttentionEngine.begin();
 
-  // ── Subscribe to EventBus events ──────────────────────────────
+  // ── Subscribe MemoryEngine to EventBus events ────────────────
   EventBus.subscribe(EVENT_TOUCH_SHORT, memory_event_callback);
+  EventBus.subscribe(EVENT_ATTACK_DEAUTH, memory_event_callback);
+  EventBus.subscribe(EVENT_ATTACK_EVILTWIN, memory_event_callback);
+  EventBus.subscribe(EVENT_DEVICE_TRUSTED, memory_event_callback);
+  EventBus.subscribe(EVENT_DEVICE_FAMILIAR, memory_event_callback);
+  EventBus.subscribe(EVENT_DEVICE_UNKNOWN, memory_event_callback);
+  EventBus.subscribe(EVENT_FLIGHT_DETECTED, memory_event_callback);
+  EventBus.subscribe(EVENT_FLIGHT_RARE, memory_event_callback);
 
   // ── Subscribe Attention Engine to EventBus events ────────────
   EventBus.subscribe(EVENT_ATTACK_DEAUTH, ae_event_callback);

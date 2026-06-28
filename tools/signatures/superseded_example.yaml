@@ -1,0 +1,15 @@
+id: superseded-example-001
+symptom: "Superseded: old HWCDCSerial pattern (v1)"
+lifecycle: SUPERSEDED
+superseded_by: hwcdcserial-001
+patterns:
+  - "HWCDCSerial.*not declared"
+trigger: "HWCDCSerial undefined reference (old variant)"
+root_cause: "Same root cause as hwcdcserial-001"
+fix: "Use hwcdcserial-001 signature instead"
+priority: 4
+confidence_threshold: 0.6
+tags: ["superseded", "usb", "cdc"]
+first_seen: "2026-02-01"
+resolved: true
+related_files: []

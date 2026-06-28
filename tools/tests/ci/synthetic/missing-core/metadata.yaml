@@ -1,0 +1,7 @@
+metadata_schema_version: 1
+scenario_id: missing-core-001
+source: synthetic
+expected_signature: core-version-001
+minimum_confidence: 0.7
+framework_version: v0.6.0
+regression_issue: "arduino-cli core not installed — Selected core ... not found in installed cores"

@@ -2,6 +2,11 @@
 
 ## Current State
 
+**Release Engineering — CI Pipeline and Evidence Framework is CERTIFIED.**
+GitHub Actions pipeline validated across 5 runs (cold/warm/failure/recovery). `releng.py ci-build` is the single CI entry point. Evidence pack generation with 5 providers (Arduino, Compiler, Git, Linker, TFT). Schema v1 manifest with `build_success: false` on failure. 26/26 tests passing. 95/100 certification score. Pipeline certified for production.
+
+**V2.6 Sprint 3 — Memory Domain Expansion is IMPLEMENTED.** MemoryEngine now supports 4 domains (TOUCH, SECURITY, AVIATION, MOOD) with 15 subtypes total. All 3 new domains are additive — no changes to MoodEngine, AttentionEngine, FaceEngine, EventBus, PersistenceService, or any mode task. Design and implementation complete. NOT CERTIFIED — hardware validation pending (30-min multi-domain soak).
+
 **V2.6 Sprint 2 — Memory Formation Expansion is CERTIFIED.** Memory now distinguishes 5 touch subtypes (TAP, HOLD, LONG_HOLD, DOUBLE, BURST) via duration-based classification with salience promotion. All 5 subtypes verified on hardware via 30-min soak. Sprint 1 foundation (ring buffer, decay, dedup, LittleFS persistence) remains stable and unmodified.
 
 **V2.6 Sprint 1 — Memory Layer Foundation is CERTIFIED and FROZEN.** Memory formation, recall, decay, accumulator model, bounded ring buffer (64 records), and LittleFS persistence validated on hardware via 60-min P3 soak. No WDT, no panics, no heap issues. Memory behaves as memory (accumulator decay, dedup boost) rather than persistent event logging — the primary V2.6 architectural risk is retired.
@@ -89,7 +94,7 @@ V2.5 Sprint 1–3C complete. Sprint 4A (Creature Persistence) implemented and **
 - Mode switch `delay(500)` — removed; 600ms splash kept for visual feedback
 
 ### Uncommitted Changes
-- None. Sprint 2 certified, committed (`497e104`), tagged (`v2.6-memory-expansion`). Working tree clean.
+- None. Sprint 3 implementation committed (`3023b35`).
 
 ### Sprint 4A — Creature Persistence (Complete)
 PersistenceService implemented: `CreatureProfile` struct, `load()/save()/factoryReset()`, rising-edge touch/mood counter hooks (no EventBus, no spinlocks, no upstream writes), 5-min periodic save + mode transition checkpoint, Preferences blob storage with schema version validation. Three critical bugs from spec review fixed (Preferences handle leak, missing schema key, unchecked load failure).
@@ -175,6 +180,10 @@ Hardware validation progress:
 
 **Pass criteria:** Remaining hardware test (P3) passes, no regression in existing behavior (mood cycle, touch response, engagement drive, mode transitions).
 
+### Release Engineering Merge
+
+Release Engineering CI pipeline, evidence framework, and signature matcher certified. Branch `feature/v2.6-releng-validation` ready for PR into `main`. Post-merge, future development benefits from automated build + evidence on every push to `main` and every PR.
+
 ### V2.5 Release Candidate
 
 After Sprint 4B validation passes. Branch ready for merge to `main`.
@@ -202,8 +211,9 @@ Observe → Attention → Emotion → Mood → Face
 Each layer builds on the one before. Persistence is cross-session data. Memory is structured recall (what happened, when, with whom). Behavior is action selection based on memory + mood. No layer reads or writes upstream fields.
 
 ### Future Sprints
-- **V2.6 Sprint 3**: Security/Aviation/Mood memory domains — expand beyond touch-only
-- **Memory Domains** (post-Sprint 3): Additional domain subtypes, cross-domain salience comparison
+- **V2.6 Sprint 3** (complete): Security/Aviation/Mood memory domains — expanded beyond touch-only. Implementation committed (`3023b35`). Hardware certification pending.
+- **Release Engineering** (complete): CI pipeline, evidence framework, signature matcher — certified. Branch ready for PR.
+- **Sprint 4 (V2.7)**: Domain-aware behavior or cross-domain recall — not yet planned
 - **Behavior Layer** (post-Memory): Mood-driven + memory-informed action selection — not yet planned
 
 ## File Map
@@ -236,16 +246,53 @@ Each layer builds on the one before. Persistence is cross-session data. Memory i
 - `docs/V2.5_SPRINT1_SPEC.md` — Sprint 1 implementation specification
 - `docs/V2.5_ATTENTION_MODEL.md` — attention data model
 
+## Release Engineering Subsystem
+
+### CI Pipeline
+- `.github/workflows/firmware-build.yml` — 9-step GitHub Actions workflow (77 lines)
+- `tools/releng.py` — single CI entry point (`ci-build`), 454 lines
+- `tools/evidence.py` — evidence pack generator, schema v1, 165 lines
+
+### Evidence Providers
+- `tools/providers/__init__.py` — provider framework (ABC, auto-discovery, isolation)
+- `tools/providers/arduino.py` — Arduino core, libs, boards.txt, variants, SDK config
+- `tools/providers/compiler.py` — compiler defines, flags, version
+- `tools/providers/git.py` — git describe, diff, status, log
+- `tools/providers/linker.py` — nm symbols, sections, map, largest symbols
+- `tools/providers/tft.py` — TFT backend, DMA context
+
+### Signature Matcher
+- `tools/signatures/matcher.py` — lifecycle-aware match engine
+- `tools/signatures/*.yaml` — 3 active + 3 lifecycle-example signatures
+
+### Tests
+- `tools/tests/test_signatures.py` — 11 signature tests
+- `tools/tests/ci/` — 15 CI pipeline tests (synthetic evidence packs)
+
+### Dependencies
+- `tools/requirements.txt` — `pyyaml>=6.0` (only non-stdlib dep)
+- `tools/deps.toml` — Arduino board, core, library version pins
+
+### Validation
+- `docs/TESTING/RELEASE_ENGINEERING_CERTIFICATION.md` — full 5-run certification report
+- `docs/TESTING/PRE_MERGE_RELEASE_ENGINEERING_CHECKLIST.md` — pre-merge audit
+
 ## File Map (V2.6 additions)
-- `AeroSniffer/MemoryEngine.h` — MemoryEngine class declaration (PendingTouch ring buffer, all 5 subtypes)
-- `AeroSniffer/MemoryEngine.cpp` — implementation: ring buffer, duration-based classification, formation, decay, dedup, persistence, recall
-- `AeroSniffer/Memory/MemoryTypes.h` — `TouchSubtype` enum (all 5), `MemoryRecord` with `touch_duration_ms`, `MemorySummary` with `dropped_touch_events`
+- `AeroSniffer/Memory/MemoryEngine.h` — MemoryEngine class declaration (Sprint 3: domain methods + state)
+- `AeroSniffer/Memory/MemoryTypes.h` — all domain enums, MemoryRecord with source_id + expanded union, MemorySummary
+- `AeroSniffer/MemoryEngine.cpp` — implementation: ring buffer, formation, decay, dedup, persistence, recall (sketch root)
 - `AeroSniffer/Config.h` — `TAP_MAX_MS=300`, `HOLD_MAX_MS=800`
 - `docs/V2.6_P3_RESULTS.md` — Sprint 1 P3 certification report
 - `docs/V2.6_SPRINT2_RESULTS.md` — Sprint 2 certification report (30-min hardware soak)
+- `docs/V2.6_SPRINT3_SPEC.md` — Sprint 3 Memory Domain Expansion specification (439 lines)
+- `docs/V2.6_MEMORY_DOMAINS.md` — master domain taxonomy (260 lines)
+- `docs/V2.6_SECURITY_MEMORY.md` — security domain design (179 lines)
+- `docs/V2.6_AVIATION_MEMORY.md` — aviation domain design (182 lines)
+- `docs/V2.6_MOOD_MEMORY.md` — mood domain design (189 lines)
 
 ## Git
-- Branch: `main`
-- Tags: `v2.5-attention-complete` (Sprint 2B), `v2.5-mood-foundation` (Sprint 3A), `v2.5-creature-brain-complete` (Sprint 3C), `v2.6-memory-expansion` (Sprint 2)
-- Commits: V2.6 Sprint 2 Certified `(HEAD)`, Phase 1 `116658c`, docs `c60d8ff`, Sprint 1 `83cc441`, Sprint 5A `(previous)`
-- Upstream: `origin/main`
+- Branch: `feature/v2.6-releng-validation` (pending PR → `main`)
+- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`, `v2.6-memory-expansion` (Sprint 1), `v2.6-memory-expansion-certified` (Sprint 2), plus V2.5 intermediate tags
+- Commits: Release Engineering `393d1e8` (HEAD), Sprint 3 `3023b35`, Sprint 2 `9951f00`, Sprint 1 `83cc441`
+- Upstream: `origin/feature/v2.6-releng-validation`
+- Merge: Ready for PR into `main`

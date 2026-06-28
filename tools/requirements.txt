@@ -1,0 +1,2 @@
+# CI runtime dependencies
+pyyaml>=6.0

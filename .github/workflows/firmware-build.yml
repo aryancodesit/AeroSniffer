@@ -1,0 +1,77 @@
+name: Firmware Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'AeroSniffer/**'
+      - 'tools/**'
+      - '.github/workflows/firmware-build.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  ARDUINO_CLI_VERSION: "1.5.1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/requirements.txt
+
+      - name: Cache Arduino core + libraries
+        uses: actions/cache@v4
+        id: cache-arduino
+        with:
+          path: ~/.arduino15
+          key: arduino15-ci-${{ hashFiles('tools/deps.toml') }}
+
+      - name: Install Python dependencies
+        run: pip install -r tools/requirements.txt
+
+      - uses: arduino/setup-arduino-cli@v2
+        with:
+          version: ${{ env.ARDUINO_CLI_VERSION }}
+
+      - name: Build firmware + evidence pack
+        id: build
+        run: |
+          python3 tools/releng.py ci-build
+          echo "VERSION=$(python3 tools/releng.py version)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload firmware artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aerosniffer-${{ steps.build.outputs.VERSION || 'unknown' }}
+          path: |
+            build/*.bin
+            build/checksums.sha256
+            build/build-info.yaml
+          retention-days: 90
+
+      - name: Upload evidence pack
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-evidence-${{ github.sha }}
+          path: build/evidence/
+          retention-days: 30
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "build/*.bin,build/checksums.sha256,build/build-info.yaml"
+          bodyFile: "changelog.md"
+          omitBodyDuringUpdate: true
+          allowUpdates: true

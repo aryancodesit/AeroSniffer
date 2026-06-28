@@ -1,0 +1,18 @@
+id: hwcdcserial-001
+symptom: "undefined reference to HWCDCSerial"
+lifecycle: ACTIVE
+patterns:
+  - "undefined reference to [`']?HWCDCSerial"
+  - "HWCDCSerial"
+  - "ARDUINO_USB_MODE"
+trigger: "build.extra_flags overwrites platform defines, removing -DARDUINO_USB_MODE=1"
+root_cause: "build.extra_flags replaces the entire platform define set instead of appending; -DARDUINO_USB_MODE and -DARDUINO_USB_CDC_ON_BOOT are lost, so HWCDCSerial is never defined"
+fix: "Replace build.extra_flags with compiler.cpp.extra_flags in arduino-cli --build-property"
+priority: 9
+confidence_threshold: 0.7
+tags: ["usb", "cdc", "serial", "build-flags", "linker-error"]
+first_seen: "2026-03-15"
+resolved: true
+related_files:
+  - .github/workflows/firmware-build.yml
+  - tools/releng.py

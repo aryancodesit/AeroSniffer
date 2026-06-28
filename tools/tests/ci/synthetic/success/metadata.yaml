@@ -1,0 +1,7 @@
+metadata_schema_version: 1
+scenario_id: success-001
+source: synthetic
+expected_signature: null
+minimum_confidence: 0.0
+framework_version: v0.6.0
+regression_issue: "Baseline: successful build produces no false positives"

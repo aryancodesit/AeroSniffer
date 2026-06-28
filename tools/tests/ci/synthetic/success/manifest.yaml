@@ -1,0 +1,26 @@
+evidence_schema_version: 1
+generated_at: "2026-06-27T15:00:00+00:00"
+build_success: true
+version: "v2.3.1-12-gabc1234"
+dirty: false
+providers:
+  git:
+    files: 3
+    status: ok
+  arduino:
+    files: 12
+    status: ok
+  compiler:
+    files: 5
+    status: ok
+  tft:
+    files: 2
+    status: ok
+  linker:
+    files: 4
+    status: ok
+files:
+  - build.log
+  - manifest.yaml
+  - version.h
+  - build-info.yaml
