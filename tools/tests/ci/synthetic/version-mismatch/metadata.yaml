@@ -1,0 +1,7 @@
+metadata_schema_version: 1
+scenario_id: version-mismatch-001
+source: synthetic
+expected_signature: core-version-001
+minimum_confidence: 0.5
+framework_version: v0.6.0
+regression_issue: "Core version mismatch between deps.toml specification and installed version"

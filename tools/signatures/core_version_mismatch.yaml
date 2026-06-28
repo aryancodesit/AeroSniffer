@@ -1,0 +1,18 @@
+id: core-version-001
+symptom: "core version mismatch between CI and local"
+lifecycle: ACTIVE
+patterns:
+  - "core.*not found"
+  - "Selected core.*not found in installed cores"
+  - "esp32.*version"
+  - "core.*install"
+trigger: "arduino-cli core install did not pin exact version in CI, or CI installed a newer version"
+root_cause: "deps.toml specifies esp32:esp32@3.1.0 but CI may install 3.2.0 via arduino/setup-arduino-cli action without version pinning"
+fix: "Run 'arduino-cli core install esp32:esp32@3.1.0' explicitly in CI, or update deps.toml to match available version"
+priority: 7
+confidence_threshold: 0.6
+tags: ["ci", "core", "version", "environment"]
+first_seen: "2026-05-01"
+resolved: false
+related_files:
+  - tools/deps.toml

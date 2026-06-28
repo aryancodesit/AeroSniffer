@@ -2,16 +2,17 @@ name: Firmware Build
 
 on:
   push:
-    branches: [main, releng-validation]
-    paths:
-      - 'AeroSniffer/**'
-      - 'tools/**'
-  pull_request:
     branches: [main]
     paths:
       - 'AeroSniffer/**'
       - 'tools/**'
+      - '.github/workflows/firmware-build.yml'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+
+env:
+  ARDUINO_CLI_VERSION: "1.5.1"
 
 jobs:
   build:
@@ -21,116 +22,56 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/requirements.txt
 
-      - name: Setup arduino-cli
-        uses: arduino/setup-arduino-cli@v1
-
-      - name: Install dependencies
-        run: python3 tools/releng.py install
-
-      # ═════════════════════════════════════════════════════════
-      #  PREPROCESSOR INVESTIGATION — no heredocs (YAML safety)
-      # ═════════════════════════════════════════════════════════
-
-      - name: INVESTIGATE — library state
-        run: |
-          echo "=== arduino-cli lib list ==="
-          arduino-cli lib list
-          echo "=== arduino-cli core list ==="
-          arduino-cli core list
-          echo "=== TFT_eSPI library structure ==="
-          ls -la ~/Arduino/libraries/TFT_eSPI/
-          echo "=== User_Setup.h ==="
-          cat ~/Arduino/libraries/TFT_eSPI/User_Setup.h
-          echo "=== User_Setup_Select.h setup lines ==="
-          grep -n 'include.*User_Setup' ~/Arduino/libraries/TFT_eSPI/User_Setup_Select.h
-
-      - name: INVESTIGATE — verbose compile (capture -D flags, backend, preprocessor)
-        run: |
-          # Generate version.h for consistent build flags
-          VERSION=$(git describe --tags --dirty 2>/dev/null || echo "local-dev")
-          mkdir -p build
-          echo "#define FW_VERSION \"$VERSION\"" > build/version.h
-          INCLUDE_PATH="$(pwd)/build/version.h"
-
-          # Verbose compile — captures every compiler command even if link fails
-          arduino-cli compile \
-            --fqbn esp32:esp32:XIAO_ESP32S3 \
-            --build-path "$(pwd)/build" \
-            --build-property "build.extra_flags=-include ${INCLUDE_PATH}" \
-            --verbose \
-            AeroSniffer/ \
-            2>&1 | tee /tmp/verbose_build.txt || true
-
-          echo ""
-          echo "========== COMPILER -D FLAGS (all) =========="
-          grep -oP '(?<=\s)-D\w[^\s]*' /tmp/verbose_build.txt 2>/dev/null | grep '^-D' | sort -u || echo "(could not extract -D flags)"
-
-          echo ""
-          echo "========== TFT_eSPI FULL COMPILATION COMMAND =========="
-          grep -E "TFT_eSPI\.(cpp|h)" /tmp/verbose_build.txt 2>/dev/null | head -10 || echo "(no TFT_eSPI matches)"
-
-          echo ""
-          echo "========== PROCESSOR BACKEND FILES COMPILED =========="
-          grep -E "TFT_eSPI_ESP32\." /tmp/verbose_build.txt 2>/dev/null || echo "(no processor backend matches)"
-
-          echo ""
-          echo "========== DMA-RELATED SYMBOLS IN BUILD LOG =========="
-          grep -i "dma" /tmp/verbose_build.txt 2>/dev/null | head -20 || echo "(no dma matches)"
-
-          echo ""
-          echo "========== sdkconfig.h location =========="
-          find ~/.arduino15/packages/esp32 -name "sdkconfig.h" 2>/dev/null | head -5
-
-          echo ""
-          echo "========== Does sdkconfig.h define CONFIG_IDF_TARGET_ESP32S3? =========="
-          S3_DEF=$(find ~/.arduino15/packages/esp32 -name "sdkconfig.h" -exec grep -l "CONFIG_IDF_TARGET_ESP32S3" {} \; 2>/dev/null | head -1)
-          if [ -n "$S3_DEF" ]; then
-            echo "Found in: $S3_DEF"
-            grep "CONFIG_IDF_TARGET_ESP32S3" "$S3_DEF"
-          else
-            echo "CONFIG_IDF_TARGET_ESP32S3 NOT found in any sdkconfig.h"
-          fi
-
-          echo ""
-          echo "========== CONFIG_IDF_TARGET_ESP32S3 in sdkconfig.h content =========="
-          for f in $(find ~/.arduino15/packages/esp32 -name "sdkconfig.h" 2>/dev/null); do
-            echo "--- $f ---"
-            grep -i "CONFIG_IDF_TARGET" "$f" 2>/dev/null
-          done || echo "(no sdkconfig.h files found)"
-
-      - name: INVESTIGATE — upload verbose log
-        uses: actions/upload-artifact@v4
+      - name: Cache Arduino core + libraries
+        uses: actions/cache@v4
+        id: cache-arduino
         with:
-          name: verbose-build-output
-          path: /tmp/verbose_build.txt
+          path: ~/.arduino15
+          key: arduino15-ci-${{ hashFiles('tools/deps.toml') }}
 
-      # ═══════════════════════════════════════════════════════════
-      #  BUILD
-      # ═══════════════════════════════════════════════════════════
+      - name: Install Python dependencies
+        run: pip install -r tools/requirements.txt
 
-      - name: Build firmware
+      - uses: arduino/setup-arduino-cli@v1
+        with:
+          version: ${{ env.ARDUINO_CLI_VERSION }}
+
+      - name: Build firmware + evidence pack
         id: build
         run: |
-          rm -rf build
-          python3 tools/releng.py build --no-install > /tmp/releng_version.txt
-          echo "VERSION=$(sed 's/^VERSION=//' /tmp/releng_version.txt)" >> "$GITHUB_OUTPUT"
+          python3 tools/releng.py ci-build
+          echo "VERSION=$(python3 tools/releng.py version)" >> "$GITHUB_OUTPUT"
 
-      - name: Upload artifacts
+      - name: Upload firmware artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: aerosniffer-${{ steps.build.outputs.VERSION }}
-          path: build/
+          name: aerosniffer-${{ steps.build.outputs.VERSION || 'unknown' }}
+          path: |
+            build/*.bin
+            build/checksums.sha256
+            build/build-info.yaml
+          retention-days: 90
+
+      - name: Upload evidence pack
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-evidence-${{ github.sha }}
+          path: build/evidence/
+          retention-days: 30
 
       - name: Create release
         if: startsWith(github.ref, 'refs/tags/')
         uses: ncipollo/release-action@v1
         with:
-          artifacts: "build/*"
+          artifacts: "build/*.bin,build/checksums.sha256,build/build-info.yaml"
           bodyFile: "changelog.md"
           omitBodyDuringUpdate: true
           allowUpdates: true

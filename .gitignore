@@ -18,6 +18,9 @@ build/
 *.map
 *.lst
 
+# ── Arduino CLI binary (local testing) ──────────────────────────
+bin/
+
 # ── Arduino IDE temp files ───────────────────────────────────────
 *.bak
 ~*.tmp
@@ -79,6 +82,7 @@ docs/*
 aerosniffer-ai.py
 .aerosniffer-ai-history
 .aerosniffer-ai-cache/
+.opencode/
 
 # Understand Anything knowledge graph output
 UNDERSTAND/

@@ -1,0 +1,7 @@
+metadata_schema_version: 1
+scenario_id: linker-hwcdc-001
+source: synthetic
+expected_signature: hwcdcserial-001
+minimum_confidence: 0.7
+framework_version: v0.6.0
+regression_issue: "HWCDCSerial undefined reference when build.extra_flags overwrites platform defines"

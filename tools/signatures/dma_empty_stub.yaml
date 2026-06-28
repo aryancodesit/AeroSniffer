@@ -1,0 +1,20 @@
+id: dma-empty-stub-001
+symptom: "DMA functions compile to empty stubs"
+lifecycle: ACTIVE
+patterns:
+  - "dmaWait"
+  - "dma_transfer"
+  - "dma_busy"
+  - "DESP32=ESP32"
+  - "TFT_eSPI.*DMA"
+trigger: "DESP32=ESP32 or DESP32S3=ESP32S3 missing from compile flags"
+root_cause: "TFT_eSPI wraps DMA function bodies in #ifdef ESP32 / #ifdef ESP32S3; when platform defines are overwritten, these macros are undefined and DMA compiles to empty stubs. Link succeeds but display has no DMA."
+fix: "Ensure platform defines are not overwritten. Use compiler.cpp.extra_flags instead of build.extra_flags."
+priority: 8
+confidence_threshold: 0.65
+tags: ["display", "dma", "tft", "build-flags", "silent-failure"]
+first_seen: "2026-04-10"
+resolved: true
+related_files:
+  - .github/workflows/firmware-build.yml
+  - tools/releng.py

@@ -1,0 +1,17 @@
+id: experimental-example-001
+symptom: "Experimental: partition table overflow detection"
+lifecycle: EXPERIMENTAL
+superseded_by: null
+patterns:
+  - "partition.*overflow"
+  - "not enough space.*partition"
+trigger: "Application exceeds allocated partition size"
+root_cause: "Code size exceeds partition table allocation"
+fix: "Increase partition size in partitions.csv or reduce binary size"
+priority: 6
+confidence_threshold: 0.8
+tags: ["experimental", "partition", "size"]
+first_seen: "2026-06-01"
+resolved: false
+related_files:
+  - "tools/partitions.csv"

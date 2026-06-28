@@ -1,0 +1,15 @@
+evidence_schema_version: 1
+generated_at: "2026-06-27T15:00:00+00:00"
+build_success: false
+version: "v2.3.1-10-gdef5678"
+dirty: false
+providers:
+  git:
+    files: 3
+    status: ok
+  arduino:
+    files: 6
+    status: ok
+files:
+  - build.log
+  - manifest.yaml
