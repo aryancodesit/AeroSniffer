@@ -38,7 +38,7 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r tools/requirements.txt
 
-      - uses: arduino/setup-arduino-cli@v1
+      - uses: arduino/setup-arduino-cli@v2
         with:
           version: ${{ env.ARDUINO_CLI_VERSION }}
 
