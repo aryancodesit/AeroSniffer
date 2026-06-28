@@ -19,6 +19,7 @@
 | **V2.6 Sprint 1** | Memory Layer Foundation | ✅ Certified: memory formation, recall, decay, accumulator model, bounded ring buffer, LittleFS persistence. P3 passed (60-min hardware soak). |
 | **V2.6 Sprint 2** | Memory Formation Expansion | ✅ Certified: PendingTouch ring buffer, duration-based TAP/HOLD/LONG_HOLD/DOUBLE/BURST classification. 30-min hardware soak. All 5 subtypes verified on hardware. |
 | **V2.6 Sprint 3** | Memory Domain Expansion | ✅ Implemented: Security, Aviation, Mood memory domains (15 subtypes). Additive-only — no changes to certified subsystems. Hardware certification pending (30-min multi-domain soak). |
+| **Release Engineering** | CI Pipeline + Evidence Framework | ✅ Certified: 5-run validation (cold/warm/failure/recovery). GitHub Actions pipeline with arduino-cli v2, pip caching, evidence pack generation, 26/26 tests passing. 95/100 certification score. |
 
 ### Blocked
 
@@ -51,6 +52,7 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 
 | Date | Commit | Description |
 |------|--------|-------------|
+| 2026-06-28 | `393d1e8` | Release Engineering: CI pipeline, evidence framework, build caching, failure-path handling |
 | 2026-06-25 | `3023b35` | V2.6 Sprint 3 — Memory Domain Expansion implemented |
 | 2026-06-24 | `9951f00` | V2.6 Sprint 2 certified — Memory Formation Expansion PASS |
 | 2026-06-24 | `497e104` | docs: fix stale Uncommitted Changes section in AI_HANDOFF.md |
@@ -63,6 +65,7 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 - Active: `main`
 - Upstream: `origin/main`
 - Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`, `v2.6-memory-expansion`, `v2.6-memory-expansion-certified`
+- Merge: `feature/v2.6-releng-validation` ready for PR → `main`
 
 ### Current Architecture
 
@@ -77,7 +80,7 @@ Observe → Attention → Emotion → Mood → Face (with Autonomous Presence)
 
 ### Sprint 4 (V2.7)
 
-V2.6 Sprint 3 implementation complete. Hardware certification and Sprint 4 planning deferred — governance focus and repository cleanup took priority for Sprint 4 preparation.
+V2.6 Sprint 3 implementation complete. Release Engineering pipeline certified. Hardware certification and Sprint 4 planning deferred — governance focus and repository cleanup took priority.
 
 ### Previous Sprints
 

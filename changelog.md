@@ -1,5 +1,44 @@
 # Changelog
 
+## [v2.6-releng] — 2026-06-28
+
+### Release Engineering — CI Pipeline, Evidence Framework, Release Certification
+
+**GitHub Actions CI pipeline with automated build, evidence collection, and failure-path resilience. Certified across 5 validation runs. Single production-quality `cmd_ci_build()` entry point.**
+
+### Added
+- **CI Pipeline** (`.github/workflows/firmware-build.yml`): 9-step workflow — checkout, Python setup (pip cache), Arduino cache, dependency install, arduino-cli@v2 setup, firmware build + evidence generation, artifact upload (90-day firmware, 30-day evidence), tag-based release. `if: always()` on all uploads guarantees evidence retention even on failure.
+- **Evidence Framework** (`tools/evidence.py`, `tools/providers/`): Schema v1 manifest with `build_success`, `build_exit_code`, per-provider results. 5 isolated providers: Arduino (cores, libs, boards, pins, partitions, platform.txt), Compiler (defines, flags, version), Git (describe, diff, status, log), Linker (nm symbols, sections, map, largest symbols), TFT (backend detection, DMA context). Provider isolation — one failure never blocks others.
+- **Failure-Path Handling**: `releng.py ci-build` never exits non-zero. Build failure captured via `build/build-failed` sentinel. Evidence generation guaranteed via `try/finally` even on crash. Manifest reports `build_success: false` with `build_exit_code: 1`.
+- **Signature Matcher** (`tools/signatures/`): Lifecycle-aware engine (active/deprecated/experimental/superseded) with 3 regression signatures: core version mismatch, DMA empty stubs, HWCDC serial detection.
+- **Regression Tests** (`tools/tests/`): 26 pytest tests (11 signature + 15 CI pipeline) covering evidence pack validation, scenario ID uniqueness, lifecycle filtering, and `_environment_ready` contract.
+
+### Fixed
+- **`arduino/setup-arduino-cli@v1` → `@v2`**: v1 action cannot match GitHub release tags with `v` prefix (e.g., `v1.5.1`). v2 handles `v` prefix correctly. Root cause of first CI failure.
+- **Evidence `manifest.yaml` previously silent**: `pip install -r tools/requirements.txt` now installs `pyyaml>=6.0` before `releng.py ci-build` runs — no more silent manifest generation failures.
+
+### Changed
+- `tools/releng.py`: Complete rewrite — 454 lines, 6 commands (`install`, `build`, `ci-build`, `evidence`, `version`, `verify`). `cmd_ci_build()` is the single CI entry point. `validate_build_environment()` is the single validation rule source. `_environment_ready()` predicate ensures idempotent install.
+- `.gitignore`: Added `bin/` (local Arduino CLI binary), `.opencode/` (local AI assistant state), `UNDERSTAND/` (knowledge graph output).
+- `tools/requirements.txt`: Single Python dependency manifest — `pyyaml>=6.0`.
+
+### Certified
+- **Cold Cache** (Run #20): 114s — full download + compile + evidence. All caches populated.
+- **Warm Cache** (Run #21): 101s — Arduino cache hit (27s restore), build step 31s faster (compile only).
+- **Failure Path** (Run #22): 56s — `#error "CI TEST"` injected. Evidence uploaded with `build_success: false`. No workflow crash. Zero upload warnings.
+- **Recovery** (Run #23): 87s — revert to clean source, green build restored, no residual state.
+- **Overall**: 95/100 certification score. Pipeline certified for production.
+
+### Validation Artifacts
+- Certification report: `docs/TESTING/RELEASE_ENGINEERING_CERTIFICATION.md`
+- Pre-merge checklist: `docs/TESTING/PRE_MERGE_RELEASE_ENGINEERING_CHECKLIST.md`
+
+### Metadata
+- Branch: `feature/v2.6-releng-validation`
+- Commit: `393d1e8`
+- Tags: pending merge to `main`
+- Requires: Python 3.11+ (runtime), GitHub Actions (CI)
+
 ## [v2.6-sprint3] — 2026-06-25
 
 ### V2.6 Sprint 3 — Memory Domain Expansion (Implemented)
