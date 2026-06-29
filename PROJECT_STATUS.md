@@ -1,6 +1,6 @@
-# Project Status — AeroSniffer V2.5
+# Project Status — AeroSniffer V2.7
 
-## Phase: Creature Brain
+## Phase: Memory & Behavior
 
 ### Completed
 
@@ -47,12 +47,16 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 | `v2.5-persistence` | Sprint 4A — Creature Persistence |
 | `v2.6-memory-expansion` | V2.6 Sprint 1 — Memory Layer Foundation |
 | `v2.6-memory-expansion-certified` | V2.6 Sprint 2 — Memory Formation Expansion |
+| `v2.6-releng` | V2.6 Release Engineering — CI pipeline + evidence framework |
+| `v2.7-sprint1` | V2.7 Sprint 1 — BehaviorEngine V1 certified |
 
 ### Recent Commits
 
 | Date | Commit | Description |
 |------|--------|-------------|
-| 2026-06-28 | `393d1e8` | Release Engineering: CI pipeline, evidence framework, build caching, failure-path handling |
+| 2026-06-29 | `HEAD` | V2.7 Sprint 1 — BehaviorEngine V1 certified, hardware-validated |
+| 2026-06-28 | `db34556` | docs: redesign README into production-grade GitHub landing page |
+| 2026-06-28 | `9cf1869` | Release Engineering: CI pipeline, evidence framework, build caching, failure-path handling (merged) |
 | 2026-06-25 | `3023b35` | V2.6 Sprint 3 — Memory Domain Expansion implemented |
 | 2026-06-24 | `9951f00` | V2.6 Sprint 2 certified — Memory Formation Expansion PASS |
 | 2026-06-24 | `497e104` | docs: fix stale Uncommitted Changes section in AI_HANDOFF.md |
@@ -64,23 +68,53 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 
 - Active: `main`
 - Upstream: `origin/main`
-- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`, `v2.6-memory-expansion`, `v2.6-memory-expansion-certified`
-- Merge: `feature/v2.6-releng-validation` ready for PR → `main`
+- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`, `v2.5-persistence`, `v2.6-memory-expansion`, `v2.6-memory-expansion-certified`, `v2.6-releng`, `v2.7-sprint1`
+- Merged: All V2.6 branches merged — `feature/v2.6-releng-validation` → `main` (`9cf1869`)
 
 ### Current Architecture
 
 ```
 Observe → Attention → Emotion → Mood → Face (with Autonomous Presence)
-                                            ↑
-                                       Persistence (observer)
-                                       Memory (observer, LittleFS-backed, 4 domains)
+                                          ↑
+                                     Persistence (observer)
+                                     Memory (observer, LittleFS-backed, 4 domains)
+                                     Behavior (Sprint 1 → CreatureState)
 ```
+
+### V2.7 — Behavioral Integration
+
+**Goal:** Add a Behavior Layer that reads MemoryEngine and influences CreatureState, enabling memory-informed behavior without modifying any certified subsystem. FaceEngine remains a pure renderer — it never reads MemoryEngine directly.
+
+**Status:** Sprint 0 (cleanup + audit) complete. Sprint 1 (BehaviorEngine V1) certified, hardware-validated.
+
+| Sprint | Description | Status |
+|--------|-------------|--------|
+| Sprint 1 | Behavior Engine (Memory → Behavior → CreatureState) — 3 V1 transforms, additive evaluation, persistent modifier with linear decay, edge-triggered debug. 125 lines, 2 new files. | ✅ Certified, hardware-validated (60-min soak) |
+
+**Architecture (Sprint 1):**
+```
+Observe → Attention → Emotion → Mood → Face
+                                          ↑
+                                     Persistence (observer)
+                                     Memory → Behavior Layer → CreatureState
+```
+
+Behavior Layer is a new engine that reads `MemoryEngine.recall()` and influences mood/engagement_drive in CreatureState. FaceEngine remains a pure renderer with zero memory awareness.
+
+**V1 Rules (certified):**
+- Security domain strength > 30 && > mood domain strength → `engagement_drive = max(engagement_drive, 60)` (security floor)
+- Touch domain > 25 → `mood_strength` accumulates +5/tick (capped ±15 via `_mood_modifier`), decays -1/tick toward zero when touch absent
+- No significant memory activity > 120s → no override; natural decay continues
+
+**Validation:**
+- 60-min hardware soak across all 3 modes (Companion, Security, Aviation)
+- Zero WDT resets, zero panics, zero asserts, zero heap growth
+- Log: `docs/TESTING/v2.7 sprint1.txt`
+- Tag: `v2.7-sprint1`
 
 ### Next Sprint
 
-### Sprint 4 (V2.7)
-
-V2.6 Sprint 3 implementation complete. Release Engineering pipeline certified. Hardware certification and Sprint 4 planning deferred — governance focus and repository cleanup took priority.
+Sprint 2 (V2.7) will refine behavior rules with real sensor data, extract named tuning constants, and tackle architectural debt (migrate V2.6 memory modulation from FaceEngine to BehaviorEngine).
 
 ### Previous Sprints
 
@@ -107,21 +141,17 @@ Remaining exit criteria:
 |----|-------------|----------|--------|
 | OBS-001 | Boot counter showed 4 instead of 5 after power cycle. Possibly serial reconnection without true power-off, or NVS write ordering edge case. No persistence data loss. Do not investigate further. | LOW | Open — no action planned |
 
-### V2.5 Release Candidate
-
-P3 passed (67-min soak). Ready for V2.5 release. B009 downgraded to historical investigation — crash binary is commit 450dabd (18 commits behind HEAD), no reproduction on current firmware. 32-min Sprint 5A run with 3 mode transitions and no crash confirms HEAD is clean.
-
 ### V2.6+ Architecture
 
+Current pipeline (certified):
+
 ```
-Observe → Attention → Emotion → Mood → Face
-                                           ↑
-                                      Persistence (observer)
-                                      Memory (observer, 4 domains)
-                                      Behavior (planned)
+Observe → Attention → Emotion → Mood → Persistence → Memory → Behavior → Face
+             ↑                          ↑           ↑          ↑
+         EventBus                   Observer     Observer   Reads recall()
 ```
 
-Memory is now the primary observer layer (4 domains, 15 subtypes, LittleFS-backed). Behavior Layer V2 (memory-informed action selection) is the next architectural milestone but is not yet planned for a specific sprint.
+Behavior Layer reads memory summaries and writes finalized values to CreatureState. FaceEngine remains a pure renderer — no direct memory awareness, no merge logic.
 
-Explicitly deferred:
-- Learned preferences, memory recall, relationship modeling, personality evolution — all depend on a stable behavior layer that does not yet exist.
+Explicitly deferred from V2.7:
+- Learned preferences, memory recall, relationship modeling, personality evolution — all depend on a richer behavior layer in future sprints.

@@ -26,6 +26,7 @@
 #include "Companion/MoodEngine.h"
 #include "Persistence/PersistenceService.h"
 #include "Memory/MemoryEngine.h"
+#include "Companion/BehaviorEngine.h"
 #include "Mode1_Pet.h"
 #include "Mode2_Security.h"
 #include "Mode3_Aviation.h"
@@ -620,6 +621,9 @@ void task_core1(void*) {
     // ── Tick Memory Engine (observer — reads g_creature) ─────
     MemoryEngine.tick();
 
+    // ── Tick Behavior Engine (pipeline pos 6) ────────────────
+    BehaviorEngine.tick();
+
     // ── Non-Blocking Serial Processing ───────────────────────
     process_serial_commands();
 
@@ -709,6 +713,7 @@ void setup() {
   MoodEngine.begin();
   CreaturePersistence.begin();
   MemoryEngine.begin();
+  BehaviorEngine.begin();
   AttentionEngine.begin();
 
   // ── Subscribe MemoryEngine to EventBus events ────────────────

@@ -1,17 +1,19 @@
-# AI Handoff — AeroSniffer V2.6
+# AI Handoff — AeroSniffer V2.7
 
 ## Current State
 
+**V2.7 Sprint 1 — BehaviorEngine V1 is CERTIFIED.** Behavioral Layer reads MemoryEngine recall summaries and influences CreatureState through 3 deterministic V1 transforms. 125 lines across 2 new files (Companion/BehaviorEngine.h, BehaviorEngine.cpp). Additive `delta += N` evaluation, persistent `_mood_modifier` with linear -1/tick decay, edge-triggered debug. O(1), allocation-free. Certified on hardware via 60-min soak across all 3 modes (Companion, Security, Aviation). Zero WDT, zero panics, zero asserts, zero heap growth. Tag: `v2.7-sprint1`.
+
 **Release Engineering — CI Pipeline and Evidence Framework is CERTIFIED.**
-GitHub Actions pipeline validated across 5 runs (cold/warm/failure/recovery). `releng.py ci-build` is the single CI entry point. Evidence pack generation with 5 providers (Arduino, Compiler, Git, Linker, TFT). Schema v1 manifest with `build_success: false` on failure. 26/26 tests passing. 95/100 certification score. Pipeline certified for production.
+GitHub Actions pipeline validated across 5 runs (cold/warm/failure/recovery). `releng.py ci-build` is the single CI entry point. Evidence pack generation with 5 providers. 26/26 tests passing. 95/100 certification score.
 
-**V2.6 Sprint 3 — Memory Domain Expansion is IMPLEMENTED.** MemoryEngine now supports 4 domains (TOUCH, SECURITY, AVIATION, MOOD) with 15 subtypes total. All 3 new domains are additive — no changes to MoodEngine, AttentionEngine, FaceEngine, EventBus, PersistenceService, or any mode task. Design and implementation complete. NOT CERTIFIED — hardware validation pending (30-min multi-domain soak).
+**V2.6 Sprint 3 — Memory Domain Expansion is IMPLEMENTED.** MemoryEngine now supports 4 domains (TOUCH, SECURITY, AVIATION, MOOD) with 15 subtypes total. All additive. NOT CERTIFIED — hardware validation pending (30-min multi-domain soak).
 
-**V2.6 Sprint 2 — Memory Formation Expansion is CERTIFIED.** Memory now distinguishes 5 touch subtypes (TAP, HOLD, LONG_HOLD, DOUBLE, BURST) via duration-based classification with salience promotion. All 5 subtypes verified on hardware via 30-min soak. Sprint 1 foundation (ring buffer, decay, dedup, LittleFS persistence) remains stable and unmodified.
+**V2.6 Sprint 2 — Memory Formation Expansion is CERTIFIED.** Memory now distinguishes 5 touch subtypes (TAP, HOLD, LONG_HOLD, DOUBLE, BURST). All 5 subtypes verified on hardware.
 
-**V2.6 Sprint 1 — Memory Layer Foundation is CERTIFIED and FROZEN.** Memory formation, recall, decay, accumulator model, bounded ring buffer (64 records), and LittleFS persistence validated on hardware via 60-min P3 soak. No WDT, no panics, no heap issues. Memory behaves as memory (accumulator decay, dedup boost) rather than persistent event logging — the primary V2.6 architectural risk is retired.
+**V2.6 Sprint 1 — Memory Layer Foundation is CERTIFIED and FROZEN.** Ring buffer (64 records), LittleFS persistence, accumulator decay model — validated via 60-min P3 soak.
 
-V2.5 Sprint 1–3C complete. Sprint 4A (Creature Persistence) implemented and **Sprint 4B P6 (Mode Transition Save) certified**. **Sprint 5A (Autonomous Presence Layer / Behavior Layer V1) certified** — engagement_drive (0–100) in CreatureState, FaceEngine sole writer, mood-modulated decay, 3s→30s saccade range, deep blink suppression during attention lock, cross-mode carryover validated. 32-min certification run: 1816 heartbeats, 16 touches, 3 mode transitions, zero errors. No further tuning planned — behavior numbers frozen. This is **Behavior Layer V1** (one drive, one decay curve, one behavior family), not a full Behavior System — keeps expectations clear for future Memory expansion. A [Creature Brain Retrospective](docs/V2.5_CREATURE_BRAIN_RETROSPECTIVE.md) archives goals, bugs, architecture decisions (12 preserved), technical debt (3 items), and lessons learned. Technical debt item **TD-011** documents the `_last_mood_change` dual-purpose hazard (mood-entry timestamp + decay accumulator) — split into `_last_mood_transition` + `_last_decay_tick` before any feature that queries mood age.
+V2.5 Sprint 1–3C complete. Sprint 4A (Creature Persistence) certified. **Sprint 5A (Autonomous Presence Layer / Behavior Layer V1) certified** — engagement_drive (0–100), mood-modulated decay, 3s→30s saccade, deep blink suppression, cross-mode carryover. No further tuning planned. A [Creature Brain Retrospective](docs/V2.5_CREATURE_BRAIN_RETROSPECTIVE.md) archives goals, bugs, architecture decisions (12 preserved), technical debt (3 items), and lessons learned.
 
 ## V2.6 Sprint 1 — Memory Layer Foundation (Certified)
 
@@ -33,7 +35,7 @@ V2.5 Sprint 1–3C complete. Sprint 4A (Creature Persistence) implemented and **
 - Decay curve verified: 42→41→40→39→38
 - Zero WDT, zero panics, zero heap issues
 - Full report: `docs/V2.6_P3_RESULTS.md`
-- Raw log: `docs/TESTING/v2.6 p3.txt`
+- Raw log: `docs/TESTING/v2.6_p3.txt` (archived)
 
 ## V2.6 Sprint 2 — Memory Formation Expansion (Certified)
 
@@ -62,7 +64,7 @@ V2.5 Sprint 1–3C complete. Sprint 4A (Creature Persistence) implemented and **
 - Mode transitions clean: Pet→Security→Aviation→Pet
 - No WDT, no panics, no heap corruption
 - Full report: `docs/V2.6_SPRINT2_RESULTS.md`
-- Raw log: `docs/TESTING/30MINSOAKTEST.txt`
+- Raw log: `docs/TESTING/30MINSOAKTEST.txt` (archived)
 
 ### Next Phase
 - **V2.6 Sprint 3**: Security/Aviation/Mood memory domains — expand beyond touch-only. Each domain: minimum subtype set, appropriate salience baselines, domain-specific dedup windows, cross-domain salience comparison for behavior-layer entry.
@@ -93,8 +95,49 @@ V2.5 Sprint 1–3C complete. Sprint 4A (Creature Persistence) implemented and **
 - `pet_fetch_standalone_weather()` — disabled to avoid `udp_new_ip_type` assertion (B004)
 - Mode switch `delay(500)` — removed; 600ms splash kept for visual feedback
 
+### V2.7 Sprint 0 — Repository Cleanup
+
+Sprint 0 (completed) tasks:
+
+| Task | Description | Status |
+|------|-------------|--------|
+| S0-T1 | Update PROJECT_STATUS.md — header, phase, tags, branch, recent commits, Sprint 4 | ✅ Complete |
+| S0-T2 | Update BUG_LOG.md — header, reclassify B007/B008, add P5 | ✅ Complete |
+| S0-T3 | Update AI_HANDOFF.md — remove stale refs, reconcile issues, add V2.7 section | ✅ Complete |
+| S0-T4 | Rewrite ARCHITECTURE.md — actual repo structure, V2.6 subsystems, V2.7 plan | ✅ Complete |
+| S0-T5 | Archive obsolete planning docs to `docs/archive/` | ✅ Complete |
+| S0-T6 | Remove legacy duplicates (RobotPet_PC_Integration, build/, *.log) | ✅ Complete |
+| S0-T7a | Repository governance verification — tags, branches, version, CI workflow config | ✅ Complete |
+| S0-T7b | Firmware build validation post-Sprint-0 changes | 🔄 Deferred (no `arduino-cli` available locally; CI will verify post-merge) |
+| S0-T8 | Fix TD-011/012/013 technical debt | ✅ Complete |
+| S0-T9 | Reconcile bug tracking across BUG_LOG.md, AI_HANDOFF.md, PROJECT_STATUS.md | ✅ Complete |
+
+### V2.7 Sprint 1 — BehaviorEngine V1 (Certified)
+
+**Status: CERTIFIED** (60-min hardware soak across all 3 modes — Companion, Security, Aviation)
+
+**Implementation:** 125 lines across 2 new files:
+- `Companion/BehaviorEngine.h` (47 lines) — class declaration, `MemorySummary` include, debug sentinel members
+- `BehaviorEngine.cpp` (78 lines) — 3 V1 transforms, additive `delta += N` pattern, persistent `_mood_modifier` with linear `-1/tick` decay, edge-triggered debug logging
+- `AeroSniffer.ino` — +5 lines (include, `begin()`, `tick()` at pipeline position 6)
+
+**V1 Rules (certified):**
+- Security domain strength > 30 && > mood domain strength → `engagement_drive = max(engagement_drive, 60)` (security floor)
+- Touch domain > 25 → `mood_strength` accumulates +5/tick (capped ±15 via `_mood_modifier`), decays -1/tick toward zero when touch absent
+- No significant memory activity > 120s → no override; natural decay continues
+
+**Edge-triggered debug:** `Serial.printf()` fires only on state change via sentinel init (-128, 0xFF). Debug output format: `[BEH] MF=0 DS=[0 0 0 0] s=11 md=+0` — MF=mood floor, DS=domain_strength array (4 domains), s=total strength sum, md=mood modifier.
+
+**Pipeline position:** 6 — after MemoryEngine (5), before FaceEngine.render() → updateAnimations() (7).
+
+**Architecture:** Determined by ADR-0004 (7 invariants). Additive pattern ensures future rules compose without restructuring. Single `constrain()` at end of tick. No dynamic allocation — confirmed by grep.
+
+**Excluded from V1:** Learned preferences, personality evolution, predictive modeling.
+
 ### Uncommitted Changes
-- None. Sprint 3 implementation committed (`3023b35`).
+- V2.7 Sprint 1 documentation sync — this file, PROJECT_STATUS.md, CHANGELOG.md
+- Sprint 0 documentation edits (this file + PROJECT_STATUS.md + BUG_LOG.md + ARCHITECTURE.md)
+- Sprint 3 implementation committed (`3023b35`)
 
 ### Sprint 4A — Creature Persistence (Complete)
 PersistenceService implemented: `CreatureProfile` struct, `load()/save()/factoryReset()`, rising-edge touch/mood counter hooks (no EventBus, no spinlocks, no upstream writes), 5-min periodic save + mode transition checkpoint, Preferences blob storage with schema version validation. Three critical bugs from spec review fixed (Preferences handle leak, missing schema key, unchecked load failure).
@@ -108,36 +151,34 @@ P6 Runtime, Touch, Mood, and Cross-Mode persistence verified on hardware:
 
 **OBS-001 (LOW)**: Boot counter showed 4 not 5 after power cycle. Possibly serial reconnect or NVS ordering edge case. No investigation planned.
 
-## Known Issues to Resolve (in priority order)
+## Known Issues
+
+**Single source of truth:** [BUG_LOG.md](BUG_LOG.md) contains all bugs, severity, status, and root cause analysis.
 
 ### P1 — Fix Aviation HTTPS fetch (B007)
-- [ ] Test HTTP (non-TLS) to isolate TLS vs. DNS vs. routing
-- [ ] Verify certificate bundle is present
-- [ ] Consider `WiFiClientSecure::setInsecure()` for testing
-- [ ] Fix root cause
+- **Severity**: Low — non-blocking for development
+- **Reference**: BUG_LOG.md — B007
 
 ### P2 — Re-enable weather fetch with lwIP fix (B004)
-- [ ] Uncomment `pet_fetch_standalone_weather()` in `Mode1_Pet.h`
-- [ ] Apply fix: resolve hostname via `WiFi.hostByName()` before HTTP fetch
-- [ ] Or wrap HTTP in `tcpip_adapter_lock()` / use IP literal
-- [ ] Verify no `udp_new_ip_type` assertion through multiple mode cycles
+- **Severity**: Low — weather fetch disabled, system runs clean
+- **Reference**: BUG_LOG.md — B004
 
 ### P3 — Investigate `netstack` error (B006)
-- [ ] Capture full log of Security→Aviation transition
-- [ ] Decode error code 12308
-- [ ] Evaluate if netif teardown/setup order needs fixing
+- **Severity**: Low — mode switch succeeds despite error
+- **Reference**: BUG_LOG.md — B006
 
 ### P4 — Touch degradation after WiFi (B008)
-- [ ] Investigate `g_block_touch` flag blocking touch after WiFi operations
+- **Severity**: Low — workaround exists
+- **Reference**: BUG_LOG.md — B008
 
 ### P5 — Suppress same-state decay logs (cosmetic)
-- [ ] Guard `resetToIdle()` log to only print when `old != _state`
-- [ ] Prevents `[ATTN] SOFT_FOCUS -> SOFT_FOCUS (decay)` noise during internal events
+- **Severity**: Cosmetic — no functional impact
+- **Reference**: BUG_LOG.md — P5
 
-### Technical Debt
-- **TD-011** (MoodEngine): `_last_mood_change` dual-purpose — split into `_last_mood_transition` + `_last_decay_tick` before timeSinceCurrentMood() is needed
-- **TD-012** (EventBus): Add compile-time capacity assertion for `MAX_SUBSCRIBERS`
-- **TD-013** (MoodEngine): Reset `_playful_condition_met_since` on mood departure from PLAYFUL
+### Technical Debt (Resolved in Sprint 0)
+- **TD-011** ✅ `_last_mood_change` split into `_last_mood_transition` + `_last_decay_tick` in MoodEngine.h/.cpp
+- **TD-012** ✅ Runtime overflow warning added to `EventBusClass::subscribe()` — `static_assert` infeasible (sub_count is runtime), serial warning provides developer visibility
+- **TD-013** ✅ `_playful_condition_met_since = 0` added to all mood transitions in MoodEngine.cpp
 
 ## Next Phase
 
@@ -169,12 +210,12 @@ Hardware validation progress:
 |------|--------|
 | P6 Mode Transition Save | ✅ Certified |
 | P7 Schema Recovery | ✅ Certified (2026-06-23) — old schema, future schema, corrupted blob. Recovery persistence verified. |
-| NV1 Power-Loss Stress | ✅ Certified (10-cycle archived evidence in `docs/TESTING/nv1_10cycles.txt`) |
+| NV1 Power-Loss Stress | ✅ Certified (10-cycle archived evidence in `docs/TESTING/nv1_10cycles.txt` — file archived) |
 | P3 Runtime Accuracy | ✅ Certified (67 min, 2026-06-23) |
 
 **P7 Schema Recovery — Validated:** schema=0 (old), schema=255 (future), corrupted blob (84 bytes vs 64). All three trigger factoryReset + clean profile. Recovery profile survives power cycle with no reset loop. Injection method: standalone NVS injector tool (`tools/p7_injector/p7_injector.ino`) — zero production firmware modifications. Test log archived.
 
-**NV1 Power-Loss Stress — Validated:** 10-cycle hardware log archived at `docs/TESTING/nv1_10cycles.txt`. Boot sequence observed: 10→11→13→14→15→18→19→20→21→22 (monotonic, no rollback, no factory resets). Gaps (Boot 12, 16, 17) consistent with pre-serial USB contact, not persistence failure. `touches=6`, `runtime=14 min`, `playful=1`, `anxious=0` stable across all cycles. Pass criteria met for release qualification; 25-cycle variant deferred as NV1B if desired.
+**NV1 Power-Loss Stress — Validated:** 10-cycle hardware log archived at `docs/TESTING/nv1_10cycles.txt` (file no longer in working tree — preserved in git history). Boot sequence observed: 10→11→13→14→15→18→19→20→21→22 (monotonic, no rollback, no factory resets). Gaps (Boot 12, 16, 17) consistent with pre-serial USB contact, not persistence failure. `touches=6`, `runtime=14 min`, `playful=1`, `anxious=0` stable across all cycles. Pass criteria met for release qualification; 25-cycle variant deferred as NV1B if desired.
 
 **OBS-001 (LOW)**: Boot counter retained value 4 instead of incrementing to 5 after power cycle. Possibly serial reconnect (device stayed powered) or subtle NVS ordering detail. No investigation or code change planned — does not affect persistence correctness.
 
@@ -182,39 +223,23 @@ Hardware validation progress:
 
 ### Release Engineering Merge
 
-Release Engineering CI pipeline, evidence framework, and signature matcher certified. Branch `feature/v2.6-releng-validation` ready for PR into `main`. Post-merge, future development benefits from automated build + evidence on every push to `main` and every PR.
+Release Engineering CI pipeline, evidence framework, and signature matcher certified. Branch `feature/v2.6-releng-validation` **merged to `main`** (`9cf1869`). Future development benefits from automated build + evidence on every push to `main` and every PR.
 
-### V2.5 Release Candidate
-
-After Sprint 4B validation passes. Branch ready for merge to `main`.
-
-### Current Architecture (V2.6)
+### Current Architecture (V2.7)
 
 ```
-Observe → Attention → Emotion → Mood → Face
-                                         ↑
-                                    Persistence (observer)
-                                    Memory (observer, LittleFS-backed)
+Observe → Attention → Emotion → Mood → Persistence → Memory → Behavior → Face
+             ↑                          ↑           ↑          ↑
+         EventBus                   Observer     Observer   Reads recall()
 ```
 
-Memory Layer is an observer subsystem — reads touch events, writes to ring buffer and LittleFS. Does not feed back into FaceEngine, MoodEngine, or AttentionEngine. No EventBus subscription.
-
-### Future Architecture (V2.6+)
-
-```
-Observe → Attention → Emotion → Mood → Face
-                                           ↑
-                                    Persistence (observer)
-                                    Memory → Behavior (planned)
-```
-
-Each layer builds on the one before. Persistence is cross-session data. Memory is structured recall (what happened, when, with whom). Behavior is action selection based on memory + mood. No layer reads or writes upstream fields.
+Memory Layer is an observer subsystem — reads touch events and domain events, writes to ring buffer and LittleFS. Behavior Layer (Sprint 1) reads memory summaries and writes finalized values to CreatureState. FaceEngine remains a pure renderer — no direct memory awareness, no merge logic.
 
 ### Future Sprints
-- **V2.6 Sprint 3** (complete): Security/Aviation/Mood memory domains — expanded beyond touch-only. Implementation committed (`3023b35`). Hardware certification pending.
-- **Release Engineering** (complete): CI pipeline, evidence framework, signature matcher — certified. Branch ready for PR.
-- **Sprint 4 (V2.7)**: Domain-aware behavior or cross-domain recall — not yet planned
-- **Behavior Layer** (post-Memory): Mood-driven + memory-informed action selection — not yet planned
+- **V2.6 Sprint 3** (complete, not certified): Security/Aviation/Mood memory domains. **Hardware certification pending** — 30-min multi-domain soak.
+- **Release Engineering** (complete, certified): CI pipeline, evidence framework, signature matcher. Merged to `main` (`9cf1869`).
+- **Sprint 1 (V2.7)** (complete, certified): Behavior Engine V1 — 3 transforms, additive, O(1), 125 lines. Tag: `v2.7-sprint1`.
+- **Sprint 2 (V2.7)**: Domain-aware behavior refinement with real sensor data, extract named tuning constants, migrate V2.6 memory modulation (FaceEngine lines 611-622) to BehaviorEngine.
 
 ## File Map
 - `AeroSniffer/AeroSnifferOS.h:74-79` — `MoodType` enum (RELAXED=0, PLAYFUL=1, ANXIOUS=2, MOOD_COUNT=3)
@@ -232,7 +257,7 @@ Each layer builds on the one before. Persistence is cross-session data. Memory i
 - `AeroSniffer/Companion/AttentionEngine.h` — class declaration, spinlock, structured attention fields
 - `AeroSniffer/Companion/MoodEngine.h` — class declaration, touch history ring buffer, arbitration
 - `AeroSniffer/MoodEngine.cpp` — implementation: fixed-priority arbitration, fixed-point decay, touch tracking
-- `AeroSniffer/AeroSniffer.ino:583-587` — tick order: Attention→Emotion→Mood→Persistence→Face
+- `AeroSniffer/AeroSniffer.ino:623-627` — tick order: Attention→Emotion→Mood→Persistence→Memory→Behavior→Face
 - `AeroSniffer/AeroSniffer.ino:340` — GET_PET_STATUS: `MoodEngine.moodName(g_creature.mood)`
 - `AeroSniffer/AeroSniffer.ino:586-587` — `CreaturePersistence.tick()` after `MoodEngine.tick()`
 - `AeroSniffer/AeroSniffer.ino:602-603` — `CreaturePersistence.save()` on mode transition
@@ -245,6 +270,12 @@ Each layer builds on the one before. Persistence is cross-session data. Memory i
 - `docs/V2.5_CREATURE_BRAIN_RETROSPECTIVE.md` — Sprint 1–3B retrospective (goals, bugs, architecture, debt)
 - `docs/V2.5_SPRINT1_SPEC.md` — Sprint 1 implementation specification
 - `docs/V2.5_ATTENTION_MODEL.md` — attention data model
+- `AeroSniffer/Companion/BehaviorEngine.h` — BehaviorEngine class declaration, MemorySummary include, debug sentinel members (`_prev_mood_floor`, `_prev_modifier`)
+- `AeroSniffer/BehaviorEngine.cpp` — implementation: 3 V1 transforms, additive evaluation, _mood_modifier persistence with linear decay, edge-triggered debug, `BehaviorEngineClass BehaviorEngine;` extern
+- `AeroSniffer/AeroSniffer.ino:29` — `#include "BehaviorEngine.h"` (Companion/ path via IDE)
+- `AeroSniffer/AeroSniffer.ino:716` — `BehaviorEngine.begin()` in setup
+- `AeroSniffer/AeroSniffer.ino:625` — `BehaviorEngine.tick()` at pipeline position 6
+- `docs/TESTING/v2.7 sprint1.txt` — 169KB hardware soak log, 60-min run across all 3 modes
 
 ## Release Engineering Subsystem
 
@@ -291,8 +322,7 @@ Each layer builds on the one before. Persistence is cross-session data. Memory i
 - `docs/V2.6_MOOD_MEMORY.md` — mood domain design (189 lines)
 
 ## Git
-- Branch: `feature/v2.6-releng-validation` (pending PR → `main`)
-- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`, `v2.6-memory-expansion` (Sprint 1), `v2.6-memory-expansion-certified` (Sprint 2), plus V2.5 intermediate tags
-- Commits: Release Engineering `393d1e8` (HEAD), Sprint 3 `3023b35`, Sprint 2 `9951f00`, Sprint 1 `83cc441`
-- Upstream: `origin/feature/v2.6-releng-validation`
-- Merge: Ready for PR into `main`
+- Branch: `main`
+- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`, `v2.5-persistence`, `v2.6-memory-expansion`, `v2.6-memory-expansion-certified`, `v2.6-releng`, `v2.7-sprint1`
+- Commits: V2.7 Sprint 1 (HEAD — BehaviorEngine V1 certified), `db34556` (README redesign), `9cf1869` (RE merge)
+- Upstream: `origin/main`
