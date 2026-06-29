@@ -23,7 +23,7 @@ https://github.com/aryancodesit/AeroSniffer/graphs/contributors
 
 | Asset | Source | License |
 |-------|--------|---------|
-| Face BMP assets (`faces/*.bmp`) | Original work | Project MIT |
+| Face BMP assets (`assets/faces/*.bmp`) | Original work | Project MIT |
 | TFT_eSPI display library | Bodmer (GitHub) | MIT |
 | ArduinoJson | Benoit Blanchon | MIT |
 | ArduinoFFT | kosme (GitHub) | GPL v2 |

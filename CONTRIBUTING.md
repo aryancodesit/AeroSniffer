@@ -96,10 +96,10 @@ Observe → Attention → Emotion → Mood → Face
   Core 1 only. Cross-core data uses `volatile` flags and atomic increments.
 - **Observer pattern for new subsystems.** Read `g_creature`, don't write to it.
 
-## V2.5 Frozen
+## Frozen Subsystems
 
-V2.5 (Autonomous Presence Layer) is certified and frozen. No further tuning.
-V2.6 development occurs on `main` with sprint-level commits.
+V2.5 (Creature Brain) and V2.6 (Memory & Release Engineering) are certified and frozen. No further tuning.
+All development occurs on `main` with sprint-level commits.
 
 ## Licensing
 

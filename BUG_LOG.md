@@ -1,4 +1,6 @@
-# Bug Log — AeroSniffer V2.4
+# Bug Log — AeroSniffer V2.6
+
+> Historical planning documents containing bug context have been archived to `docs/archive/`.
 
 ## Technical Debt
 
@@ -60,18 +62,25 @@
 - **Verified**: 30-minute soak with tick() enabled — zero WDTs
 
 ### B006 — `netstack cb reg failed with 12308` during Security→Aviation transition
-- **Status**: Deferred to V2.5 (non-blocking)
+- **Status**: Open (Low — non-blocking)
 - **Root cause**: Unknown error code; likely netif initialization race during AP teardown + STA reconnect sequence
 - **Workaround**: Not blocking stability — mode transition succeeds despite the error
 
-## Open (deferred to V2.5)
+## Open
 
 ### B007 — Aviation OpenSky HTTPS fetch returns `connection refused`
-- **Severity**: Low (V2.5)
+- **Severity**: Low
 - **Root cause**: Unknown. `WiFi.status() == WL_CONNECTED`, but HTTPS GET returns HTTP Code -1 (`connection refused`). May be DNS failure or TLS certificate validation issue.
-- **Notes**: HTTP (non-HTTPS) fetch to same host should be tested to isolate TLS vs. DNS vs. routing
+- **Workaround**: `setInsecure()` or test HTTP (non-HTTPS) to isolate TLS vs. DNS vs. routing
+- **Status**: Non-blocking for development
 
 ### B008 — Touch degradation after WiFi activity
-- **Severity**: Low (V2.5)
+- **Severity**: Low
 - **Root cause**: Instances where `g_block_touch` flag blocks touch processing after WiFi operations
-- **Notes**: Not currently a functional blocker
+- **Status**: Not a functional blocker — workaround exists
+
+### P5 — Suppress same-state decay logs (cosmetic)
+- **Severity**: Cosmetic
+- **Root cause**: `resetToIdle()` prints `[ATTN] SOFT_FOCUS -> SOFT_FOCUS (decay)` every decay tick even when state hasn't changed
+- **Fix**: Guard log to only print when `old != _state`
+- **Status**: Open — no functional impact

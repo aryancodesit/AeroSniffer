@@ -75,9 +75,10 @@ serial_output.txt
 .idea/
 
 # ── Docs ─────────────────────────────────────────────────────────
-docs/*
-!docs/V2.6_*.md
-!docs/TESTING/
+# Ignore only generated binary formats; all source docs (.md, .txt) are tracked.
+docs/*.docx
+docs/*.pptx
+docs/working.png
 
 # ── Local AI CLI assistant ──────────────────────────────────────
 aerosniffer-ai.py
@@ -88,3 +89,6 @@ aerosniffer-ai.py
 # Understand Anything knowledge graph output
 UNDERSTAND/
 
+
+# -- Node.js (tools/docs_generator) --------------------------
+tools/docs_generator/node_modules/

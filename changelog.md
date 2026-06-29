@@ -1,5 +1,41 @@
 # Changelog
 
+## [v2.7-sprint1] — 2026-06-29
+
+### Sprint 1 — Behavior Engine V1 (Certified, Hardware-Validated)
+
+**Behavior Layer V1 implemented and certified on hardware. Reads MemoryEngine recall summaries and influences CreatureState (mood_strength, engagement_drive) through three deterministic V1 transforms. Additive to all certified subsystems — no modifications to FaceEngine, MoodEngine, AttentionEngine, MemoryEngine, or PersistenceService.**
+
+### Added
+- **BehaviorEngine V1** (`Companion/BehaviorEngine.h`, `BehaviorEngine.cpp`): 125 lines total — 3 V1 transforms, additive `delta += N` evaluation pattern, persistent `_mood_modifier` with linear `-1/tick` decay toward zero, edge-triggered debug logging with sentinel init (-128, 0xFF). O(1), allocation-free, deterministic.
+- **Pipeline integration** (`AeroSniffer.ino`): +5 lines — `#include`, `BehaviorEngine.begin()`, `BehaviorEngine.tick()` at pipeline position 6.
+- **Hardware soak test log** (`docs/TESTING/v2.7 sprint1.txt`): 169KB — 60-min continuous run across all 3 modes (Companion/Security/Aviation).
+
+### Certified (60-min Hardware Soak)
+- **Duration**: 60 minutes across Companion, Security, and Aviation modes ✅
+- **Zero faults**: Zero WDT resets, zero panics, zero asserts, zero heap growth ✅
+- **Touch response**: 10+ touch events with tap/long-press distinction ✅
+- **Mode transitions**: 0→1→2→0 completed successfully ✅
+- **WiFi/HTTPS**: Connected throughout; OpenSky data fetch functional ✅
+- **Emotion/Memory engines**: Working normally, no regressions ✅
+- **Frame rate**: Sustained ~62-66 frames/s (1.0-1.1s heartbeat spacing) ✅
+- **No dynamic allocation**: `new`/`malloc` confirmed absent by grep ✅
+
+### Architecture
+- Reads `MemoryEngine.recall()` for domain_strength array — zero direct memory awareness
+- Additive transforms: `delta += N` ensures future rules compose without restructuring
+- Single `constrain()` at end of tick — no partial writes
+- `_mood_modifier` accumulates +5/tick during touch (capped ±15), decays -1/tick toward zero when touch absent
+- Edge-triggered debug output: `Serial.printf()` fires only on state change, not every tick
+- Security floor: `engagement_drive` never drops below 60 during active security events
+- FaceEngine reads finalized canonical fields — no merge logic, no awareness of BehaviorEngine's existence
+
+### Metadata
+- Branch: `main`
+- Tags: `v2.7-sprint1`
+- Requires: No new dependencies
+- Test log: `docs/TESTING/v2.7 sprint1.txt`
+
 ## [v2.6-releng] — 2026-06-28
 
 ### Release Engineering — CI Pipeline, Evidence Framework, Release Certification
