@@ -1,5 +1,28 @@
 # Changelog
 
+## [v2.7.2] — 2026-06-30
+
+### Behavioral Consolidation — Canonical Ownership (Behavior-Preserving)
+
+**BehaviorEngine becomes sole canonical producer of engagement_drive. FaceEngine becomes presentation-only. Behavior-preserving ownership migration — zero functional changes.**
+
+### Changed
+- **BehaviorEngine** (`BehaviorEngine.cpp`, `Companion/BehaviorEngine.h`): Gains full engagement drive lifecycle — decay computation, mood multiplier, memory modulation (V2.6 rules), touch/attention orienting reset, and canonical uint8 write-back. Adds `_engagement_level` float cache and `_last_tick_ms` timing. BehaviorEngine is now the sole writer of `g_creature.engagement_drive`.
+- **FaceEngine** (`AeroSnifferOS.cpp`, `AeroSnifferOS.h`): Stripped of all behavioral logic — removed engagement decay, memory modulation, duplicate `MemoryEngine.recall()`, touch reset, and canonical write-back. Removed dead members (`_engagement_level`, `_last_frame_ms`). `updateAnimations()` now computes only presentation state: eyelid factor, mood presentation, blink, gaze, bounce, pulse. Pure read-only consumer of `CreatureState`.
+- **Documentation** (`ARCHITECTURE.md`, `PROJECT_STATUS.md`, `AI_HANDOFF.md`): Added Canonical State Ownership table and Stage Ownership Rule. Updated pipeline diagrams and file maps to reflect V2.7.2 architecture.
+
+### Architecture
+- **Stage Ownership Rule**: Every pipeline stage has exclusive ownership of the fields it transforms while executing. After the stage completes, ownership passes to the next stage.
+- **Canonical State Ownership**: `engagement_drive` → BehaviorEngine. `mood_strength` → MoodEngine (baseline) → BehaviorEngine (canonical). `emotion` → EmotionEngine. `mood` → MoodEngine. `attention.*` → AttentionEngine. `activity` → EmotionEngine. FaceEngine reads all — writes none.
+- **Architectural principle adopted**: "Behavior engines transform state. Presentation engines interpret state. Rendering code must never define creature behavior."
+- FaceEngine no longer calls `MemoryEngine.recall()` — BehaviorEngine already has the data. Duplicate call eliminated.
+
+### Metadata
+- Branch: `main`
+- Tags: `v2.7.2`
+- Requires: No new dependencies
+- Validation: Behavior-preserving — no functional changes expected. Hardware verification required before V2.7.3 calibration.
+
 ## [v2.7-sprint1] — 2026-06-29
 
 ### Sprint 1 — Behavior Engine V1 (Certified, Hardware-Validated)
