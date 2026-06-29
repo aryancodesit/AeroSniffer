@@ -223,11 +223,8 @@ private:
   MoodType _last_mood = MOOD_RELAXED;
   uint8_t _last_mood_strength = 0;
 
-  // Autonomous presence drive (V2.5 Sprint 5A)
-  float _engagement_level = 100.0f;
   float _eyelid_factor = 1.0f;
   int _deep_blink_hold = 0;
-  uint32_t _last_frame_ms = 0;
   void recomputeMoodPresentation();
 
 public:

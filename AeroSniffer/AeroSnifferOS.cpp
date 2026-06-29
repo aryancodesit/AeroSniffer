@@ -527,21 +527,6 @@ static void local_draw_dotted_frown(TFT_eSprite* spr, int cx, int cy, int width,
   spr->fillRect(cx + width / 2, cy + drop, 4, 4, color);
 }
 
-static constexpr float ENGAGEMENT_DECAY_PER_SEC = 0.333f;
-
-// Maximum |canonical - cache| from uint8(value + 0.5f) write-back.
-// When exceeded, the canonical was modified externally.
-// FaceEngine detail — update if write-back formula changes.
-static constexpr float kEngagementQuantizationBound = 0.5f;
-
-static float engagementMoodMultiplier(MoodType m) {
-  switch (m) {
-    case MOOD_PLAYFUL: return 0.5f;  // stays alert 2x longer
-    case MOOD_ANXIOUS: return 0.3f;  // barely decays — hyper-vigilant
-    default:           return 1.0f;  // RELAXED — normal decay
-  }
-}
-
 void FaceEngineClass::begin() {
   anim_blink_scale = 1.0f;
   anim_is_blinking = false;
@@ -553,11 +538,8 @@ void FaceEngineClass::begin() {
   strcpy(status_l2, "system");
   for (int i = 0; i < 5; i++) active_particles[i].type = 0;
 
-  _engagement_level = 100.0f;
   _eyelid_factor = 1.0f;
   _deep_blink_hold = 0;
-  _last_frame_ms = millis();
-  g_creature.engagement_drive = 100;
 
   _last_mood         = g_creature.mood;
   _last_mood_strength = g_creature.mood_strength;
@@ -593,33 +575,6 @@ void FaceEngineClass::recomputeMoodPresentation() {
 
 void FaceEngineClass::updateAnimations(int frame) {
   uint32_t now = millis();
-  uint32_t dt_ms = now - _last_frame_ms;
-  _last_frame_ms = now;
-
-  // ── V2.7.2: Engagement lifecycle moved to BehaviorEngine ──
-  // See BehaviorEngine::tick() for the sole canonical producer
-  // of g_creature.engagement_drive.  The old engagement path is
-  // preserved below as a rollback reference (#if 0).
-#if 0
-  const float canon_engage = (float)g_creature.engagement_drive;
-  if (fabsf(canon_engage - _engagement_level) > kEngagementQuantizationBound) {
-    _engagement_level = canon_engage;
-  }
-  float decay = ENGAGEMENT_DECAY_PER_SEC * engagementMoodMultiplier(g_creature.mood) * (dt_ms / 1000.0f);
-  float floor_val = (g_creature.mood == MOOD_ANXIOUS) ? 20.0f : 0.0f;
-  {
-    MemorySummary mem = MemoryEngine.recall();
-    if (mem.ms_since_last_touch < 1800000) { decay *= 0.80f; }
-    if (mem.ms_since_last_touch >= 1800000 && mem.domain_strength[DOMAIN_TOUCH] < 10) {
-      floor_val = max(floor_val, 5.0f);
-    }
-  }
-  _engagement_level = max(floor_val, _engagement_level - decay);
-  if (g_creature.attention.source == SOURCE_TOUCH || g_creature.attention.target != TARGET_NONE) {
-    _engagement_level = 100.0f;
-  }
-  g_creature.engagement_drive = (uint8_t)(_engagement_level + 0.5f);
-#endif
 
   // ── Eyelid factor: smooth lerp toward engagement-based drowsiness ──
   float drowsiness = 1.0f - (g_creature.engagement_drive / 100.0f);
