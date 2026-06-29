@@ -2,6 +2,8 @@
 
 ## Current State
 
+**V2.7.2 — Behavioral Consolidation is COMPLETE.** BehaviorEngine is now sole canonical producer of `engagement_drive`. Full lifecycle (decay, mood multiplier, memory modulation, touch/attention reset, security floor override) migrated from FaceEngine. FaceEngine is presentation-only — eyelids, blink, gaze, bounce, pulse — all read-only consumers of `CreatureState`. Behavior-preserving ownership migration: zero functional changes. Tags: `v2.7-sprint1`, `v2.7.2`.
+
 **V2.7 Sprint 1 — BehaviorEngine V1 is CERTIFIED.** Behavioral Layer reads MemoryEngine recall summaries and influences CreatureState through 3 deterministic V1 transforms. 125 lines across 2 new files (Companion/BehaviorEngine.h, BehaviorEngine.cpp). Additive `delta += N` evaluation, persistent `_mood_modifier` with linear -1/tick decay, edge-triggered debug. O(1), allocation-free. Certified on hardware via 60-min soak across all 3 modes (Companion, Security, Aviation). Zero WDT, zero panics, zero asserts, zero heap growth. Tag: `v2.7-sprint1`.
 
 **Release Engineering — CI Pipeline and Evidence Framework is CERTIFIED.**
@@ -225,33 +227,36 @@ Hardware validation progress:
 
 Release Engineering CI pipeline, evidence framework, and signature matcher certified. Branch `feature/v2.6-releng-validation` **merged to `main`** (`9cf1869`). Future development benefits from automated build + evidence on every push to `main` and every PR.
 
-### Current Architecture (V2.7)
+### Current Architecture (V2.7.2)
 
 ```
 Observe → Attention → Emotion → Mood → Persistence → Memory → Behavior → Face
              ↑                          ↑           ↑          ↑
-         EventBus                   Observer     Observer   Reads recall()
+         EventBus                   Observer     Observer   Sole canonical
+                                                             producer of
+                                                             engagement_drive
 ```
 
-Memory Layer is an observer subsystem — reads touch events and domain events, writes to ring buffer and LittleFS. Behavior Layer (Sprint 1) reads memory summaries and writes finalized values to CreatureState. FaceEngine remains a pure renderer — no direct memory awareness, no merge logic.
+Memory Layer is an observer subsystem — reads touch events and domain events, writes to ring buffer and LittleFS. BehaviorEngine is the sole canonical producer of `engagement_drive` (full lifecycle: decay → memory mod → touch reset → write-back → security floor override). It transforms MoodEngine's baseline `mood_strength` into the final canonical value. FaceEngine is a pure presentation engine — no behavioral decisions, no memory queries, no CreatureState mutations.
 
 ### Future Sprints
 - **V2.6 Sprint 3** (complete, not certified): Security/Aviation/Mood memory domains. **Hardware certification pending** — 30-min multi-domain soak.
 - **Release Engineering** (complete, certified): CI pipeline, evidence framework, signature matcher. Merged to `main` (`9cf1869`).
-- **Sprint 1 (V2.7)** (complete, certified): Behavior Engine V1 — 3 transforms, additive, O(1), 125 lines. Tag: `v2.7-sprint1`.
-- **Sprint 2 (V2.7)**: Domain-aware behavior refinement with real sensor data, extract named tuning constants, migrate V2.6 memory modulation (FaceEngine lines 611-622) to BehaviorEngine.
+- **V2.7 Sprint 1** (complete, certified): BehaviorEngine V1 — 3 transforms, additive, O(1), 125 lines. Tag: `v2.7-sprint1`.
+- **V2.7.2** (complete): Behavioral Consolidation — engagement lifecycle migrated to BehaviorEngine, FaceEngine stripped of behavioral logic, canonical ownership documented. Tag: `v2.7.2`.
+- **V2.7.3**: Calibration — measure real `domain_strength` distributions, tune thresholds using observed data instead of estimates, freeze constants after hardware validation.
 
 ## File Map
 - `AeroSniffer/AeroSnifferOS.h:74-79` — `MoodType` enum (RELAXED=0, PLAYFUL=1, ANXIOUS=2, MOOD_COUNT=3)
 - `AeroSniffer/AeroSnifferOS.h:113` — `uint8_t mood_strength` in `CreatureState`
 - `AeroSniffer/AeroSnifferOS.h:97-133` — `AttentionTarget`, `AttentionSource` enums, `CreatureState` with structured `attention`
-- `AeroSniffer/AeroSnifferOS.h:126` — `uint8_t engagement_drive` (0–100) in CreatureState — Sprint 5A
-- `AeroSniffer/AeroSnifferOS.h:221-225` — FaceEngine private members: `_engagement_level`, `_eyelid_factor`, `_deep_blink_hold`, `_last_frame_ms` — Sprint 5A
+- `AeroSniffer/AeroSnifferOS.h:126` — `uint8_t engagement_drive` (0–100) in CreatureState — Sprint 5A, now owned by BehaviorEngine
+- `AeroSniffer/AeroSnifferOS.h:226-227` — FaceEngine private members: `_eyelid_factor`, `_deep_blink_hold` — presentation only
 - `AeroSniffer/AeroSnifferOS.cpp:31-48` — `g_creature` aggregate initializer with `engagement_drive=100`
-- `AeroSniffer/AeroSnifferOS.cpp:525-556` — FaceEngine::begin() with Sprint 5A init
-- `AeroSniffer/AeroSnifferOS.cpp:585-687` — FaceEngine::updateAnimations() with engagement decay, saccade timing, deep blink, eyelid lerp
-- `AeroSniffer/AeroSnifferOS.cpp:720-722` — renderEmotionLayer() with `_eyelid_factor` in default eye height
-- `AeroSniffer/AeroSnifferOS.cpp:571-602` — FaceEngine gaze driven by `target`/`strength`
+- `AeroSniffer/AeroSnifferOS.cpp:530-538` — FaceEngine::begin() with presentation init only
+- `AeroSniffer/AeroSnifferOS.cpp:575-705` — FaceEngine::updateAnimations() with eyelid, blink, gaze, bounce, pulse (presentation only — no engagement decay)
+- `AeroSniffer/AeroSnifferOS.cpp:705-707` — renderEmotionLayer() with `_eyelid_factor` in default eye height
+- `AeroSniffer/AeroSnifferOS.cpp:575-605` — FaceEngine gaze driven by `target`/`strength`
 - `AeroSniffer/AeroSnifferOS.cpp:13-29` — `g_creature` aggregate initializer with `mood_strength=0`
 - `AeroSniffer/AttentionEngine.cpp` — queue, state machine, decay, publish, event mapping (sketch root)
 - `AeroSniffer/Companion/AttentionEngine.h` — class declaration, spinlock, structured attention fields
@@ -270,8 +275,8 @@ Memory Layer is an observer subsystem — reads touch events and domain events, 
 - `docs/V2.5_CREATURE_BRAIN_RETROSPECTIVE.md` — Sprint 1–3B retrospective (goals, bugs, architecture, debt)
 - `docs/V2.5_SPRINT1_SPEC.md` — Sprint 1 implementation specification
 - `docs/V2.5_ATTENTION_MODEL.md` — attention data model
-- `AeroSniffer/Companion/BehaviorEngine.h` — BehaviorEngine class declaration, MemorySummary include, debug sentinel members (`_prev_mood_floor`, `_prev_modifier`)
-- `AeroSniffer/BehaviorEngine.cpp` — implementation: 3 V1 transforms, additive evaluation, _mood_modifier persistence with linear decay, edge-triggered debug, `BehaviorEngineClass BehaviorEngine;` extern
+- `AeroSniffer/Companion/BehaviorEngine.h` — BehaviorEngine class declaration, MemorySummary include, debug sentinel members (`_prev_mood_floor`, `_prev_modifier`), engagement lifecycle members (`_engagement_level`, `_last_tick_ms`)
+- `AeroSniffer/BehaviorEngine.cpp` — implementation: engagement drive lifecycle (decay, memory modulation, touch reset, canonical write-back) + 3 V1 transforms, additive evaluation, _mood_modifier persistence with linear decay, edge-triggered debug, `BehaviorEngineClass BehaviorEngine;` extern
 - `AeroSniffer/AeroSniffer.ino:29` — `#include "BehaviorEngine.h"` (Companion/ path via IDE)
 - `AeroSniffer/AeroSniffer.ino:716` — `BehaviorEngine.begin()` in setup
 - `AeroSniffer/AeroSniffer.ino:625` — `BehaviorEngine.tick()` at pipeline position 6

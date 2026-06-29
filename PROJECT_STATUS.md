@@ -49,12 +49,14 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 | `v2.6-memory-expansion-certified` | V2.6 Sprint 2 — Memory Formation Expansion |
 | `v2.6-releng` | V2.6 Release Engineering — CI pipeline + evidence framework |
 | `v2.7-sprint1` | V2.7 Sprint 1 — BehaviorEngine V1 certified |
+| `v2.7.2` | V2.7.2 — Behavioral Consolidation (engagement lifecycle ownership) |
 
 ### Recent Commits
 
 | Date | Commit | Description |
 |------|--------|-------------|
-| 2026-06-29 | `HEAD` | V2.7 Sprint 1 — BehaviorEngine V1 certified, hardware-validated |
+| 2026-06-30 | `HEAD` | V2.7.2 — Behavioral Consolidation (engagement lifecycle, canonical ownership) |
+| 2026-06-29 | `v2.7-sprint1` | V2.7 Sprint 1 — BehaviorEngine V1 certified, hardware-validated |
 | 2026-06-28 | `db34556` | docs: redesign README into production-grade GitHub landing page |
 | 2026-06-28 | `9cf1869` | Release Engineering: CI pipeline, evidence framework, build caching, failure-path handling (merged) |
 | 2026-06-25 | `3023b35` | V2.6 Sprint 3 — Memory Domain Expansion implemented |
@@ -74,47 +76,41 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 ### Current Architecture
 
 ```
-Observe → Attention → Emotion → Mood → Face (with Autonomous Presence)
-                                          ↑
-                                     Persistence (observer)
-                                     Memory (observer, LittleFS-backed, 4 domains)
-                                     Behavior (Sprint 1 → CreatureState)
+Observe → Attention → Emotion → Mood → Memory → Behavior → Face
 ```
 
-### V2.7 — Behavioral Integration
+BehaviorEngine is sole canonical producer of `engagement_drive` and transforms MoodEngine's baseline `mood_strength` into the canonical value. FaceEngine is presentation-only — reads CreatureState, never writes behavioral fields.
 
-**Goal:** Add a Behavior Layer that reads MemoryEngine and influences CreatureState, enabling memory-informed behavior without modifying any certified subsystem. FaceEngine remains a pure renderer — it never reads MemoryEngine directly.
+### V2.7.2 — Behavioral Consolidation (Complete)
 
-**Status:** Sprint 0 (cleanup + audit) complete. Sprint 1 (BehaviorEngine V1) certified, hardware-validated.
+**Objective:** Make BehaviorEngine the sole behavioral authority. Eliminate duplicate `MemoryEngine.recall()` calls. Strip behavioral logic from FaceEngine.
 
-| Sprint | Description | Status |
-|--------|-------------|--------|
-| Sprint 1 | Behavior Engine (Memory → Behavior → CreatureState) — 3 V1 transforms, additive evaluation, persistent modifier with linear decay, edge-triggered debug. 125 lines, 2 new files. | ✅ Certified, hardware-validated (60-min soak) |
+**Status:** ✅ Complete. Behavior-preserving ownership migration with zero functional changes.
 
-**Architecture (Sprint 1):**
+| Commit | Description |
+|--------|-------------|
+| Commit 1 | Move engagement lifecycle (decay, memory modulation, touch reset, write-back) from FaceEngine to BehaviorEngine. Old path preserved under `#if 0`. |
+| Commit 2 | FaceEngine cleanup: remove dead engagement code, duplicate `MemoryEngine.recall()`, unused cache logic. FaceEngine becomes presentation-only. |
+| Commit 3 | Documentation: Canonical State Ownership table, Stage Ownership Rule, architectural principle. |
+| Commit 4 | Validation and tagging (`v2.7.2`). |
+
+**Architecture after V2.7.2:**
+
 ```
-Observe → Attention → Emotion → Mood → Face
-                                          ↑
-                                     Persistence (observer)
-                                     Memory → Behavior Layer → CreatureState
+Observe → Attention → Emotion → Mood → Memory → Behavior → Face
 ```
 
-Behavior Layer is a new engine that reads `MemoryEngine.recall()` and influences mood/engagement_drive in CreatureState. FaceEngine remains a pure renderer with zero memory awareness.
+- **BehaviorEngine** is sole canonical producer of `engagement_drive` (full lifecycle: decay → memory mod → reset → write-back → security floor)
+- **MoodEngine** produces baseline `mood_strength`; **BehaviorEngine** transforms it into canonical value
+- **FaceEngine** is presentation-only: eyelids, blink, gaze, bounce, pulse — all read-only consumers of `CreatureState`
 
-**V1 Rules (certified):**
-- Security domain strength > 30 && > mood domain strength → `engagement_drive = max(engagement_drive, 60)` (security floor)
-- Touch domain > 25 → `mood_strength` accumulates +5/tick (capped ±15 via `_mood_modifier`), decays -1/tick toward zero when touch absent
-- No significant memory activity > 120s → no override; natural decay continues
+**Architectural principle adopted:**
 
-**Validation:**
-- 60-min hardware soak across all 3 modes (Companion, Security, Aviation)
-- Zero WDT resets, zero panics, zero asserts, zero heap growth
-- Log: `docs/TESTING/v2.7 sprint1.txt`
-- Tag: `v2.7-sprint1`
+> Behavior engines transform state. Presentation engines interpret state. Rendering code must never define creature behavior.
 
-### Next Sprint
+### Next Work
 
-Sprint 2 (V2.7) will refine behavior rules with real sensor data, extract named tuning constants, and tackle architectural debt (migrate V2.6 memory modulation from FaceEngine to BehaviorEngine).
+V2.7.3 will focus on calibration: measure real `domain_strength` distributions, tune thresholds using observed data instead of estimates, freeze constants after hardware validation.
 
 ### Previous Sprints
 
@@ -148,10 +144,12 @@ Current pipeline (certified):
 ```
 Observe → Attention → Emotion → Mood → Persistence → Memory → Behavior → Face
              ↑                          ↑           ↑          ↑
-         EventBus                   Observer     Observer   Reads recall()
+         EventBus                   Observer     Observer   Sole canonical
+                                                             producer of
+                                                             engagement_drive
 ```
 
-Behavior Layer reads memory summaries and writes finalized values to CreatureState. FaceEngine remains a pure renderer — no direct memory awareness, no merge logic.
+BehaviorEngine is sole canonical producer of `engagement_drive` (decay → memory modulation → touch reset → write-back → security floor override). It transforms MoodEngine's baseline `mood_strength` into the final canonical value. FaceEngine is a pure presentation engine — no behavioral decisions, no memory queries, no CreatureState mutations.
 
 Explicitly deferred from V2.7:
 - Learned preferences, memory recall, relationship modeling, personality evolution — all depend on a richer behavior layer in future sprints.

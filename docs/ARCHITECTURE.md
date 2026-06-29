@@ -63,7 +63,27 @@ pc-agent/                   — PC agent (serial daemon)
 
 All data flow is unidirectional and acyclic. No engine reads what another engine wrote in the same tick.
 
-### Planned (V2.7)
+### Stage Ownership Rule
+
+> Every pipeline stage has exclusive ownership of the fields it transforms while executing. After the stage completes, ownership passes to the next stage.
+
+This is the core architectural principle of AeroSniffer. Behavior engines transform state. Presentation engines interpret state. Rendering code must never define creature behavior.
+
+### Canonical State Ownership
+
+| Field | Baseline Producer | Final Transformer | Consumer(s) |
+|---|---|---|---|
+| `emotion` | EmotionEngine | — | MoodEngine, FaceEngine |
+| `mood` | MoodEngine | — | BehaviorEngine, FaceEngine |
+| `mood_strength` | MoodEngine (baseline) | BehaviorEngine | FaceEngine |
+| `engagement_drive` | — | BehaviorEngine | FaceEngine |
+| `attention.*` | AttentionEngine | — | BehaviorEngine, FaceEngine |
+| `activity` | EmotionEngine | — | FaceEngine |
+| Infrastructure fields | EmotionEngine / process_serial_commands | — | PersistenceService |
+
+Every `CreatureState` field has exactly one producer during each pipeline stage. This table is the authoritative reference for ownership during code review. Any field written by a non-owner requires an explicit ADR.
+
+### Current (V2.7.2)
 
 ```
  Touch/Sensors
@@ -76,7 +96,7 @@ All data flow is unidirectional and acyclic. No engine reads what another engine
                                                                         CreatureState
 ```
 
-BehaviorEngine reads `MemoryEngine.recall()` and influences mood, mood_strength, and engagement_drive in CreatureState. FaceEngine remains a pure renderer with zero memory awareness.
+BehaviorEngine reads `MemoryEngine.recall()` and serves as the sole canonical producer of `engagement_drive`. It transforms MoodEngine's baseline `mood_strength` into the final canonical value. FaceEngine is a pure presentation engine — it reads CreatureState and never writes behavioral fields.
 
 ## Three-Mode Lifecycle
 
