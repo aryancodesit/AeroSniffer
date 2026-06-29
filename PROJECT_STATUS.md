@@ -49,13 +49,13 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 | `v2.6-memory-expansion-certified` | V2.6 Sprint 2 — Memory Formation Expansion |
 | `v2.6-releng` | V2.6 Release Engineering — CI pipeline + evidence framework |
 | `v2.7-sprint1` | V2.7 Sprint 1 — BehaviorEngine V1 certified |
-| `v2.7.2` | V2.7.2 — Behavioral Consolidation (engagement lifecycle ownership) |
+| `v2.7.2` | V2.7.2 — Behavioral Consolidation (engagement lifecycle ownership, build-verified, hardware soak pending) |
 
 ### Recent Commits
 
 | Date | Commit | Description |
 |------|--------|-------------|
-| 2026-06-30 | `HEAD` | V2.7.2 — Behavioral Consolidation (engagement lifecycle, canonical ownership) |
+| 2026-06-30 | `v2.7.2` | V2.7.2 — Behavioral Consolidation (engagement lifecycle, canonical ownership, build-verified, hardware soak pending) |
 | 2026-06-29 | `v2.7-sprint1` | V2.7 Sprint 1 — BehaviorEngine V1 certified, hardware-validated |
 | 2026-06-28 | `db34556` | docs: redesign README into production-grade GitHub landing page |
 | 2026-06-28 | `9cf1869` | Release Engineering: CI pipeline, evidence framework, build caching, failure-path handling (merged) |
@@ -79,13 +79,17 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 Observe → Attention → Emotion → Mood → Memory → Behavior → Face
 ```
 
-BehaviorEngine is sole canonical producer of `engagement_drive` and transforms MoodEngine's baseline `mood_strength` into the canonical value. FaceEngine is presentation-only — reads CreatureState, never writes behavioral fields.
+BehaviorEngine is the canonical producer of `engagement_drive` and transforms MoodEngine's baseline `mood_strength` into the canonical value. FaceEngine is presentation-only — reads CreatureState, never writes behavioral fields.
 
-### V2.7.2 — Behavioral Consolidation (Complete)
+### V2.7.2 — Behavioral Consolidation (Implementation Complete)
 
-**Objective:** Make BehaviorEngine the sole behavioral authority. Eliminate duplicate `MemoryEngine.recall()` calls. Strip behavioral logic from FaceEngine.
+**Objective:** Make BehaviorEngine the canonical behavioral authority. Eliminate duplicate `MemoryEngine.recall()` calls. Strip behavioral logic from FaceEngine.
 
-**Status:** ✅ Complete. Behavior-preserving ownership migration with zero functional changes.
+**Status:**
+- ✅ Implementation complete
+- ✅ Build verified (93% flash, 21% RAM)
+- ✅ Architecture verified (ownership, pipeline order, no dual-writers)
+- ⏳ Hardware certification pending (30–60 min soak required)
 
 | Commit | Description |
 |--------|-------------|
@@ -100,7 +104,7 @@ BehaviorEngine is sole canonical producer of `engagement_drive` and transforms M
 Observe → Attention → Emotion → Mood → Memory → Behavior → Face
 ```
 
-- **BehaviorEngine** is sole canonical producer of `engagement_drive` (full lifecycle: decay → memory mod → reset → write-back → security floor)
+- **BehaviorEngine** is the canonical producer of `engagement_drive` (full lifecycle: decay → memory mod → reset → write-back → security floor)
 - **MoodEngine** produces baseline `mood_strength`; **BehaviorEngine** transforms it into canonical value
 - **FaceEngine** is presentation-only: eyelids, blink, gaze, bounce, pulse — all read-only consumers of `CreatureState`
 
@@ -108,9 +112,17 @@ Observe → Attention → Emotion → Mood → Memory → Behavior → Face
 
 > Behavior engines transform state. Presentation engines interpret state. Rendering code must never define creature behavior.
 
-### Next Work
+### Next Work — V2.7.3 (Calibration Release)
 
-V2.7.3 will focus on calibration: measure real `domain_strength` distributions, tune thresholds using observed data instead of estimates, freeze constants after hardware validation.
+No new behavior. Calibration and validation only:
+- Calibrate `kEngagementDecayPerSec` from hardware soak data
+- Calibrate touch detection thresholds
+- Calibrate security floor trigger point (`DOMAIN_SECURITY > 30`)
+- Calibrate mood modifier accumulation/decay rates
+- Eliminate boot `calibrate()` glitch
+- Simplify serial FIFO implementation (flat array)
+- Flush stale serial bytes on boot
+- Freeze all constants after hardware evidence
 
 ### Previous Sprints
 
@@ -149,7 +161,7 @@ Observe → Attention → Emotion → Mood → Persistence → Memory → Behavi
                                                              engagement_drive
 ```
 
-BehaviorEngine is sole canonical producer of `engagement_drive` (decay → memory modulation → touch reset → write-back → security floor override). It transforms MoodEngine's baseline `mood_strength` into the final canonical value. FaceEngine is a pure presentation engine — no behavioral decisions, no memory queries, no CreatureState mutations.
+BehaviorEngine is the canonical producer of `engagement_drive` (decay → memory modulation → touch reset → write-back → security floor override). It transforms MoodEngine's baseline `mood_strength` into the final canonical value. FaceEngine is a pure presentation engine — no behavioral decisions, no memory queries, no CreatureState mutations.
 
 Explicitly deferred from V2.7:
 - Learned preferences, memory recall, relationship modeling, personality evolution — all depend on a richer behavior layer in future sprints.
