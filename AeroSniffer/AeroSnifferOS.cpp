@@ -62,7 +62,10 @@ uint32_t sys_avi_refresh = 30000;
 
 // ── Event Bus Implementation ────────────────────────────────────
 void EventBusClass::subscribe(EventType event, EventCallback cb) {
-  if (sub_count >= MAX_SUBSCRIBERS) return;
+  if (sub_count >= MAX_SUBSCRIBERS) {
+    Serial.println("[EVENTBUS] WARN: exceeded MAX_SUBSCRIBERS (32)");
+    return;
+  }
   for (int i = 0; i < sub_count; i++) {
     if (subs[i].event == event && subs[i].cb == cb) return;
   }
@@ -526,6 +529,11 @@ static void local_draw_dotted_frown(TFT_eSprite* spr, int cx, int cy, int width,
 
 static constexpr float ENGAGEMENT_DECAY_PER_SEC = 0.333f;
 
+// Maximum |canonical - cache| from uint8(value + 0.5f) write-back.
+// When exceeded, the canonical was modified externally.
+// FaceEngine detail — update if write-back formula changes.
+static constexpr float kEngagementQuantizationBound = 0.5f;
+
 static float engagementMoodMultiplier(MoodType m) {
   switch (m) {
     case MOOD_PLAYFUL: return 0.5f;  // stays alert 2x longer
@@ -588,32 +596,30 @@ void FaceEngineClass::updateAnimations(int frame) {
   uint32_t dt_ms = now - _last_frame_ms;
   _last_frame_ms = now;
 
-  // ── Autonomous Presence: engagement drive (V2.5 Sprint 5A) ──
-  // Decay toward 0 over time; reset on any interaction.
+  // ── V2.7.2: Engagement lifecycle moved to BehaviorEngine ──
+  // See BehaviorEngine::tick() for the sole canonical producer
+  // of g_creature.engagement_drive.  The old engagement path is
+  // preserved below as a rollback reference (#if 0).
+#if 0
+  const float canon_engage = (float)g_creature.engagement_drive;
+  if (fabsf(canon_engage - _engagement_level) > kEngagementQuantizationBound) {
+    _engagement_level = canon_engage;
+  }
   float decay = ENGAGEMENT_DECAY_PER_SEC * engagementMoodMultiplier(g_creature.mood) * (dt_ms / 1000.0f);
   float floor_val = (g_creature.mood == MOOD_ANXIOUS) ? 20.0f : 0.0f;
-
-  // ── V2.6 Memory Layer modulation ────────────────────────────
   {
     MemorySummary mem = MemoryEngine.recall();
-    // Rule 1: Recent touch (< 30 min) → slow decay by 20%
-    if (mem.ms_since_last_touch < 1800000) {
-      decay *= 0.80f;
-    }
-    // Rule 2: Prolonged absence (> 30 min, low touch memory) → raised floor
+    if (mem.ms_since_last_touch < 1800000) { decay *= 0.80f; }
     if (mem.ms_since_last_touch >= 1800000 && mem.domain_strength[DOMAIN_TOUCH] < 10) {
       floor_val = max(floor_val, 5.0f);
     }
   }
-
   _engagement_level = max(floor_val, _engagement_level - decay);
-
-  // Reset on touch or any attention target (orienting response)
   if (g_creature.attention.source == SOURCE_TOUCH || g_creature.attention.target != TARGET_NONE) {
     _engagement_level = 100.0f;
   }
-
   g_creature.engagement_drive = (uint8_t)(_engagement_level + 0.5f);
+#endif
 
   // ── Eyelid factor: smooth lerp toward engagement-based drowsiness ──
   float drowsiness = 1.0f - (g_creature.engagement_drive / 100.0f);
