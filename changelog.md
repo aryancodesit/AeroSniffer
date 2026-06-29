@@ -4,7 +4,7 @@
 
 ### Behavioral Consolidation — Canonical Ownership (Behavior-Preserving)
 
-**BehaviorEngine becomes sole canonical producer of engagement_drive. FaceEngine becomes presentation-only. Behavior-preserving ownership migration — zero functional changes.**
+**BehaviorEngine becomes canonical producer of engagement_drive. FaceEngine becomes presentation-only. Behavior-preserving ownership migration — zero functional changes.**
 
 ### Changed
 - **BehaviorEngine** (`BehaviorEngine.cpp`, `Companion/BehaviorEngine.h`): Gains full engagement drive lifecycle — decay computation, mood multiplier, memory modulation (V2.6 rules), touch/attention orienting reset, and canonical uint8 write-back. Adds `_engagement_level` float cache and `_last_tick_ms` timing. BehaviorEngine is now the sole writer of `g_creature.engagement_drive`.

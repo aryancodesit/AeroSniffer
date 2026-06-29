@@ -10,12 +10,12 @@
 #include "Memory/MemoryEngine.h"
 
 // ── Behavior Engine ─────────────────────────────────────────────
-// Sole canonical producer of engagement_drive (V2.7.2).  Owns the
+// Canonical producer of engagement_drive (V2.7.2).  Owns the
 // full engagement lifecycle: decay, mood multiplier, memory
 // modulation, touch/attention reset, and canonical write-back.
 //
-// Also applies bounded read-modify-write transforms to CreatureState
-// mood_strength (transforms MoodEngine baseline) at pipeline pos 6.
+// Also transforms MoodEngine's baseline mood_strength into the
+// canonical CreatureState value (pipeline position 6).
 //
 // Thread model:
 //   tick() — called from Core 1 render loop only, after

@@ -71,17 +71,17 @@ This is the core architectural principle of AeroSniffer. Behavior engines transf
 
 ### Canonical State Ownership
 
-| Field | Baseline Producer | Final Transformer | Consumer(s) |
+| Field | Baseline Producer | Canonical Producer | Consumer(s) |
 |---|---|---|---|
-| `emotion` | EmotionEngine | — | MoodEngine, FaceEngine |
-| `mood` | MoodEngine | — | BehaviorEngine, FaceEngine |
-| `mood_strength` | MoodEngine (baseline) | BehaviorEngine | FaceEngine |
+| `emotion` | EmotionEngine | EmotionEngine | MoodEngine, FaceEngine |
+| `mood` | MoodEngine | MoodEngine | BehaviorEngine, FaceEngine |
+| `mood_strength` | MoodEngine | BehaviorEngine | FaceEngine |
 | `engagement_drive` | — | BehaviorEngine | FaceEngine |
-| `attention.*` | AttentionEngine | — | BehaviorEngine, FaceEngine |
-| `activity` | EmotionEngine | — | FaceEngine |
-| Infrastructure fields | EmotionEngine / process_serial_commands | — | PersistenceService |
+| `attention.*` | AttentionEngine | AttentionEngine | BehaviorEngine, FaceEngine |
+| `activity` | EmotionEngine | EmotionEngine | FaceEngine |
+| Infrastructure fields | EmotionEngine / process_serial_commands | EmotionEngine / process_serial_commands | PersistenceService |
 
-Every `CreatureState` field has exactly one producer during each pipeline stage. This table is the authoritative reference for ownership during code review. Any field written by a non-owner requires an explicit ADR.
+Every `CreatureState` field has exactly one canonical producer. Baselines are intermediate pipeline values that are transformed by downstream stages before the final canonical write. This table is the authoritative reference for ownership during code review. Any field written by a non-owner requires an explicit ADR.
 
 ### Current (V2.7.2)
 
