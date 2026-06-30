@@ -62,6 +62,7 @@ venv/
 
 # ── Logs ─────────────────────────────────────────────────────────
 *.log
+!docs/CALIBRATION/raw/*.log
 serial_output.txt
 
 # ── Generated animation headers (large — regenerate with gif2cpp) ─
