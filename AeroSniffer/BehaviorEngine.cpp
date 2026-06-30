@@ -61,10 +61,16 @@ void BehaviorEngineClass::tick() {
     // Reset on touch or any attention target (orienting response)
     if (g_creature.attention.source == SOURCE_TOUCH || g_creature.attention.target != TARGET_NONE) {
         _engagement_level = 100.0f;
+#ifdef CALIBRATION
+        CALIB("ts_touch_beh", micros());
+#endif
     }
 
     // Canonical write-back
     g_creature.engagement_drive = (uint8_t)(_engagement_level + 0.5f);
+#ifdef CALIBRATION
+    CALIB("ts_engage_write", micros());
+#endif
 
     // ════════════════════════════════════════════════════════════
     //  RULES
@@ -111,6 +117,12 @@ void BehaviorEngineClass::tick() {
     );
 
     _engagement_floor = floor;
+
+#ifdef CALIBRATION
+    CALIB_RATE("engage_lvl", (int)(_engagement_level * 10), 500);
+    CALIB_RATE("modifier", _mood_modifier, 1000);
+    CALIB_RATE("engage_floor", _engagement_floor, 1000);
+#endif
 
     // ── Edge-triggered debug log ─────────────────────
 #ifdef BEHAVIOR_DEBUG
