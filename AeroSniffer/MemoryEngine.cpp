@@ -92,6 +92,10 @@ void MemoryEngineClass::tick() {
         record_count_, recall().domain_strength[DOMAIN_TOUCH]);
     }
   }
+
+#ifdef CALIBRATION
+  CALIB_RATE("rec_count", record_count_, 60000);
+#endif
 }
 
 void MemoryEngineClass::onTouchEvent(uint16_t duration_ms) {
@@ -118,6 +122,9 @@ void MemoryEngineClass::onSecurityEvent(EventType event, void* data) {
         sec_.suspicious_formed = false;
       }
       sec_.deauth_count++;
+#ifdef CALIBRATION
+      CALIB("ts_attack", micros());
+#endif
 
       // Evaluate thresholds — set pending flags, do NOT form records
       if (sec_.deauth_count >= 5) {
@@ -140,6 +147,9 @@ void MemoryEngineClass::onSecurityEvent(EventType event, void* data) {
       break;
     }
     case EVENT_ATTACK_EVILTWIN: {
+#ifdef CALIBRATION
+      CALIB("ts_attack", micros());
+#endif
       sec_.pending_threat_level = 90;
       sec_.pending_count = 1;
       sec_.pending_subtype = SEC_THREAT_DETECTED;
@@ -559,6 +569,12 @@ void MemoryEngineClass::decay() {
       rec.strength = (rec.strength > p) ? (rec.strength - p) : 0;
     }
   }
+
+#ifdef CALIBRATION
+  MemorySummary ms = recall();
+  CALIB_RATE("dom_touch", (int)ms.domain_strength[DOMAIN_TOUCH], 60000);
+  CALIB_RATE("dom_sec", (int)ms.domain_strength[DOMAIN_SECURITY], 60000);
+#endif
 }
 
 void MemoryEngineClass::prune() {
