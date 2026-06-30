@@ -9,7 +9,8 @@
 void MoodEngineClass::begin() {
   _mood              = MOOD_RELAXED;
   _strength          = 50;
-  _last_mood_change  = millis();
+  _last_mood_transition = millis();
+  _last_decay_tick      = millis();
   _focus_accumulator = 0;
   _playful_condition_met_since = 0;
   _touch_count       = 0;
@@ -33,6 +34,9 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
   // while still detecting each distinct touch.
   if (g_creature.attention.source == SOURCE_TOUCH && !_prev_was_touch_source) {
     recordTouch(now);
+#ifdef CALIBRATION
+    CALIB("ts_touch_mood", micros());
+#endif
   }
   _prev_was_touch_source = (g_creature.attention.source == SOURCE_TOUCH);
   pruneOldTouches(now);
@@ -54,7 +58,7 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
 
   // ── 3. Decay current mood strength ───────────────────────────
   if (_mood != MOOD_RELAXED && _strength > 0) {
-    uint32_t elapsed = now - _last_mood_change;
+    uint32_t elapsed = now - _last_decay_tick;
     uint32_t interval = decayIntervalMs(_mood);
     if (elapsed >= interval) {
       uint8_t steps = elapsed / interval;
@@ -63,7 +67,7 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
       } else {
         _strength -= steps;
       }
-      _last_mood_change += steps * interval;
+      _last_decay_tick += steps * interval;
     }
   }
 
@@ -87,12 +91,18 @@ void MoodEngineClass::tick(uint32_t delta_ms) {
   if (next != _mood) {
     _mood             = next;
     _strength         = 50;
-    _last_mood_change = now;
+    _last_mood_transition = now;
+    _last_decay_tick      = now;
+    _playful_condition_met_since = 0;
     Serial.printf("[MOOD] %s -> %s\n", moodName(old_mood), moodName(next));
   }
 
   // ── 7. Publish to CreatureState ──────────────────────────────
   publish();
+
+#ifdef CALIBRATION
+  CALIB_RATE("mood_str", _strength, 1000);
+#endif
 }
 
 // ── Touch History ─────────────────────────────────────────────────
