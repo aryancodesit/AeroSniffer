@@ -41,6 +41,19 @@
 #define FW_VERSION "local-dev"
 #endif
 
+// ── Build identity macros (injected by CI, fallback for local) ──
+#ifndef GIT_HASH
+#define GIT_HASH "unknown"
+#endif
+
+#ifndef BOARD_NAME
+#ifdef HW_DESKBUDDY_2
+#define BOARD_NAME "DeskBuddy2"
+#else
+#define BOARD_NAME "DevKitC"
+#endif
+#endif
+
 // ── Global TFT instance ──────────────────────────────────────────
 TFT_eSPI tft = TFT_eSPI();
 
@@ -597,6 +610,10 @@ void task_core1(void*) {
   uint32_t last_ae_tick = millis();
 
   for (;;) {
+#if defined(CALIBRATION)
+    uint32_t _t0 = micros();
+#endif
+
     // ── Heartbeat (every 1s) ────────────────────────────────
     uint32_t now = millis();
     if (now - last_heartbeat >= 1000) {
@@ -623,6 +640,10 @@ void task_core1(void*) {
 
     // ── Tick Behavior Engine (pipeline pos 6) ────────────────
     BehaviorEngine.tick();
+
+#if defined(CALIBRATION)
+    CALIB_RATE("loop_us", (int)(micros() - _t0), 1000);
+#endif
 
     // ── Non-Blocking Serial Processing ───────────────────────
     process_serial_commands();
@@ -694,6 +715,10 @@ void task_core1(void*) {
 void setup() {
   Serial.begin(115200);
   Serial.println("\n[AeroSniffer] Booting...");
+
+#ifdef CALIBRATION
+  CALIB_STR("boot", "fw=" FW_VERSION " git=" GIT_HASH " board=" BOARD_NAME);
+#endif
   WiFi.onEvent(WiFiEvent);
 
   #ifdef HW_DESKBUDDY_2
