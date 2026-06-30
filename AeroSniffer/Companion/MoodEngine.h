@@ -6,6 +6,7 @@
 
 #include <Arduino.h>
 #include "AeroSnifferOS.h"
+#include "Calibration.h"
 
 // ── Mood Engine ─────────────────────────────────────────────────
 // Slow observer that reads CreatureState (emotion, attention, uptime)
@@ -29,7 +30,8 @@ public:
 private:
   MoodType  _mood    = MOOD_RELAXED;
   uint8_t   _strength = 50;
-  uint32_t  _last_mood_change = 0;
+  uint32_t  _last_mood_transition = 0;
+  uint32_t  _last_decay_tick = 0;
   uint32_t  _focus_accumulator = 0;
 
   // Hold-off tracking for upward transitions
