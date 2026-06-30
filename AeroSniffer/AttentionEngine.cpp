@@ -59,6 +59,11 @@ void AttentionEngineClass::tick(uint32_t delta_ms) {
         trigger_ev = ev;
         old_state  = _state;
         _state     = target_state;
+#ifdef CALIBRATION
+        if (target_state == STATE_THREAT_LOCK) {
+          CALIB("ts_threat_attn", micros());
+        }
+#endif
       }
     }
   }
