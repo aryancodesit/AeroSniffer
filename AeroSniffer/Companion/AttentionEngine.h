@@ -6,6 +6,7 @@
 
 #include <Arduino.h>
 #include "AeroSnifferOS.h"
+#include "Calibration.h"
 
 // ── Attention Engine ─────────────────────────────────────────────
 // Singleton that decides where the creature looks. Accepts EventBus

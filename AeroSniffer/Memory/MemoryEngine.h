@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include "MemoryTypes.h"
 #include "AeroSnifferOS.h"
+#include "Companion/Calibration.h"
 
 class MemoryEngineClass {
 public:

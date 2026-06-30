@@ -8,6 +8,7 @@
 #include "AeroSnifferOS.h"
 #include "Memory/MemoryTypes.h"
 #include "Memory/MemoryEngine.h"
+#include "Calibration.h"
 
 // ── Behavior Engine ─────────────────────────────────────────────
 // Canonical producer of engagement_drive (V2.7.2).  Owns the
