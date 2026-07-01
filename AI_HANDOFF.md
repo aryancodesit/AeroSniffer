@@ -2,6 +2,17 @@
 
 ## Current State
 
+**V2.7.3 — Calibration Release is COMPLETE.** Tag: `v2.7.3`.
+
+Freeze → Measure → Calibrate → Release. Three Measure items all closed as No Change:
+- **B1** (kEngagementDecayPerSec = 0.333f): 3-run soak, range/mean = 0.27%, deterministic decay.
+- **M8** (PLAYFUL decay 36 s/unit): Evidence Sufficient — 3+ observed decays, no oscillation, no stuck transitions.
+- **M9** (ANXIOUS decay 24 s/unit): Engineering Equivalence — identical decay code path.
+
+Calibration infrastructure delivered: `Calibration.h` with 4 macros, `availableForWrite()` guard, auto-resetting drop counter, `tools/serial_capture.py` with millisecond timestamps. Full artifact structure at `docs/CALIBRATION/`. Macro guard verified via smoke test: 55 drops reported, zero firmware hangs, all stamps flowing. USB CDC stall root cause identified (80–85% confidence: spin loop in `USBCDC::write()`).
+
+No behavioral constants were changed. All 65 constants retain their V2.7.2 values. The calibration freeze is lifted for V2.8 development.
+
 **V2.7.2 — Behavioral Consolidation is COMPLETE.** BehaviorEngine is now sole canonical producer of `engagement_drive`. Full lifecycle (decay, mood multiplier, memory modulation, touch/attention reset, security floor override) migrated from FaceEngine. FaceEngine is presentation-only — eyelids, blink, gaze, bounce, pulse — all read-only consumers of `CreatureState`. Behavior-preserving ownership migration: zero functional changes. Tags: `v2.7-sprint1`, `v2.7.2`.
 
 **V2.7 Sprint 1 — BehaviorEngine V1 is CERTIFIED.** Behavioral Layer reads MemoryEngine recall summaries and influences CreatureState through 3 deterministic V1 transforms. 125 lines across 2 new files (Companion/BehaviorEngine.h, BehaviorEngine.cpp). Additive `delta += N` evaluation, persistent `_mood_modifier` with linear -1/tick decay, edge-triggered debug. O(1), allocation-free. Certified on hardware via 60-min soak across all 3 modes (Companion, Security, Aviation). Zero WDT, zero panics, zero asserts, zero heap growth. Tag: `v2.7-sprint1`.
@@ -328,6 +339,6 @@ Memory Layer is an observer subsystem — reads touch events and domain events, 
 
 ## Git
 - Branch: `main`
-- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`, `v2.5-persistence`, `v2.6-memory-expansion`, `v2.6-memory-expansion-certified`, `v2.6-releng`, `v2.7-sprint1`
-- Commits: V2.7 Sprint 1 (HEAD — BehaviorEngine V1 certified), `db34556` (README redesign), `9cf1869` (RE merge)
+- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`, `v2.5-persistence`, `v2.6-memory-expansion`, `v2.6-memory-expansion-certified`, `v2.6-releng`, `v2.7-sprint1`, `v2.7.2`, `v2.7.3`
+- Commits: `v2.7.3` (HEAD — Calibration Release complete), `2cb9c37` (artifact structure), `ca9bc0e` (Phase 1 includes), `1791f7a` (MoodEngine sync), `v2.7.2` (Behavioral Consolidation)
 - Upstream: `origin/main`

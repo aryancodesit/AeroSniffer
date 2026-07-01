@@ -1,0 +1,32 @@
+# V2.7.3 Calibration Campaign — Metadata
+# Generated before Phase 3 soaks. Updated at close.
+
+schema_version: 1
+
+test_id: V2.7.3_CAMPAIGN
+
+firmware_version: "local-dev"     # from FW_VERSION macro
+git_commit: "2cb9c37"             # from GIT_HASH macro (fallback: unknown)
+branch: "main"
+
+board: "DeskBuddy2"               # from BOARD_NAME macro
+framework: "esp32-arduino 2.x.y"
+compiler: "arduino-cli"
+
+fps: 30                            # target sustained frame rate
+calibration_build: true            # was -DCALIBRATION active for soaks
+
+tester: "user"
+datetime: "2026-07-01"             # campaign date
+
+ambient_temperature: "~25°C"       # indoor
+power_source: "USB"
+
+test_type: "campaign_closure"      # all Measure items completed
+soak_duration: "N/A"
+
+notes: >
+  B1: PASS (3 runs, No Change). M8: PASS (Evidence Sufficient, No Change).
+  M9: PASS (Engineering Equivalence, No Change). All Measure items closed
+  without constant adjustment. Macro guard implemented and verified.
+  3-minute smoke test remaining before tag.

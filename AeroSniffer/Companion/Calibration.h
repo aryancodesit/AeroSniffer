@@ -2,6 +2,11 @@
 #ifndef CALIBRATION_H
 #define CALIBRATION_H
 
+// ── Calibration campaign active ──────────────────────────────────
+// Defined here (not in .ino) so it propagates to all .cpp
+// translation units.  Uncomment for future calibration campaigns.
+// #define CALIBRATION
+
 #include <Arduino.h>
 
 // ── Calibration Telemetry Macros ──────────────────────────────────
@@ -33,29 +38,74 @@
 #define CALIB_GLUE2_(a, b) a ## b
 #define CALIB_GLUE(a, b)   CALIB_GLUE2_(a, b)
 
+// ── Transport guard threshold ─────────────────────────────────────
+// kCalibLineMax covers worst-case stamp line length:
+//   CALIB_INT:  C,<tag:16>,<int:-2147483648:11>\n  = 31 B
+//   CALIB_STR:  C,<tag:16>,<str:64>\n                = 84 B
+// 96 B chosen to allow headroom and future tag/value expansion.
+static constexpr size_t kCalibLineMax = 96;
+
+// ── Drop counter (shared across all macros) ───────────────────────
+// Returns reference to a single static counter so every call site
+// increments the same variable.  Reports are piggybacked onto the
+// next successful stamp emission, requiring zero caller changes.
+
+inline uint32_t& _calib_drop_count() {
+    static uint32_t _c = 0;
+    return _c;
+}
+
+inline void _calib_report_drops() {
+    uint32_t n = _calib_drop_count();
+    if (n > 0) {
+        _calib_drop_count() = 0;
+        Serial.printf(CALIB_INT_FMT, "calib_drop", (int)n);
+    }
+}
+
 // ── Integer telemetry ─────────────────────────────────────────────
+// Drops stamp when TX buffer cannot accommodate the longest possible
+// line.  Dropped stamps are counted and auto-reported on next success.
 
 #define CALIB(tag, value) \
     do { \
-        Serial.printf(CALIB_INT_FMT, tag, (int)(value)); \
+        if (Serial.availableForWrite() >= (int)kCalibLineMax) { \
+            _calib_report_drops(); \
+            Serial.printf(CALIB_INT_FMT, tag, (int)(value)); \
+        } else { \
+            _calib_drop_count()++; \
+        } \
     } while (0)
 
 // ── String telemetry (e.g. boot identity) ─────────────────────────
 
 #define CALIB_STR(tag, str) \
     do { \
-        Serial.printf(CALIB_STR_FMT, tag, str); \
+        if (Serial.availableForWrite() >= (int)kCalibLineMax) { \
+            _calib_report_drops(); \
+            Serial.printf(CALIB_STR_FMT, tag, str); \
+        } else { \
+            _calib_drop_count()++; \
+        } \
     } while (0)
 
 // ── Rate-limited integer telemetry ────────────────────────────────
+// Timer is updated only on successful print (not on drop), so the
+// first available slot after a stall immediately emits a sample
+// rather than waiting another full interval.
 
 #define CALIB_RATE(tag, value, interval_ms) \
     do { \
         static uint32_t CALIB_GLUE(_calib_last_, __LINE__) = 0; \
         uint32_t _calib_now = millis(); \
         if (_calib_now - CALIB_GLUE(_calib_last_, __LINE__) >= (interval_ms)) { \
-            CALIB_GLUE(_calib_last_, __LINE__) = _calib_now; \
-            Serial.printf(CALIB_INT_FMT, tag, (int)(value)); \
+            if (Serial.availableForWrite() >= (int)kCalibLineMax) { \
+                CALIB_GLUE(_calib_last_, __LINE__) = _calib_now; \
+                _calib_report_drops(); \
+                Serial.printf(CALIB_INT_FMT, tag, (int)(value)); \
+            } else { \
+                _calib_drop_count()++; \
+            } \
         } \
     } while (0)
 
@@ -66,8 +116,13 @@
         static uint32_t CALIB_GLUE(_calib_last_, __LINE__) = 0; \
         uint32_t _calib_now = millis(); \
         if (_calib_now - CALIB_GLUE(_calib_last_, __LINE__) >= (interval_ms)) { \
-            CALIB_GLUE(_calib_last_, __LINE__) = _calib_now; \
-            Serial.printf(CALIB_STR_FMT, tag, str); \
+            if (Serial.availableForWrite() >= (int)kCalibLineMax) { \
+                CALIB_GLUE(_calib_last_, __LINE__) = _calib_now; \
+                _calib_report_drops(); \
+                Serial.printf(CALIB_STR_FMT, tag, str); \
+            } else { \
+                _calib_drop_count()++; \
+            } \
         } \
     } while (0)
 

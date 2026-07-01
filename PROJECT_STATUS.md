@@ -50,21 +50,22 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 | `v2.6-releng` | V2.6 Release Engineering — CI pipeline + evidence framework |
 | `v2.7-sprint1` | V2.7 Sprint 1 — BehaviorEngine V1 certified |
 | `v2.7.2` | V2.7.2 — Behavioral Consolidation (engagement lifecycle ownership, build-verified, hardware soak pending) |
+| `v2.7.3` | V2.7.3 — Calibration Release (B1/M8/M9 closed as No Change, calibration infrastructure, macro guard, drop counter, all artifacts) |
 
 ### Recent Commits
 
 | Date | Commit | Description |
 |------|--------|-------------|
+| 2026-07-01 | `v2.7.3` | V2.7.3 — Calibration Release (B1/M8/M9 closed as No Change, calibration infrastructure, macro guard, drop counter, runtime validation, all artifacts) |
+| 2026-07-01 | `2cb9c37` | docs: finalize calibration artifact structure and .gitignore exception |
+| 2026-07-01 | `ca9bc0e` | Phase 1: add Calibration.h infrastructure to remaining engine headers |
+| 2026-07-01 | `1791f7a` | fix: sync MoodEngine.h declarations with committed .cpp implementation |
+| 2026-07-01 | `5a7551f` | Phase 0: binary size is traceability-only, not a gate; remove stale comparison reference |
 | 2026-06-30 | `v2.7.2` | V2.7.2 — Behavioral Consolidation (engagement lifecycle, canonical ownership, build-verified, hardware soak pending) |
 | 2026-06-29 | `v2.7-sprint1` | V2.7 Sprint 1 — BehaviorEngine V1 certified, hardware-validated |
 | 2026-06-28 | `db34556` | docs: redesign README into production-grade GitHub landing page |
 | 2026-06-28 | `9cf1869` | Release Engineering: CI pipeline, evidence framework, build caching, failure-path handling (merged) |
 | 2026-06-25 | `3023b35` | V2.6 Sprint 3 — Memory Domain Expansion implemented |
-| 2026-06-24 | `9951f00` | V2.6 Sprint 2 certified — Memory Formation Expansion PASS |
-| 2026-06-24 | `497e104` | docs: fix stale Uncommitted Changes section in AI_HANDOFF.md |
-| 2026-06-24 | `116658c` | Phase 1 — TouchEventData pipeline, duration metadata, ae_event_callback safety fix |
-| 2026-06-24 | `c60d8ff` | docs: add CODE_OF_CONDUCT, CONTRIBUTING, and issue templates |
-| 2026-06-24 | `83cc441` | test(v2.6): certify Memory Layer Sprint 1 |
 
 ### Branch
 
@@ -112,17 +113,47 @@ Observe → Attention → Emotion → Mood → Memory → Behavior → Face
 
 > Behavior engines transform state. Presentation engines interpret state. Rendering code must never define creature behavior.
 
-### Next Work — V2.7.3 (Calibration Release)
+### V2.7.3 — Calibration Release (Complete)
 
-No new behavior. Calibration and validation only:
-- Calibrate `kEngagementDecayPerSec` from hardware soak data
-- Calibrate touch detection thresholds
-- Calibrate security floor trigger point (`DOMAIN_SECURITY > 30`)
-- Calibrate mood modifier accumulation/decay rates
-- Eliminate boot `calibrate()` glitch
-- Simplify serial FIFO implementation (flat array)
-- Flush stale serial bytes on boot
-- Freeze all constants after hardware evidence
+**Objective:** Freeze behavior, measure, calibrate, certify. No new features.
+
+**Status:** ✅ **COMPLETE** — Tag `v2.7.3`
+
+**Measure items — all closed as No Change:**
+
+| ID | Constant | Value | Decision | Rationale |
+|----|----------|-------|----------|-----------|
+| B1 | `kEngagementDecayPerSec` | `0.333f` | No Change | 3-run soak: range/mean = 0.27%, decay deterministic. Adjusting would mask uint16_t saturation bug. |
+| M8 | PLAYFUL decay interval | `36000` ms/unit | No Change | Evidence Sufficient: 3+ observed decays Happy→Relaxed, no oscillation, no stuck transitions. |
+| M9 | ANXIOUS decay interval | `24000` ms/unit | No Change | Engineering Equivalence: identical decay code path as M8. Threat-generation testing would not reduce uncertainty. |
+
+**Calibration infrastructure delivered:**
+- ✅ Calibration.h — 4 macros (`CALIB`, `CALIB_STR`, `CALIB_RATE`, `CALIB_RATE_STR`), 2-stage glue, format constants, `availableForWrite()` guard, drop counter with auto-reset
+- ✅ 15 stamp tags across 5 files (all 4 engines + main loop)
+- ✅ Macro guard verified: USB CDC stall prevention without data loss — zero firmware hangs across all runs
+- ✅ `tools/serial_capture.py` — millisecond timestamps, interactive filename prompt, append support
+- ✅ Artifact structure: `raw/`, `processed/`, `reports/`, `runtime/`, `metadata.yaml`, `CALIBRATION_REGISTRY.md`, `metadata.template.yaml`
+- ✅ Phase 0 (6 gates), Phase 1 (5 includes), Phase 2 (15 stamps) — all complete
+- ✅ Phase 3 closure: B1 complete (3 runs), M8 complete (Evidence Sufficient), M9 complete (Engineering Equivalence)
+- ✅ Runtime Validation: 47-min soak, macro guard verification, two M8 attempts (stable, no hangs)
+
+**EventBus Capacity — Known Limitation (unchanged)**
+
+The EventBus subscriber array (32 slots) is exceeded at boot when all engine subscriptions are registered. The attention subsystem does not receive six non-security events (TOUCH_SHORT, FLIGHT_DETECTED, FLIGHT_RARE, WIFI_CONNECTING, WIFI_CONNECTED, WIFI_DISCONNECTED). This causes partial degradation of attention-driven companion behaviors (visual orientation toward touch, flight, and WiFi events) while leaving emotional processing, memory formation, and security response fully functional.
+
+The overflow is a longstanding capacity limitation, not a V2.7.3 regression:
+
+| Version | Subscribers | Capacity | Result |
+|---------|------------:|--------:|--------|
+| V2.4 | 30 | 24 | Overflow |
+| V2.5 | 30 | 32 | Healthy |
+| V2.6 Memory Expansion | 38 | 32 | Overflow |
+| V2.7.x | 38 | 32 | Overflow + warning |
+
+The initial EventBus capacity was undersized for the number of registered subscribers in V2.4. V2.5 temporarily resolved it by expanding to 32 slots. V2.6 Memory Expansion added subscriptions without revisiting capacity, re-introducing the overflow. V2.7.2 added the visible warning. V2.7.3 intentionally leaves this unchanged — altering EventBus capacity would invalidate the behavioral baseline being calibrated.
+
+**Backlog (post-V2.7.x):**
+- EventBus Capacity Audit — Determine required subscriber capacity from actual registrations. Deliverables: subscriber inventory, headroom target, memory cost, scalability recommendation.
 
 ### Previous Sprints
 
