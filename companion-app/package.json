@@ -40,7 +40,7 @@
     "@radix-ui/react-toggle-group": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.10",
     "@tailwindcss/vite": "^4.2.1",
-    "@tanstack/react-query": "^5.101.0",
+    "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-router": "^1.170.16",
     "@tanstack/react-start": "^1.168.26",
     "@tanstack/router-plugin": "^1.167.28",
