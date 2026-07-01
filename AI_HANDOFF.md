@@ -28,6 +28,31 @@ GitHub Actions pipeline validated across 5 runs (cold/warm/failure/recovery). `r
 
 V2.5 Sprint 1–3C complete. Sprint 4A (Creature Persistence) certified. **Sprint 5A (Autonomous Presence Layer / Behavior Layer V1) certified** — engagement_drive (0–100), mood-modulated decay, 3s→30s saccade, deep blink suppression, cross-mode carryover. No further tuning planned. A [Creature Brain Retrospective](docs/V2.5_CREATURE_BRAIN_RETROSPECTIVE.md) archives goals, bugs, architecture decisions (12 preserved), technical debt (3 items), and lessons learned.
 
+## V2.8 — Next Capability (Planned)
+
+### Objective
+New feature development. Calibration freeze lifted. All calibration infrastructure (Calibration.h, stamp tags, evidence pipeline, macro guard) remains in place for future campaigns — just uncomment `#define CALIBRATION` in `Calibration.h:8`.
+
+### Candidate Scope (TBD — Sprint 0)
+- **Behavior Layer V2** — Memory-informed action selection. The calibration baseline from V2.7.3 provides the behavioral floor to build on.
+- **Serial Bridge Service** — TCP + WebSocket bridge for single COM port ownership during development.
+- **EventBus Capacity** — Fix the known 6-subscriber silent overflow (AttentionEngine misses TOUCH_SHORT, FLIGHT_DETECTED, etc.).
+- **`ms_since_last_touch` saturation** — `uint16_t` overflow at 65.5s means the 30-min touch window comparison at BehaviorEngine.cpp:52 is always true. Fix type or logic.
+- **MoodEngine PLAYFUL entry tuning** — UX polish if desired.
+- **Anything the project owner finds interesting** — V2.8 is a creative release.
+
+### Key Files After V2.7.3
+- `AeroSniffer/Companion/Calibration.h` — `// #define CALIBRATION` (uncomment for future campaigns)
+- `docs/CALIBRATION/` — Full calibration evidence pipeline (raw/processed/reports/runtime)
+- `docs/CALIBRATION/CALIBRATION_REGISTRY.md` — B1/M8/M9 closure records
+- `docs/V2.7.3-Calibration-Plan.md` — Plan with closure rationale
+- `tools/serial_capture.py` — Timestamped serial capture utility
+
+### Status
+📋 Planning — branch from `v2.7.3` tag when first commit lands.
+
+---
+
 ## V2.6 Sprint 1 — Memory Layer Foundation (Certified)
 
 ### Status

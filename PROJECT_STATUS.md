@@ -155,6 +155,20 @@ The initial EventBus capacity was undersized for the number of registered subscr
 **Backlog (post-V2.7.x):**
 - EventBus Capacity Audit — Determine required subscriber capacity from actual registrations. Deliverables: subscriber inventory, headroom target, memory cost, scalability recommendation.
 
+### V2.8 — Next Capability (Planned)
+
+**Objective:** New feature development. Calibration freeze lifted — all infrastructure remains in place for future campaigns.
+
+**Candidate areas** (not committed — scope TBD in Sprint 0):
+- Behavior Layer V2 (memory-informed action selection)
+- Serial Bridge Service (TCP + WebSocket COM port sharing)
+- EventBus capacity expansion
+- `ms_since_last_touch` uint16_t saturation fix (BehaviorEngine.cpp:52)
+- MoodEngine PLAYFUL entry tuning (UX polish)
+- Any other feature the project owner finds exciting
+
+**Status:** 📋 Planning — no commits yet. Branch from `v2.7.3` tag when ready.
+
 ### Previous Sprints
 
 engagement_drive (0–100) in CreatureState, FaceEngine sole writer. Mood-modulated decay: RELAXED 1.0x (~5 min to drowsy), PLAYFUL 0.5x (~10 min), ANXIOUS 0.3x with floor at 20 (~16 min). Saccade interval 3s→30s, deep blink suppressed during TARGET_THREAT/USER/FLIGHT. 32-min certification run: 1816 stable heartbeats, 16 touches, all 3 mode transitions clean, no errors. Cross-mode carryover observed (sleepy state persists across Aviation→Companion).

@@ -216,6 +216,19 @@ V2 ─────────────────────────�
       ├── Memory Domain Expansion (Security, Aviation, Mood)
       └── Release Engineering (CI pipeline, evidence framework, certified)
   │
+  ├── V2.7 — Behavioral Consolidation & Calibration
+  │   ├── V2.7.2 — Behavioral Consolidation
+  │   │   ├── BehaviorEngine canonical ownership (engagement lifecycle)
+  │   │   ├── FaceEngine cleanup (presentation-only)
+  │   │   └── Architectural principles documented
+  │   │
+  │   └── V2.7.3 — Calibration Release
+  │       ├── B1/M8/M9 measured — all No Change (65 constants retained)
+  │       ├── Calibration.h (4 macros, transport-safe guard, drop counter)
+  │       ├── 15 stamp tags across 4 engines + main loop
+  │       ├── Macro guard verified — USB CDC stall prevention
+  │       └── Full evidence pipeline (raw/processed/reports/metadata)
+  │
 V3 ───────────────────────────────────────────────────────── (Planned)
   │
   ├── Behavior Layer V2 (memory-informed action selection)
@@ -237,7 +250,9 @@ V3 ─────────────────────────�
 | Memory Expansion | V2.6 Sprint 2 | ✅ Certified | 5 touch subtypes, duration classification, 30-min soak |
 | Domain Expansion | V2.6 Sprint 3 | ✅ Implemented | Security/Aviation/Mood domains, 15 subtypes |
 | Release Engineering | V2.6 | ✅ Certified | CI pipeline, evidence framework, 95/100 score |
-| Behavior Layer V2 | V2.7 | 📋 Planned | Memory-informed action selection, learned preferences |
+| Behavioral Consolidation | V2.7.2 | ✅ Released | BehaviorEngine canonical ownership, FaceEngine cleanup |
+| Calibration Release | V2.7.3 | ✅ Released | B1/M8/M9 measured (all No Change), calibration infrastructure, macro guard, evidence pipeline |
+| Behavior Layer V2 | V2.8 | 📋 Planned | Memory-informed action selection, learned preferences |
 | Cloud Analytics | V3 | 🔭 Vision | Historical analysis, threat/flight/behavior dashboards |
 | Home Assistant | V3 | 🔭 Vision | MQTT bridge, smart home integration |
 
@@ -270,8 +285,13 @@ V3 ─────────────────────────�
 | Memory Domains | ✅ Implemented | V2.6 | Security/Aviation/Mood, 15 subtypes |
 | CI/CD Pipeline | ✅ Certified | V2.6 | GitHub Actions, evidence framework |
 | Signature Matcher | ✅ Certified | V2.6 | 3 regression signatures, lifecycle engine |
-| Serial Bridge Service | 📋 Planned | V2.7 | TCP + WebSocket, single COM port owner |
-| Behavior Layer V2 | 📋 Planned | V2.7 | Memory-informed action selection |
+| Behavioral Consolidation | ✅ Released | V2.7.2 | Engagement lifecycle, canonical ownership, FaceEngine cleanup |
+| Calibration Infrastructure | ✅ Released | V2.7.3 | Calibration.h (4 macros), transport-safe telemetry, drop counter |
+| Calibration Evidence Pipeline | ✅ Released | V2.7.3 | raw/processed/reports/runtime artifacts, metadata schema |
+| Runtime Validation | ✅ Released | V2.7.3 | Macro guard verified, USB CDC stall prevention |
+| B1/M8/M9 Calibration | ✅ Released | V2.7.3 | All Measure items closed as No Change |
+| Serial Bridge Service | 📋 Planned | V2.8 | TCP + WebSocket, single COM port owner |
+| Behavior Layer V2 | 📋 Planned | V2.8 | Memory-informed action selection |
 | Cloud Analytics | 🔭 Vision | V3 | Historical dashboards |
 | Home Assistant | 🔭 Vision | V3 | MQTT bridge |
 | Multi-Device Fleet | 🔭 Vision | V3 | Coordinated deployment |
