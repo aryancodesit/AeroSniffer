@@ -147,6 +147,29 @@
 //  SHARED CONSTANTS (same for all hardware variants)
 // ================================================================
 
+// ── Release Build Configuration ──────────────────────────────────
+// Set RELEASE_BUILD to 1 before tagging to strip all developer-only
+// UI overlays, heap diagnostics, and serial credential leaks.
+// Preserves: status bar, HUD data (PPS, threats, flights), mode names.
+#define RELEASE_BUILD 0
+
+#if RELEASE_BUILD == 1
+  // Mute developer overlays
+  #define ANIM_DEBUG 0
+  // Null-output macro for debug serial that would leak sensitive info
+  #define DEBUG_PRINTF(fmt, ...) ((void)0)
+#else
+  #define DEBUG_PRINTF Serial.printf
+#endif
+
+// ── Animation Intelligence Debug Overlay ─────────────────────────
+// Set to 1 for validation builds to show current emotion + touch
+// state on the display for visual validation of Sprint 2 animation.
+// Set to 0 for production builds.
+#ifndef ANIM_DEBUG
+  #define ANIM_DEBUG 1
+#endif
+
 // ── System constants ─────────────────────────────────────────────
 #define TOTAL_MODES       3      // Pet | Security | Aviation
 

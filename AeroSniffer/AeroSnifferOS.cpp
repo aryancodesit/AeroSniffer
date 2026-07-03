@@ -1,7 +1,4 @@
-// ================================================================
-//  AeroSnifferOS.cpp  —  Modular Services & Central Brain
-//  AeroSniffer OS Layer | C++ Shared Infrastructure
-// ================================================================
+// AeroSnifferOS.cpp  —  OS Layer: FaceEngine, Storage, WiFi, Display services
 #include "AeroSnifferOS.h"
 #include "Config.h"
 #include "Companion/AttentionEngine.h"
@@ -10,6 +7,35 @@
 #include <math.h>
 
 extern TFT_eSPI tft;
+
+// V2.8 Sprint 2 — Animation Intelligence constants
+static constexpr float SPRING_TENSION  = 0.15f;
+static constexpr float SPRING_DAMPING  = 0.40f;
+static constexpr float SPRING_SETTLE   = 0.2f;
+static constexpr float MICRO_DRIFT_AMP = 2.0f;
+static constexpr float BREATH_CYCLE_MS = 6000.0f; // 6-second full breath
+static constexpr uint8_t FOCUS_LOCK_ON  = 25;
+static constexpr uint8_t FOCUS_LOCK_OFF = 20;
+static constexpr uint16_t ANTICIPATE_MS = 50;
+static constexpr uint16_t TRANSITION_MS = 150;
+static constexpr uint16_t SETTLE_MS     = 100;
+static constexpr uint16_t RECOVERY_BROW_MS = 1500;
+static constexpr uint16_t RECOVERY_EYELID_MS = 2000;
+static constexpr uint16_t MIN_SACCADE_HOLD_MS = 1000;
+
+// V2.8 Sprint 3 — Micro-Expression thresholds
+static constexpr uint16_t DOUBLE_BLINK_DURATION_MS  = 350;
+static constexpr uint16_t SQUINT_DURATION_MS         = 250;
+static constexpr uint16_t PUPIL_FLICK_DURATION_MS    = 150;
+static constexpr uint16_t BROW_TWITCH_DURATION_MS    = 200;
+static constexpr uint8_t  SQUINT_THRESHOLD            = 20;
+static constexpr uint8_t  BROW_TWITCH_MIN             = 5;
+static constexpr uint8_t  BROW_TWITCH_MAX             = 15;
+static constexpr int8_t   PUPIL_FLICK_RANGE           = 2;
+static constexpr int8_t   BROW_TWITCH_RANGE           = 2;
+
+// Forward declarations for functions used before defined
+static uint16_t lerpColor(uint16_t from, uint16_t to, float t);
 
 // Mood profile accessor (Sprint 3B)
 // Future-proof: adding a new mood type requires only a new case here.
@@ -26,6 +52,261 @@ static MoodProfile profileFor(MoodType mood) {
     case MOOD_ANXIOUS: return {2200, 0.5f, 0.8f, 0.6f};
     default:           return {4000, 1.0f, 1.0f, 1.0f};  // RELAXED + unknown/future moods degrade gracefully
   }
+}
+
+// ── Face Engine Colors ────────────────────────────────────────────
+#define C_BG          0x10A2
+#define C_BLACK       0x0000
+#define C_IDLE        0x05FF
+#define C_HAPPY       0x07E0
+#define C_EXCITED     0xFFE0
+#define C_SLEEPY      0x421F
+#define C_THINKING    0xB31F
+#define C_SAD         0xF800
+#define C_ALERT       0xFC00
+#define C_LOVE        0xF81F
+#define C_STARTUP     0x07FF
+#define C_SURPRISED   0xFFFF
+
+// ── Presentation Intelligence (V2.8 Sprint 1) ────────────────────
+
+// AnimationProfile table — multipliers on mood baseline (in flash)
+static constexpr uint8_t PRES_ANIM_COUNT = 6;
+static const AnimationProfile kAnimProfiles[PRES_ANIM_COUNT] = {
+  {128, 4, 128, 128},  // 0: normal — 1.0x blink, 4px gaze, 1.0x speed, 1.0x bounce
+  { 90, 6, 166, 154},  // 1: alert — 0.7x blink, 6px gaze, 1.3x speed, 1.2x bounce
+  {166, 3, 102, 102},  // 2: calm — 1.3x blink, 3px gaze, 0.8x speed, 0.8x bounce
+  {256, 2,  64,  64},  // 3: sleepy — 2.0x blink, 2px gaze, 0.5x speed, 0.5x bounce
+  {128, 5, 128,  77},  // 4: focused — 1.0x blink, 5px gaze, 1.0x speed, 0.6x bounce
+  { 77, 7, 192, 192},  // 5: energetic — 0.6x blink, 7px gaze, 1.5x speed, 1.5x bounce
+};
+
+// Profile table (flat 1D): kVariantTable[emotion * MAX_VARIANTS + variant]
+// 0 = use emotion default color (-1 sentinel for array)
+static const uint8_t PRES_EMO_COLORS[EMOTION_COUNT] = {
+  6, 1, 2, 3, 4, 5, 3, 7, 8, 9  // CALM→1, HAPPY→2, SAD→3, etc.
+};
+// color index → actual 16-bit colors
+static uint16_t presColor(uint8_t idx) {
+  switch (idx) {
+    case 1: return C_HAPPY;
+    case 2: return C_SAD;
+    case 3: return C_ALERT;
+    case 4: return C_THINKING;
+    case 5: return C_SLEEPY;
+    case 6: return C_IDLE;
+    case 7: return C_LOVE;
+    case 8: return C_SURPRISED;
+    case 9: return C_EXCITED;
+    default: return C_IDLE;
+  }
+}
+
+static constexpr uint8_t MAX_VARIANTS = 3;
+// Flattened 1D table: index = emotion * MAX_VARIANTS + variant
+// (ESP32 GCC 3.3.10 fails on nested brace-init of 2D arrays with sub-array members)
+static const PresentationProfile kVariantTable[EMOTION_COUNT * MAX_VARIANTS] = {
+  // EMOTION_CALM = 0
+  {0, PRES_EYE_DEFAULT, PRES_BROW_NORMAL,   PRES_PUPIL_NORMAL,      0,2, { 1, 0, 1},  0,100, PRES_CONTEXT_CALM,  3000},
+  {1, PRES_EYE_ARCHED,  PRES_BROW_NORMAL,   PRES_PUPIL_HALF,        0,2, { 2, 0, 0},  0, 50, PRES_CONTEXT_CALM,  3000},
+  {2, PRES_EYE_ROUND,   PRES_BROW_NORMAL,   PRES_PUPIL_NORMAL,      0,2, { 0, 0, 0}, 20,100, PRES_CONTEXT_ANY,   3000},
+  // EMOTION_HAPPY = 1
+  {0, PRES_EYE_ARCHED,  PRES_BROW_NORMAL,   PRES_PUPIL_NORMAL,      0,5, { 0, 2, 0}, 40,100, PRES_CONTEXT_SOCIAL, 2500},
+  {1, PRES_EYE_WIDE,    PRES_BROW_RAISED,   PRES_PUPIL_DILATED,     0,5, {-1, 2, 0}, 60,100, PRES_CONTEXT_ACTIVE, 2000},
+  {2, PRES_EYE_ARCHED,  PRES_BROW_NORMAL,   PRES_PUPIL_HALF,        0,2, { 1, 0, 0},  0, 40, PRES_CONTEXT_CALM,  3000},
+  // EMOTION_SAD = 2
+  {0, PRES_EYE_ROUND,   PRES_BROW_WORRIED,  PRES_PUPIL_CONSTRICTED, 0,2, { 1, 0, 0},  0,100, PRES_CONTEXT_ANY,   3500},
+  {1, PRES_EYE_FLAT,    PRES_BROW_NORMAL,   PRES_PUPIL_HALF,        0,3, { 2, 0, 0},  0, 50, PRES_CONTEXT_CALM,  3500},
+  {2, PRES_EYE_DEFAULT, PRES_BROW_NORMAL,   PRES_PUPIL_NORMAL,      0,2, { 0, 0, 0}, 30,100, PRES_CONTEXT_FOCUSED,3000},
+  // EMOTION_ANGRY = 3
+  {0, PRES_EYE_SQUINT,  PRES_BROW_FURROWED, PRES_PUPIL_CONSTRICTED, 0,1, { 0, 0, 2}, 30,100, PRES_CONTEXT_ANY,   3000},
+  {1, PRES_EYE_ROUND,   PRES_BROW_FURROWED, PRES_PUPIL_NORMAL,      0,1, { 0, 0, 1}, 50,100, PRES_CONTEXT_ACTIVE, 2500},
+  {2, PRES_EYE_DEFAULT, PRES_BROW_NORMAL,   PRES_PUPIL_CONSTRICTED, 0,1, { 1, 0, 0},  0, 40, PRES_CONTEXT_CALM,  3000},
+  // EMOTION_CURIOUS = 4
+  {0, PRES_EYE_ROUND,   PRES_BROW_RAISED,   PRES_PUPIL_DILATED,     0,4, { 0, 1, 0}, 40,100, PRES_CONTEXT_FOCUSED,2500},
+  {1, PRES_EYE_SQUINT,  PRES_BROW_NORMAL,   PRES_PUPIL_CONSTRICTED, 0,4, { 0, 0, 0}, 30,100, PRES_CONTEXT_FOCUSED,3000},
+  {2, PRES_EYE_WIDE,    PRES_BROW_ONE,      PRES_PUPIL_DILATED,     0,0, { 1, 1, 1},  0,100, PRES_CONTEXT_SOCIAL, 2500},
+  // EMOTION_SLEEPY = 5
+  {0, PRES_EYE_FLAT,    PRES_BROW_NORMAL,   PRES_PUPIL_HALF,        0,3, { 2, 0, 0},  0, 30, PRES_CONTEXT_CALM,  4000},
+  {1, PRES_EYE_FLAT,    PRES_BROW_NORMAL,   PRES_PUPIL_NONE,        0,3, { 2, 0, 0},  0, 10, PRES_CONTEXT_CALM,  4000},
+  {2, PRES_EYE_DEFAULT, PRES_BROW_NORMAL,   PRES_PUPIL_NORMAL,      0,2, { 0, 0, 0}, 40,100, PRES_CONTEXT_ANY,   3000},
+  // EMOTION_ALERT = 6
+  {0, PRES_EYE_WIDE,    PRES_BROW_RAISED,   PRES_PUPIL_DILATED,     0,1, { 0, 0, 2}, 50,100, PRES_CONTEXT_ANY,   2000},
+  {1, PRES_EYE_ROUND,   PRES_BROW_FURROWED, PRES_PUPIL_NORMAL,      0,1, { 0, 0, 2}, 30,100, PRES_CONTEXT_FOCUSED,2500},
+  {2, PRES_EYE_DEFAULT, PRES_BROW_NORMAL,   PRES_PUPIL_NORMAL,      0,2, { 1, 0, 0},  0, 40, PRES_CONTEXT_CALM,  3000},
+  // EMOTION_LOVE = 7
+  {0, PRES_EYE_ARCHED,  PRES_BROW_NORMAL,   PRES_PUPIL_DILATED,     0,5, { 1, 2, 0}, 30,100, PRES_CONTEXT_SOCIAL, 2500},
+  {1, PRES_EYE_ROUND,   PRES_BROW_NORMAL,   PRES_PUPIL_NORMAL,      0,2, { 2, 0, 0},  0, 50, PRES_CONTEXT_CALM,  3000},
+  {2, PRES_EYE_WIDE,    PRES_BROW_RAISED,   PRES_PUPIL_DILATED,     0,5, { 0, 2, 0}, 60,100, PRES_CONTEXT_ACTIVE, 2000},
+  // EMOTION_SURPRISED = 8
+  {0, PRES_EYE_WIDE,    PRES_BROW_RAISED,   PRES_PUPIL_DILATED,     0,5, { 0, 1, 0}, 30,100, PRES_CONTEXT_ANY,   2000},
+  {1, PRES_EYE_ROUND,   PRES_BROW_RAISED,   PRES_PUPIL_CONSTRICTED, 0,5, { 0, 1, 0}, 50,100, PRES_CONTEXT_ANY,   2000},
+  {2, PRES_EYE_DEFAULT, PRES_BROW_NORMAL,   PRES_PUPIL_NORMAL,      0,2, { 1, 0, 0},  0, 30, PRES_CONTEXT_CALM,  3000},
+  // EMOTION_EXCITED = 9
+  {0, PRES_EYE_WIDE,    PRES_BROW_RAISED,   PRES_PUPIL_DILATED,     0,5, { 0, 2, 0}, 50,100, PRES_CONTEXT_ACTIVE, 2000},
+  {1, PRES_EYE_ROUND,   PRES_BROW_NORMAL,   PRES_PUPIL_NORMAL,      0,1, { 1, 1, 1}, 20,100, PRES_CONTEXT_SOCIAL, 2500},
+  {2, PRES_EYE_ARCHED,  PRES_BROW_RAISED,   PRES_PUPIL_DILATED,     0,5, { 0, 2, 0},  0, 60, PRES_CONTEXT_ANY,   2500},
+};
+
+// Inline index helper for flattened 1D variant table
+static inline int presIdx(EmotionType e, uint8_t v) { return (int)e * (int)MAX_VARIANTS + v; }
+
+static int variantCountFor(EmotionType e) {
+  (void)e;
+  return 3; // all emotions have 3 variants for now
+}
+
+// Deterministic PRNG — xorshift32, mutates seed by reference.
+// Every invocation advances the internal state.
+uint32_t FaceEngineClass::xorshift32(uint32_t& seed) {
+  seed ^= seed << 13;
+  seed ^= seed >> 17;
+  seed ^= seed << 5;
+  return seed;
+}
+
+// Map ActivityType to generic context bucket
+uint8_t FaceEngineClass::activityToBucket(ActivityType a) {
+  switch (a) {
+    case ACTIVITY_SLEEPING: return PRES_CONTEXT_CALM;
+    case ACTIVITY_IDLE:     return PRES_CONTEXT_CALM;
+    case ACTIVITY_TYPING:   return PRES_CONTEXT_ACTIVE;
+    case ACTIVITY_CODING:   return PRES_CONTEXT_FOCUSED;
+    case ACTIVITY_THINKING: return PRES_CONTEXT_FOCUSED;
+    case ACTIVITY_WATCHING_FLIGHTS: return PRES_CONTEXT_SOCIAL;
+    case ACTIVITY_SCANNING_NETWORKS: return PRES_CONTEXT_SOCIAL;
+    case ACTIVITY_MUSIC:    return PRES_CONTEXT_SOCIAL;
+    default:                return PRES_CONTEXT_ANY;
+  }
+}
+
+const PresentationProfile* FaceEngineClass::profileTable() {
+  return kVariantTable;
+}
+
+int FaceEngineClass::profileCountFor(EmotionType e) {
+  if (e >= EMOTION_COUNT) return 0;
+  return variantCountFor(e);
+}
+
+// Score and select a profile for the given emotion (integer arithmetic)
+uint8_t FaceEngineClass::selectProfile(EmotionType emotion) {
+  int count = profileCountFor(emotion);
+  if (count == 0) return 0;
+
+  uint8_t bucket = activityToBucket(g_creature.activity);
+  // scores are Q8 (256 = 1.0) to avoid floating point
+  int scores[MAX_VARIANTS];
+  int total = 0;
+
+  for (int i = 0; i < count; i++) {
+    const PresentationProfile& p = kVariantTable[presIdx(emotion, i)];
+    int s = 256; // base score (1.0 in Q8)
+
+    // Mood affinity: −3..+3 scaled by mood_strength (0..100)
+    // aff * 256 / 3 * strength / 100 = aff * strength * 256 / 300
+    s += ((int)p.mood_affinity[g_creature.mood] * (int)g_creature.mood_strength * 256) / 300;
+
+    // Engagement range: +512 if inside, −256 if outside (Q8: +2.0 / −1.0)
+    if (g_creature.engagement_drive >= p.engagement_min &&
+        g_creature.engagement_drive <= p.engagement_max) {
+      s += 512;
+    } else {
+      s -= 256;
+    }
+
+    // Context bucket: +384 if matched (Q8: +1.5)
+    if (p.context_bucket == bucket || p.context_bucket == PRES_CONTEXT_ANY) {
+      s += 384;
+    }
+
+    if (s < 1) s = 1; // ensure positive for weighted pick
+    scores[i] = s;
+    total += s;
+  }
+
+  // Deterministic weighted pick (integer range)
+  uint32_t r = xorshift32(_pres_state.selection_seed) % (uint32_t)total;
+  int cumulative = 0;
+  for (int i = 0; i < count; i++) {
+    cumulative += scores[i];
+    if ((int)r < cumulative) return i;
+  }
+  return count - 1;
+}
+
+// Update presentation state — variant selection + transition
+void FaceEngineClass::updatePresentation() {
+  // Check for emotion change
+  bool emotionChanged = (g_creature.emotion != _pres_state.last_emotion);
+
+  // Check for context shift (mood or engagement threshold crossing)
+  bool moodChanged = (g_creature.mood != _pres_state.last_mood);
+  // Engagement band: LOW (0-33), MED (34-66), HIGH (67-100)
+  uint8_t band = g_creature.engagement_drive / 34;
+  if (band > 2) band = 2;
+  uint8_t lastBand = _pres_state.last_engagement / 34;
+  if (lastBand > 2) lastBand = 2;
+  bool engagementShifted = (band != lastBand);
+
+  if (emotionChanged) {
+    // Emotion change — restart transition
+    _pres_state.last_emotion = g_creature.emotion;
+    _pres_state.last_mood = g_creature.mood;
+    _pres_state.last_engagement = g_creature.engagement_drive;
+    uint8_t new_idx = selectProfile(g_creature.emotion);
+    _pres_state.pending_profile = new_idx;
+    _pres_state.transition_progress = 0;
+    _pres_state.hold_remaining_ms = kVariantTable[presIdx(g_creature.emotion, new_idx)].hold_ms;
+    return;
+  }
+
+  // Decrement hold timer
+  if (_pres_state.hold_remaining_ms > 16) { // approximate frame delta
+    _pres_state.hold_remaining_ms -= 16;
+  } else {
+    _pres_state.hold_remaining_ms = 0;
+  }
+
+  // Advance transition
+  if (_pres_state.transition_progress < 255) {
+    _pres_state.transition_progress += 8; // ~250ms at 30fps
+    if (_pres_state.transition_progress >= 255) {
+      _pres_state.transition_progress = 255;
+      _pres_state.current_profile = _pres_state.pending_profile;
+    }
+    return; // don't re-select during transition
+  }
+
+  // Re-select on context shift or hold expiry
+  if (moodChanged || engagementShifted || _pres_state.hold_remaining_ms == 0) {
+    _pres_state.last_mood = g_creature.mood;
+    _pres_state.last_engagement = g_creature.engagement_drive;
+    uint8_t new_idx = selectProfile(g_creature.emotion);
+    if (new_idx != _pres_state.current_profile) {
+      _pres_state.pending_profile = new_idx;
+      _pres_state.transition_progress = 0;
+      _pres_state.hold_remaining_ms = kVariantTable[presIdx(g_creature.emotion, new_idx)].hold_ms;
+    } else if (_pres_state.hold_remaining_ms == 0) {
+      // Same profile selected — give it minimum hold to avoid re-picking every frame
+      _pres_state.hold_remaining_ms = kVariantTable[presIdx(g_creature.emotion, new_idx)].hold_ms;
+    }
+  }
+
+  // ── Produce PresentationTarget (V2.8 Sprint 2, additive) ──────
+  EmotionType _emo = _pres_state.last_emotion;
+  uint8_t _cur_idx = _pres_state.current_profile;
+  uint8_t _pen_idx = _pres_state.pending_profile;
+  float _t = min(1.0f, _pres_state.transition_progress / 255.0f);
+  const PresentationProfile& _curP = kVariantTable[presIdx(_emo, _cur_idx)];
+  const PresentationProfile& _penP = kVariantTable[presIdx(_emo, _pen_idx)];
+  uint16_t _color_cur = presColor(_curP.color_override ? _curP.color_override : PRES_EMO_COLORS[_emo]);
+  uint16_t _color_pen = presColor(_penP.color_override ? _penP.color_override : PRES_EMO_COLORS[_emo]);
+  _pres_target.color = (_t >= 1.0f) ? _color_pen : lerpColor(_color_cur, _color_pen, _t);
+  _pres_target.eye_shape = _penP.eye_shape;
+  _pres_target.brow_style = _penP.brow_style;
+  _pres_target.pupil_style = _penP.pupil_style;
+  _pres_target.anim_profile_id = _penP.anim_profile_id;
 }
 
 // ── Central State Definition ─────────────────────────────────────
@@ -477,24 +758,10 @@ const char* EmotionEngineClass::getEmotionStr() const {
 }
 
 const char* EmotionEngineClass::getActivityStr() const {
-  const char* names[] = {"Idle", "Coding", "Music", "Aviation", "Scanning", "Thinking", "Sleeping", "Typing"};
-  return (current_activity < ACTIVITY_COUNT) ? names[current_activity] : "Unknown";
+  return (current_activity < ACTIVITY_COUNT) ? kActivityLabels[current_activity] : "Unknown";
 }
 
 // ── Face Engine v2 Layer Implementation ─────────────────────────
-#define C_BG          0x10A2
-#define C_BLACK       0x0000
-#define C_IDLE        0x05FF
-#define C_HAPPY       0x07E0
-#define C_EXCITED     0xFFE0
-#define C_SLEEPY      0x421F
-#define C_THINKING    0xB31F
-#define C_SAD         0xF800
-#define C_ALERT       0xFC00
-#define C_LOVE        0xF81F
-#define C_STARTUP     0x07FF
-#define C_SURPRISED   0xFFFF
-
 static void local_draw_heart(TFT_eSprite* spr, int cx, int cy, int size, uint16_t color) {
   int r = size / 2;
   spr->fillCircle(cx - r / 2 + 2, cy - r / 4, r, color);
@@ -544,6 +811,34 @@ void FaceEngineClass::begin() {
   _last_mood         = g_creature.mood;
   _last_mood_strength = g_creature.mood_strength;
   recomputeMoodPresentation();
+
+  // Initialize Presentation Intelligence state via deterministic selection
+  _pres_state.current_profile = 0;
+  _pres_state.pending_profile = 0;
+  _pres_state.transition_progress = 255; // fully settled
+  _pres_state.hold_remaining_ms = 0;
+  _pres_state.selection_seed = g_creature.uptime_minutes + millis();
+  _pres_state.last_emotion   = g_creature.emotion;
+  // Initialize micro-expression RNG seed (non-zero for xorshift32 liveness)
+  _micro_rng_seed = g_creature.uptime_minutes + millis() + 1;
+  _pres_state.last_mood      = g_creature.mood;
+  _pres_state.last_engagement = g_creature.engagement_drive;
+  _pres_state.current_profile = selectProfile(g_creature.emotion);
+  _pres_state.pending_profile = _pres_state.current_profile;
+
+  // V2.8 Sprint 2: Animation Intelligence init
+  _eye_physics = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+  _pres_target = PresentationTarget();
+  _anim_pose = AnimationPose();
+  _transition_phase = TransitionPhase::IDLE;
+  _transition_timer_ms = 0;
+  _breath_phase = 0.0f;
+  _breath_accum = 0.0f;
+  _recovery_modifier = 0.0f;
+  _recovery_start_ms = 0;
+  _last_high_emotion = EMOTION_CALM;
+  _last_frame_us = micros();
+  _focus_locked = false;
 }
 
 void FaceEngineClass::recomputeMoodPresentation() {
@@ -576,178 +871,569 @@ void FaceEngineClass::recomputeMoodPresentation() {
 void FaceEngineClass::updateAnimations(int frame) {
   uint32_t now = millis();
 
-  // ── Eyelid factor: smooth lerp toward engagement-based drowsiness ──
+  // ── 1. Compute wall-clock dt ────────────────────────────────
+  uint32_t now_us = micros();
+  float dt = (float)(now_us - _last_frame_us) / 16666.0f;
+  if (dt > 3.0f) dt = 3.0f;
+  uint32_t dt_ms = (now_us - _last_frame_us) / 1000;
+  if (dt_ms > 50) dt_ms = 50;
+  _last_frame_us = now_us;
+
+  // ── 2. Eyelid factor: smooth lerp toward engagement-based drowsiness ──
   float drowsiness = 1.0f - (g_creature.engagement_drive / 100.0f);
-  float target_eyelid = 1.0f - pow(drowsiness, 1.5f) * 0.7f;  // minimum ~0.3 at drive=0
+  float target_eyelid = 1.0f - pow(drowsiness, 1.5f) * 0.7f;
   _eyelid_factor = _eyelid_factor * 0.95f + target_eyelid * 0.05f;
 
-  // ── Update mood presentation if mood or strength changed (Sprint 3B) ─
+  // ── 3. Update mood presentation if mood or strength changed ──
   if (g_creature.mood != _last_mood || g_creature.mood_strength != _last_mood_strength) {
     _last_mood         = g_creature.mood;
     _last_mood_strength = g_creature.mood_strength;
     recomputeMoodPresentation();
   }
 
-  // ── Blink with deep blink probability from engagement ─────────
+  // ── 4. Blink with deep blink probability from engagement ──
   if (now > anim_blink_next && !anim_is_blinking) {
     anim_is_blinking = true;
+    anim_blink_accum_ms = 0;
     anim_blink_scale = 1.0f;
-
     int deep_chance = 0;
     if (g_creature.attention.target == TARGET_NONE) {
-      deep_chance = max(0, 60 - (int)g_creature.engagement_drive * 75 / 100);  // 60% at 0, 0% at 80+
+      deep_chance = max(0, 60 - (int)g_creature.engagement_drive * 75 / 100);
     }
     _deep_blink_hold = (random(100) < deep_chance) ? 2 : 0;
   }
-  
+
   if (anim_is_blinking) {
-    if (anim_blink_scale > 0.1f && frame % 2 == 0) {
-      anim_blink_scale -= 0.4f;
-    } else if (anim_blink_scale <= 0.1f) {
+    // Time-based blink progress using dt_ms from the animation frame
+    anim_blink_accum_ms += dt_ms;
+
+    static constexpr uint32_t BLINK_CLOSE_MS = 80;
+    static constexpr uint32_t BLINK_HOLD_MS  = 50;
+    static constexpr uint32_t BLINK_OPEN_MS  = 150;
+    static constexpr uint32_t BLINK_TOTAL_MS = BLINK_CLOSE_MS + BLINK_HOLD_MS + BLINK_OPEN_MS;
+
+    uint32_t t = anim_blink_accum_ms;
+    if (t < BLINK_CLOSE_MS) {
+      float p = (float)t / (float)BLINK_CLOSE_MS;
+      anim_blink_scale = 1.0f - p * p;
+    } else if (t < BLINK_CLOSE_MS + BLINK_HOLD_MS) {
       anim_blink_scale = 0.0f;
-    }
-    if (anim_blink_scale <= 0.0f && frame % 3 == 0) {
-      if (_deep_blink_hold > 0) {
-        _deep_blink_hold--;
-      } else {
-        anim_blink_scale = 0.1f;
-      }
-    } else if (anim_blink_scale > 0.0f && anim_blink_scale < 1.0f) {
-      anim_blink_scale += 0.2f;
-    }
-    if (anim_blink_scale >= 1.0f) {
+    } else if (t < BLINK_TOTAL_MS) {
+      float p = (float)(t - BLINK_CLOSE_MS - BLINK_HOLD_MS) / (float)BLINK_OPEN_MS;
+      anim_blink_scale = p * (2.0f - p);
+    } else {
       anim_blink_scale = 1.0f;
       anim_is_blinking = false;
-      anim_blink_next = now + _mood_pres.blink_interval_ms + random(-500, 500);
+      anim_blink_accum_ms = 0;
+      {
+        uint8_t _pid_ = (_pres_state.transition_progress >= 255)
+          ? _pres_state.current_profile : _pres_state.pending_profile;
+        uint8_t pid = kVariantTable[presIdx(_pres_state.last_emotion, _pid_)].anim_profile_id;
+        if (pid >= PRES_ANIM_COUNT) pid = 0;
+        uint32_t blink_ms = _mood_pres.blink_interval_ms * kAnimProfiles[pid].blink_mod / 128;
+        anim_blink_next = now + blink_ms + random(-500, 500);
+      }
     }
   }
-  
-  // ── Attention-driven gaze ──────────────────────────────────
-  // Use target for direction, strength (0-100) for magnitude.
-  // As strength decays toward 0, gaze gradually returns to
-  // neutral, then resumes random wandering.
-  // [Sprint 2A] FaceEngine now consumes the V2.5 structured
-  // attention model. The V2.4 attention_state shim is retained
-  // elsewhere for rollback safety and will be removed in 2B.
+
+  // ── 5. TransitionPhase state machine ─────────────────────────
+  advanceTransitionPhase(dt_ms);
+
+  // ── 6. Biological breathing waveform ─────────────────────────
+  _breath_phase += dt * (2.0f * PI) / (BREATH_CYCLE_MS / 16.666f);
+  if (_breath_phase >= 2.0f * PI) _breath_phase -= 2.0f * PI;
+
+  // ── 7. Emotional recovery curve ──────────────────────────────
+  updateRecovery(now);
+
+  // ── 8. Focus lock + gaze target ──────────────────────────────
+  // Focus-lock hysteresis: lock >= 25, unlock < 20
+  bool want_lock = (g_creature.attention.strength >= FOCUS_LOCK_ON);
+  bool want_unlock = (g_creature.attention.strength < FOCUS_LOCK_OFF);
+  if (!_focus_locked && want_lock) _focus_locked = true;
+  else if (_focus_locked && want_unlock) _focus_locked = false;
+
   if (g_creature.attention.target == TARGET_THREAT) {
-    anim_look_x = 0;
-    anim_look_y = 0;                               // dead ahead, locked
+    _eye_physics.target_x = 0.0f;
+    _eye_physics.target_y = 0.0f;
   } else if (g_creature.attention.target == TARGET_USER) {
-    anim_look_x = 0;
-    anim_look_y = -(1 + (g_creature.attention.strength / 33));  // -1 to -3, upward engaged
+    _eye_physics.target_x = 0.0f;
+    _eye_physics.target_y = -(float)(1 + (g_creature.attention.strength / 33));
   } else if (g_creature.attention.target == TARGET_FLIGHT) {
-    anim_look_x = 0;
-    anim_look_y = -(1 + (g_creature.attention.strength / 25));  // -1 to -4, skyward
-  } else if (g_creature.attention.strength >= 25) {
-    anim_look_x = 0;
-    anim_look_y = -1;                              // mild curiosity
+    _eye_physics.target_x = 0.0f;
+    _eye_physics.target_y = -(float)(1 + (g_creature.attention.strength / 25));
+  } else if (_focus_locked) {
+    _eye_physics.target_x = 0.0f;
+    _eye_physics.target_y = -1.0f;
   } else {
-    // SOFT_FOCUS & TARGET_NONE + low strength — random wandering
-    // Sprint 3B: eye_intensity applies only to idle wander, NOT to attention-driven
-    // gaze (THREAT/USER/FLIGHT).  Attention targets are reactive behaviors triggered
-    // by external stimuli — they should produce the same response regardless of mood.
-    // Mood colors internal/expressive behavior only (idle gaze, blink rate, sway).
-    // V2.5 Sprint 5A: saccade interval driven by engagement_drive
+    // Idle wander — only set new target on saccade timer
     if (now > anim_look_next) {
       if (g_creature.emotion == EMOTION_CALM || g_creature.emotion == EMOTION_CURIOUS) {
-        int range_x = (int)(6.0f * _mood_pres.eye_intensity);
-        int range_y = (int)(4.0f * _mood_pres.eye_intensity);
-        anim_look_x = random(-range_x, range_x + 1);
-        anim_look_y = random(-range_y, range_y + 1);
+        uint8_t _pid_g = (_pres_state.transition_progress >= 255)
+          ? _pres_state.current_profile : _pres_state.pending_profile;
+        uint8_t pid = kVariantTable[presIdx(_pres_state.last_emotion, _pid_g)].anim_profile_id;
+        if (pid >= PRES_ANIM_COUNT) pid = 0;
+        int range_x = (int)(kAnimProfiles[pid].gaze_range * _mood_pres.eye_intensity);
+        int range_y = max(1, range_x * 2 / 3);
+        _eye_physics.target_x = (float)random(-range_x, range_x + 1);
+        _eye_physics.target_y = (float)random(-range_y, range_y + 1);
       } else {
-        anim_look_x = 0;
-        anim_look_y = 0;
+        _eye_physics.target_x = 0.0f;
+        _eye_physics.target_y = 0.0f;
       }
-      // Saccade interval: 3s at full engagement, 30s at drowsy
+      // Saccade interval: min hold clamped to MIN_SACCADE_HOLD_MS
       int base_interval = 3000 + (100 - (int)g_creature.engagement_drive) * 270;
       int jitter = base_interval / 2;
       int next_interval = base_interval + random(-jitter, jitter + 1);
-      anim_look_next = now + max(1000, next_interval);
+      anim_look_next = now + (uint32_t)max((int)MIN_SACCADE_HOLD_MS, next_interval);
     }
   }
 
-  // Bounce animation when happy, excited, or loving — mood-modulated (Sprint 3B)
+  // ── 9. Spring-damper integration ─────────────────────────────
+  integrateSpringDamper(dt);
+
+  // ── 10. Resolve bounce from mood + breathing ──────────────────
+  uint8_t _pid_i = (_pres_state.transition_progress >= 255)
+    ? _pres_state.current_profile : _pres_state.pending_profile;
+  uint8_t _pid = kVariantTable[presIdx(_pres_state.last_emotion, _pid_i)].anim_profile_id;
+  if (_pid >= PRES_ANIM_COUNT) _pid = 0;
+  float mod_bounce = kAnimProfiles[_pid].bounce_mod / 128.0f;
+
+  float breath_val = computeBreathValue();
+  float breath_bounce = breath_val * 0.5f;
+
   if (g_creature.emotion == EMOTION_EXCITED || g_creature.emotion == EMOTION_HAPPY || g_creature.emotion == EMOTION_LOVE) {
-    anim_bounce_y = (int)(sin(frame * 0.4f * _mood_pres.idle_speed) * 4.0f * _mood_pres.idle_amplitude);
+    anim_bounce_y = (int)(breath_bounce + breath_val * 4.0f * _mood_pres.idle_amplitude * mod_bounce);
   } else {
-    anim_bounce_y = 0;
+    anim_bounce_y = (int)breath_bounce;
   }
 
-  // Pulse animation when excited or alert — mood-modulated speed (Sprint 3B)
+  // ── 11. Pulse animation (unchanged) ──────────────────────────
+  float mod_speed = _mood_pres.idle_speed * kAnimProfiles[_pid].idle_speed_mod / 128.0f;
   if (g_creature.emotion == EMOTION_EXCITED || g_creature.emotion == EMOTION_ALERT) {
-    anim_pulse_scale = 1.0f + sin(frame * 0.3f * _mood_pres.idle_speed) * 0.15f;
+    anim_pulse_scale = 1.0f + sin(frame * 0.3f * mod_speed) * 0.15f;
   } else {
     anim_pulse_scale = 1.0f;
+  }
+
+  // AnimationPose production moved to render() — Sprint 3 injects
+  // updateMicroExpressions() between updateAnimations() and produceAnimationPose()
+}
+
+// ── V2.8 Sprint 3 — Micro-Expression Layer ──────────────────────
+
+void FaceEngineClass::updateMicroExpressions(uint32_t now) {
+  // ── Timer expiry: clear active micro ──
+  // Rollover-safe: (int32_t)(now - expiry) >= 0 works across uint32_t wraparound
+  if (_active_micro != MicroExpression::NONE && (int32_t)(now - _micro_timer_ms) >= 0) {
+    _active_micro = MicroExpression::NONE;
+    _micro_phase = 0;
+    _micro_mod_x = 0;
+    _micro_mod_y = 0;
+    _micro_brow_delta = 0;
+  }
+
+  // ── Active micro phase processing ──
+  if (_active_micro == MicroExpression::DOUBLE_BLINK) {
+    if (_micro_phase == 0) {
+      _micro_phase = 1;
+    } else if (_micro_phase == 1 && !anim_is_blinking && anim_blink_scale >= 1.0f) {
+      anim_blink_next = 0;
+      anim_is_blinking = false;
+      _micro_phase = 2;
+    }
+  }
+}
+
+// ── V2.8 Sprint 3 — Public API: queue a micro-expression for execution ──
+
+void FaceEngineClass::queueMicroExpression(MicroExpression type) {
+  if (_active_micro != MicroExpression::NONE) return; // One at a time
+
+  switch (type) {
+    case MicroExpression::DOUBLE_BLINK:
+      _active_micro = MicroExpression::DOUBLE_BLINK;
+      _micro_timer_ms = millis() + DOUBLE_BLINK_DURATION_MS;
+      _micro_phase = 0;
+      anim_blink_next = 0;
+      anim_is_blinking = false;
+      break;
+
+    case MicroExpression::SQUINT:
+      _active_micro = MicroExpression::SQUINT;
+      _micro_timer_ms = millis() + SQUINT_DURATION_MS;
+      _micro_phase = 8;
+      break;
+
+    case MicroExpression::PUPIL_FLICK: {
+      _active_micro = MicroExpression::PUPIL_FLICK;
+      _micro_timer_ms = millis() + PUPIL_FLICK_DURATION_MS;
+      _micro_mod_x = (xorshift32(_micro_rng_seed) & 1) ? PUPIL_FLICK_RANGE : -PUPIL_FLICK_RANGE;
+      _micro_mod_y = (xorshift32(_micro_rng_seed) & 1) ? 1 : -1;
+      break;
+    }
+    case MicroExpression::BROW_TWITCH:
+      _active_micro = MicroExpression::BROW_TWITCH;
+      _micro_timer_ms = millis() + BROW_TWITCH_DURATION_MS;
+      _micro_brow_delta = (xorshift32(_micro_rng_seed) & 1) ? BROW_TWITCH_RANGE : -BROW_TWITCH_RANGE;
+      break;
+
+    default:
+      break;
+  }
+}
+
+// ── V2.8 Sprint 3 — Decision layer: reads CreatureState, calls queueMicroExpression ──
+// Priority order (first match wins):
+//   1. SURPRISED rising edge → DOUBLE_BLINK
+//   2. Attention strength delta > 20 → SQUINT
+//   3. Attention target change → PUPIL_FLICK
+//   4. ANXIOUS + small attention delta 5-15 → BROW_TWITCH
+
+void FaceEngineClass::detectMicroTriggers() {
+  // Update edge-detection state every frame so thresholds stay current
+  EmotionType prev_emotion = _micro_prev_emotion;
+  uint8_t prev_strength = _micro_prev_strength;
+  AttentionTarget prev_target = _micro_prev_target;
+  _micro_prev_emotion = g_creature.emotion;
+  _micro_prev_target = g_creature.attention.target;
+  _micro_prev_strength = g_creature.attention.strength;
+
+  if (_active_micro != MicroExpression::NONE) return;
+
+  // 1. Double Blink: SURPRISED emotion rising edge
+  if (g_creature.emotion == EMOTION_SURPRISED && prev_emotion != EMOTION_SURPRISED) {
+    queueMicroExpression(MicroExpression::DOUBLE_BLINK);
+  }
+  // 2. Squint: rapid attention increase
+  else if (g_creature.attention.strength > prev_strength + SQUINT_THRESHOLD) {
+    queueMicroExpression(MicroExpression::SQUINT);
+  }
+  // 3. Pupil Flick: attention target changed
+  else if (g_creature.attention.target != prev_target
+           && g_creature.attention.target != TARGET_NONE) {
+    queueMicroExpression(MicroExpression::PUPIL_FLICK);
+  }
+  // 4. Brow Twitch: small attention fluctuation during ANXIOUS
+  else if (g_creature.mood == MOOD_ANXIOUS
+           && g_creature.attention.strength > prev_strength + BROW_TWITCH_MIN
+           && g_creature.attention.strength < prev_strength + BROW_TWITCH_MAX) {
+    queueMicroExpression(MicroExpression::BROW_TWITCH);
+  }
+}
+
+// ── V2.8 Sprint 2 Helper Methods ────────────────────────────────
+
+void FaceEngineClass::advanceTransitionPhase(uint32_t dt_ms) {
+  // Sync TransitionPhase with Sprint 1 transition_progress
+  if (_pres_state.transition_progress < 255) {
+    if (_transition_phase == TransitionPhase::IDLE) {
+      _transition_phase = TransitionPhase::ANTICIPATE;
+      _transition_timer_ms = ANTICIPATE_MS;
+    }
+    if (_transition_timer_ms > dt_ms) {
+      _transition_timer_ms -= dt_ms;
+    } else {
+      _transition_timer_ms = 0;
+      switch (_transition_phase) {
+        case TransitionPhase::ANTICIPATE:
+          _transition_phase = TransitionPhase::TRANSITION;
+          _transition_timer_ms = TRANSITION_MS;
+          break;
+        case TransitionPhase::TRANSITION:
+          _transition_phase = TransitionPhase::SETTLE;
+          _transition_timer_ms = SETTLE_MS;
+          break;
+        default:
+          break;
+      }
+    }
+  } else {
+    // Transition complete — let SETTLE finish naturally
+    if (_transition_phase == TransitionPhase::SETTLE) {
+      if (_transition_timer_ms > dt_ms) {
+        _transition_timer_ms -= dt_ms;
+      } else {
+        _transition_phase = TransitionPhase::IDLE;
+        _transition_timer_ms = 0;
+      }
+    } else if (_transition_phase != TransitionPhase::IDLE) {
+      _transition_phase = TransitionPhase::IDLE;
+      _transition_timer_ms = 0;
+    }
+  }
+}
+
+float FaceEngineClass::computeBreathValue() const {
+  float p = _breath_phase / (2.0f * PI);
+  if (p < 0.35f) {
+    return p / 0.35f;
+  } else if (p < 0.45f) {
+    return 1.0f;
+  } else if (p < 0.80f) {
+    return 1.0f - (p - 0.45f) / 0.35f;
+  } else {
+    return 0.0f;
+  }
+}
+
+void FaceEngineClass::integrateSpringDamper(float dt) {
+  // Micro-drift: sub-pixel Lissajous for organic eye drift
+  static float _drift_phase = 0.0f;
+  _drift_phase += dt * 0.03f;
+  float drift_x = sinf(_drift_phase * 0.7f) * MICRO_DRIFT_AMP;
+  float drift_y = cosf(_drift_phase * 0.5f) * MICRO_DRIFT_AMP;
+
+  // Spring-damper toward (target + drift)
+  float accel_x = (_eye_physics.target_x + drift_x - _eye_physics.current_x) * SPRING_TENSION
+                  - _eye_physics.vel_x * SPRING_DAMPING;
+  float accel_y = (_eye_physics.target_y + drift_y - _eye_physics.current_y) * SPRING_TENSION
+                  - _eye_physics.vel_y * SPRING_DAMPING;
+
+  _eye_physics.vel_x += accel_x * dt;
+  _eye_physics.vel_y += accel_y * dt;
+  _eye_physics.current_x += _eye_physics.vel_x * dt;
+  _eye_physics.current_y += _eye_physics.vel_y * dt;
+
+  // Settle kill: when near target, snap to prevent micro-jitter
+  if (fabsf(_eye_physics.target_x - _eye_physics.current_x) < SPRING_SETTLE &&
+      fabsf(_eye_physics.target_y - _eye_physics.current_y) < SPRING_SETTLE) {
+    _eye_physics.vel_x = 0.0f;
+    _eye_physics.vel_y = 0.0f;
+    _eye_physics.current_x = _eye_physics.target_x;
+    _eye_physics.current_y = _eye_physics.target_y;
+  }
+}
+
+void FaceEngineClass::updateRecovery(uint32_t now) {
+  bool isHighEnergy = (g_creature.emotion == EMOTION_ALERT || g_creature.emotion == EMOTION_ANGRY);
+  if (isHighEnergy) {
+    _recovery_modifier = 0.0f;
+    _recovery_start_ms = now;
+  } else {
+    if (_last_high_emotion == EMOTION_ALERT || _last_high_emotion == EMOTION_ANGRY) {
+      _recovery_start_ms = now;
+      _recovery_modifier = 1.0f;
+    }
+    if (_recovery_modifier > 0.0f) {
+      uint32_t elapsed = now - _recovery_start_ms;
+      _recovery_modifier = max(0.0f, 1.0f - (float)elapsed / (float)RECOVERY_BROW_MS);
+    }
+  }
+  _last_high_emotion = g_creature.emotion;
+}
+
+void FaceEngineClass::produceAnimationPose() {
+  AnimationPose& p = _anim_pose;
+
+  // Eye height: 32px base * blink * pulse * eyelid * transition * breathing * recovery
+  float h = 32.0f * anim_blink_scale * anim_pulse_scale * _eyelid_factor;
+
+  // Transition phase physical effects
+  if (_transition_phase == TransitionPhase::ANTICIPATE) {
+    h *= 0.90f;
+  } else if (_transition_phase == TransitionPhase::SETTLE) {
+    h *= 1.05f;
+  }
+
+  // Breathing modulates vertical scale: +2% inhale, -1% exhale
+  float bv = computeBreathValue();
+  h *= (1.0f + bv * 0.03f - 0.01f);
+
+  // Recovery: eyelid openness penalty over 2s
+  if (_recovery_modifier > 0.0f) {
+    uint32_t now = millis();
+    float eyelid_decay = min(1.0f, (float)(now - _recovery_start_ms) / (float)RECOVERY_EYELID_MS);
+    float penalty = _recovery_modifier * (1.0f - eyelid_decay) * 0.15f;
+    h *= (1.0f - penalty);
+  }
+
+  // V2.8 Sprint 3 — Micro-expression: Squint (reduce eye height)
+  if (_active_micro == MicroExpression::SQUINT) {
+    h *= 0.70f;
+  }
+
+  // V2.8 RC Polish — blink asymmetry: right eye closes 1px faster for organic feel
+  float h_left = h, h_right = h;
+  if (anim_is_blinking && h < 28.0f && h > 2.0f) {
+    h_right = h - 1.0f;
+    if (h_right < 2.0f) h_right = 2.0f;
+  }
+  if (h_left < 1.0f) h_left = 1.0f;
+  if (h_right < 1.0f) h_right = 1.0f;
+
+  // Eye positions
+  int bounce_y = anim_bounce_y;
+  p.left_eye.x = 80;
+  p.right_eye.x = 160;
+  int y_base = 90 + bounce_y;
+  p.left_eye.y = y_base;
+  p.right_eye.y = y_base;
+  p.left_eye.height = (int)h_left;
+  p.right_eye.height = (int)h_right;
+
+  // Pupil offset from spring-damper physics
+  p.left_eye.pupil_x = (int)_eye_physics.current_x;
+  p.left_eye.pupil_y = (int)_eye_physics.current_y;
+  p.right_eye.pupil_x = p.left_eye.pupil_x;
+  p.right_eye.pupil_y = p.left_eye.pupil_y;
+
+  // V2.8 Sprint 3 — Micro-expression: Pupil Flick
+  if (_active_micro == MicroExpression::PUPIL_FLICK) {
+    p.left_eye.pupil_x += _micro_mod_x;
+    p.left_eye.pupil_y += _micro_mod_y;
+    p.right_eye.pupil_x += _micro_mod_x;
+    p.right_eye.pupil_y += _micro_mod_y;
+  }
+
+  // Styles from PresentationTarget (Stage 1 output)
+  p.left_eye.shape = _pres_target.eye_shape;
+  p.right_eye.shape = _pres_target.eye_shape;
+  p.left_eye.pupil_style = _pres_target.pupil_style;
+  p.right_eye.pupil_style = _pres_target.pupil_style;
+
+  // Brow
+  p.brow.y_offset = bounce_y;
+  p.brow.style = _pres_target.brow_style;
+
+  // V2.8 Sprint 3 — Micro-expression: Brow Twitch
+  if (_active_micro == MicroExpression::BROW_TWITCH) {
+    p.brow.y_offset += _micro_brow_delta;
+  }
+
+  // Global
+  p.global.bounce_y = bounce_y;
+  p.global.color = _pres_target.color;
+
+  // Backward compat for renderActivityLayer / renderEffectLayer
+  anim_look_x = p.left_eye.pupil_x;
+  anim_look_y = p.left_eye.pupil_y;
+}
+
+// Interpolate between two 16-bit RGB565 colors (t: 0.0 = from, 1.0 = to)
+static uint16_t lerpColor(uint16_t from, uint16_t to, float t) {
+  int r_f = (from >> 11) & 0x1F, g_f = (from >> 5) & 0x3F, b_f = from & 0x1F;
+  int r_t = (to >> 11) & 0x1F, g_t = (to >> 5) & 0x3F, b_t = to & 0x1F;
+  int r = r_f + (int)((r_t - r_f) * t);
+  int g = g_f + (int)((g_t - g_f) * t);
+  int b = b_f + (int)((b_t - b_f) * t);
+  if (r < 0) r = 0; if (r > 31) r = 31;
+  if (g < 0) g = 0; if (g > 63) g = 63;
+  if (b < 0) b = 0; if (b > 31) b = 31;
+  return (r << 11) | (g << 5) | b;
+}
+
+// Draw one eye given shape, position, size, color, pupil type, and lookup
+static void drawEye(TFT_eSprite* spr, int cx, int cy, int w, int h, uint16_t color,
+                    uint8_t eye_shape, uint8_t pupil_type, int look_x, int look_y,
+                    float pulse, uint16_t bg) {
+  if (h <= 2) return; // fully closed
+
+  switch (eye_shape) {
+    case PRES_EYE_ARCHED: {
+      // Arched — two overlapping circles with bottom clipped
+      int r = w / 2;
+      spr->fillCircle(cx - r / 2 + 2, cy + r / 4, r, color);
+      spr->fillCircle(cx + r / 2 - 2, cy + r / 4, r, bg);
+      if (h > 6) {
+        int ps = (pupil_type == PRES_PUPIL_DILATED) ? 5 :
+                 (pupil_type == PRES_PUPIL_CONSTRICTED) ? 2 : 3;
+        spr->fillRect(cx - ps + look_x, cy + 2 + look_y, ps * 2, ps * 2, C_BLACK);
+      }
+      break;
+    }
+    case PRES_EYE_ROUND: {
+      // Round — full circles
+      int r = max(8, w / 2);
+      spr->fillCircle(cx, cy + h / 2 - r / 2, r, color);
+      if (h > 6) {
+        int ps = (pupil_type == PRES_PUPIL_DILATED) ? 6 :
+                 (pupil_type == PRES_PUPIL_CONSTRICTED) ? 2 : 4;
+        if (pupil_type != PRES_PUPIL_NONE && pupil_type != PRES_PUPIL_HALF)
+          spr->fillCircle(cx + look_x, cy + h / 2 + look_y, ps, C_BLACK);
+      }
+      break;
+    }
+    case PRES_EYE_FLAT: {
+      // Flat — thin horizontal bar
+      spr->fillRoundRect(cx - w / 2, cy + h / 4, w, max(2, h / 3), 3, color);
+      break;
+    }
+    case PRES_EYE_SQUINT: {
+      // Squint — narrow angled
+      spr->fillTriangle(cx - w / 2, cy + 2, cx + w / 2, cy + 2, cx, cy + h - 2, color);
+      if (h > 4) {
+        int ps = (pupil_type == PRES_PUPIL_DILATED) ? 3 :
+                 (pupil_type == PRES_PUPIL_CONSTRICTED) ? 1 : 2;
+        spr->fillRect(cx - ps + look_x / 2, cy + h / 2 + look_y / 2, ps * 2, ps * 2, C_BLACK);
+      }
+      break;
+    }
+    case PRES_EYE_WIDE: {
+      // Wide — big circles
+      int r = max(8, w * 3 / 4);
+      spr->fillCircle(cx, cy + h / 2 - r / 4, r, color);
+      if (h > 10) {
+        int ps = (pupil_type == PRES_PUPIL_DILATED) ? 7 :
+                 (pupil_type == PRES_PUPIL_CONSTRICTED) ? 3 : 5;
+        if (pupil_type != PRES_PUPIL_NONE && pupil_type != PRES_PUPIL_HALF)
+          spr->fillCircle(cx + look_x, cy + h / 2 + look_y, ps, C_BLACK);
+      }
+      break;
+    }
+    default: {
+      // DEFAULT — rounded rectangle
+      spr->fillRoundRect(cx - w / 2, cy, w, h, 6, color);
+      if (h > 6) {
+        int ps = (pupil_type == PRES_PUPIL_DILATED) ? 5 :
+                 (pupil_type == PRES_PUPIL_CONSTRICTED) ? 2 : 3;
+        if (pupil_type == PRES_PUPIL_HALF) {
+          // Half pupil — only top half of eye filled with pupil color
+          spr->fillRect(cx - w / 4 + look_x / 2, cy + 2 + look_y / 2, w / 2, h / 2 - 2, C_BLACK);
+        } else if (pupil_type != PRES_PUPIL_NONE) {
+          spr->fillRect(cx - ps + look_x, cy + h / 2 - ps + look_y, ps * 2, ps * 2, C_BLACK);
+        }
+      }
+      break;
+    }
+  }
+}
+
+// Draw eyebrows based on style
+static void drawBrows(TFT_eSprite* spr, int y_base, int bounce_y, uint16_t color,
+                      uint8_t brow_style) {
+  switch (brow_style) {
+    case PRES_BROW_RAISED:
+      spr->fillTriangle(50, y_base - 6 + bounce_y, 100, y_base + 4 + bounce_y, 100, y_base - 2 + bounce_y, color);
+      spr->fillTriangle(190, y_base - 6 + bounce_y, 140, y_base + 4 + bounce_y, 140, y_base - 2 + bounce_y, color);
+      break;
+    case PRES_BROW_FURROWED:
+      spr->fillTriangle(50, y_base + 4 + bounce_y, 100, y_base - 6 + bounce_y, 100, y_base - 2 + bounce_y, color);
+      spr->fillTriangle(190, y_base + 4 + bounce_y, 140, y_base - 6 + bounce_y, 140, y_base - 2 + bounce_y, color);
+      break;
+    case PRES_BROW_ONE:
+      // Left raised, right normal
+      spr->fillTriangle(50, y_base - 6 + bounce_y, 100, y_base + 4 + bounce_y, 100, y_base - 2 + bounce_y, color);
+      break;
+    case PRES_BROW_WORRIED:
+      spr->fillTriangle(50, y_base - 2 + bounce_y, 100, y_base + 6 + bounce_y, 100, y_base + 2 + bounce_y, color);
+      spr->fillTriangle(190, y_base - 2 + bounce_y, 140, y_base + 6 + bounce_y, 140, y_base + 2 + bounce_y, color);
+      break;
+    default:
+      break; // PRES_BROW_NORMAL — nothing drawn
   }
 }
 
 void FaceEngineClass::renderEmotionLayer(TFT_eSprite* spr, int frame) {
-  uint16_t color = C_IDLE;
-  switch (g_creature.emotion) {
-    case EMOTION_HAPPY:     color = C_HAPPY; break;
-    case EMOTION_SAD:       color = C_SAD; break;
-    case EMOTION_ANGRY:     color = C_ALERT; break;
-    case EMOTION_CURIOUS:   color = C_THINKING; break;
-    case EMOTION_SLEEPY:    color = C_SLEEPY; break;
-    case EMOTION_CALM:      color = C_IDLE; break;
-    case EMOTION_ALERT:     color = C_ALERT; break;
-    case EMOTION_LOVE:      color = C_LOVE; break;
-    case EMOTION_SURPRISED: color = C_SURPRISED; break;
-    default:                color = C_IDLE; break;
-  }
-  
-  // V2.5 Sprint 5A: default eye height modulated by engagement_drive (drowsy eyelid)
-  int h = (int)(32 * anim_blink_scale * anim_pulse_scale * _eyelid_factor);
-  int y = 90 + anim_bounce_y + (32 - h) / 2;
-  
-  // Custom eye shapes based on emotion
-  if (g_creature.emotion == EMOTION_HAPPY) {
-    int h_hap = (int)(24 * anim_blink_scale * anim_pulse_scale);
-    int y_hap = 90 + anim_bounce_y + (24 - h_hap) / 2;
-    if (h_hap > 10) {
-      spr->fillCircle(80, y_hap + 10, (int)(22 * anim_pulse_scale), color);
-      spr->fillCircle(80, y_hap + 16, (int)(22 * anim_pulse_scale), C_BG);
-      spr->fillCircle(160, y_hap + 10, (int)(22 * anim_pulse_scale), color);
-      spr->fillCircle(160, y_hap + 16, (int)(22 * anim_pulse_scale), C_BG);
-    } else {
-      spr->fillRoundRect(60, y_hap, (int)(40 * anim_pulse_scale), h_hap, 2, color);
-      spr->fillRoundRect(140, y_hap, (int)(40 * anim_pulse_scale), h_hap, 2, color);
-    }
-  }
-  else if (g_creature.emotion == EMOTION_SLEEPY) {
-    int h_slp = (int)(10 * anim_blink_scale * anim_pulse_scale);
-    int y_slp = 100 + anim_bounce_y + (10 - h_slp) / 2;
-    spr->fillRoundRect(60, y_slp, (int)(40 * anim_pulse_scale), h_slp, 4, color);
-    spr->fillRoundRect(140, y_slp, (int)(40 * anim_pulse_scale), h_slp, 4, color);
-  }
-  else if (g_creature.emotion == EMOTION_SURPRISED) {
-    int h_sur = (int)(50 * anim_blink_scale * anim_pulse_scale);
-    int y_sur = 84 + anim_bounce_y + (50 - h_sur) / 2;
-    if (h_sur > 30) {
-      spr->fillCircle(80, y_sur + h_sur / 2, (int)(h_sur / 2), color);
-      spr->fillCircle(160, y_sur + h_sur / 2, (int)(h_sur / 2), color);
-      spr->fillCircle(80, y_sur + h_sur / 2, (int)(8 * anim_pulse_scale), C_BLACK);
-      spr->fillCircle(160, y_sur + h_sur / 2, (int)(8 * anim_pulse_scale), C_BLACK);
-    } else {
-      spr->fillRoundRect(55, y_sur, (int)(50 * anim_pulse_scale), h_sur, 8, color);
-      spr->fillRoundRect(135, y_sur, (int)(50 * anim_pulse_scale), h_sur, 8, color);
-    }
-  }
-  else {
-    // Default round rect eyes
-    spr->fillRoundRect(60, y, (int)(40 * anim_pulse_scale), h, 6, color);
-    spr->fillRoundRect(140, y, (int)(40 * anim_pulse_scale), h, 6, color);
-    if (h > 10) {
-      spr->fillRect(76 + anim_look_x, y + h / 2 - 4 + anim_look_y, 8, 8, C_BLACK);
-      spr->fillRect(156 + anim_look_x, y + h / 2 - 4 + anim_look_y, 8, 8, C_BLACK);
-    }
-    
-    // Draw eyebrows for angry/alert
-    if (g_creature.emotion == EMOTION_ANGRY || g_creature.emotion == EMOTION_ALERT) {
-      spr->fillTriangle(50, 74 + anim_bounce_y, 100, 84 + anim_bounce_y, 100, 78 + anim_bounce_y, color);
-      spr->fillTriangle(190, 74 + anim_bounce_y, 140, 84 + anim_bounce_y, 140, 78 + anim_bounce_y, color);
-    }
-  }
+  // Consume AnimationPose (Stage 2 output) — all values are integer
+  const AnimationPose& p = _anim_pose;
+  drawEye(spr, p.left_eye.x, p.left_eye.y, 40, p.left_eye.height,
+          p.global.color, p.left_eye.shape, p.left_eye.pupil_style,
+          p.left_eye.pupil_x, p.left_eye.pupil_y, 1.0f, C_BG);
+  drawEye(spr, p.right_eye.x, p.right_eye.y, 40, p.right_eye.height,
+          p.global.color, p.right_eye.shape, p.right_eye.pupil_style,
+          p.right_eye.pupil_x, p.right_eye.pupil_y, 1.0f, C_BG);
+  drawBrows(spr, 78, p.global.bounce_y, p.global.color, p.brow.style);
 }
 
 static void local_draw_frown(TFT_eSprite* spr, int32_t cx, int32_t cy, int32_t w, int32_t h, uint16_t color) {
@@ -850,14 +1536,47 @@ void FaceEngineClass::renderEffectLayer(TFT_eSprite* spr, int frame) {
   }
 }
 
+#if ANIM_DEBUG
+static const char* emotionToShortStr(EmotionType e) {
+  if (e >= 0 && e < EMOTION_COUNT) return kEmotionShortLabels[e];
+  return "UNKNOWN";
+}
+
+void FaceEngineClass::renderDebugOverlay(TFT_eSprite* spr) {
+  // Top-left debug HUD: short emotion name + full label
+  spr->setTextColor(TFT_WHITE, C_BG);
+  spr->setTextSize(1);
+  spr->setCursor(2, 2);
+  int e = (int)g_creature.emotion;
+  if (e >= 0 && e < EMOTION_COUNT) {
+    spr->print(kEmotionShortLabels[e]);
+    spr->setCursor(2, 12);
+    spr->setTextColor(0x7BEF, C_BG); // muted gray for secondary label
+    spr->print(kEmotionLabels[e]);
+  } else {
+    spr->print("---");
+  }
+}
+#endif
+
 void FaceEngineClass::render(TFT_eSprite* spr, int frame) {
   // Overdraw background
   spr->fillRect(0, 40, TFT_W, 160, C_BG);
   
+  // V2.8 Sprint 1 + 3: presentation & micro-expression decision
+  updatePresentation();
+  detectMicroTriggers();
   updateAnimations(frame);
+  // V2.8 Sprint 3: micro-expression execution between animation and rasterization
+  updateMicroExpressions(millis());
+  produceAnimationPose();
   renderEmotionLayer(spr, frame);
   renderActivityLayer(spr, frame);
   renderEffectLayer(spr, frame);
+  
+  #if ANIM_DEBUG
+  renderDebugOverlay(spr);
+  #endif
 }
 
 void FaceEngineClass::setStatusText(const char* status) {

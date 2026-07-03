@@ -125,9 +125,11 @@ static void portal_draw_display() {
         _stft->print("http://192.168.4.1");
 
         _stft->setCursor(140, 228);
+#if RELEASE_BUILD == 0
         _stft->print("h:");
         _stft->print(ESP.getFreeHeap() / 1024);
         _stft->print("k");
+#endif
     } else {
         // Character Face Mode
         static int frame = 0;

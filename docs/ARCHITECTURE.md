@@ -133,3 +133,10 @@ FaceEngine runs on Core 1 at ~30 FPS. MemoryEngine.tick() runs after MoodEngine.
 | Deterministic rules (V1) | Testable, predictable, no ML dependencies |
 | FaceEngine unchanged | No modification to certified subsystem — additive architecture only |
 | Sprint 3 HW certification before/during Sprint 1 | Ensures memory domain data quality before Behavior Layer consumes it |
+
+## V2.8 Architecture Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| FaceEngine as pure presentation layer | ADR: May derive ephemeral state from `CreatureState`, but must never modify it or influence behavioral decisions. |
+| Separation of Presentation and Animation | Decouples static style selection (`PresentationProfile`) from dynamic kinetic movement (`AnimationIntelligence`). Ensures physical rendering stays responsive, natural, and isolated. |
