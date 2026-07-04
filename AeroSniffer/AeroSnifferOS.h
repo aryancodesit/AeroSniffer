@@ -107,9 +107,10 @@ enum ActivityType {
   ACTIVITY_COUNT
 };
 
-// Centralized activity labels (V2.8 RC Polish) — indexed by ActivityType
+// Centralized activity labels (V2.9 Final) — indexed by ActivityType
+// Companion-facing states, not firmware diagnostics.
 static constexpr const char* kActivityLabels[ACTIVITY_COUNT] = {
-  "Idle", "Coding", "Music", "Aviation", "Scanning",
+  "Resting", "Working", "Listening", "Tracking", "Scanning",
   "Thinking", "Sleeping", "Typing"
 };
 
@@ -231,6 +232,7 @@ struct AnimationProfile {
 #define PRES_EYE_FLAT      3
 #define PRES_EYE_SQUINT    4
 #define PRES_EYE_WIDE      5
+#define PRES_EYE_SOFT_SQUINT 6  // V2.9: rounded capsule for Curious (triangle preserved for Angry)
 
 // Brow style indices
 #define PRES_BROW_NORMAL   0
@@ -269,6 +271,50 @@ struct PresentationState {
   EmotionType last_emotion;
   MoodType    last_mood;
   uint8_t     last_engagement;
+};
+
+// ── Emotion Transition State (V2.9 Sprint 2) ────────────────────
+// Captures the previous emotion's active variant when a transition starts,
+// enabling proper "from → to" blending (color, shapes) across emotion boundaries.
+struct TransitionState {
+  EmotionType from_emotion;
+  uint8_t     from_variant;
+  uint8_t     from_eye_shape;
+  uint8_t     from_brow_style;
+  uint8_t     from_pupil_style;
+  uint16_t    from_color;
+};
+
+// ── Emotion Energy (V2.9 Sprint 2) ──────────────────────────────
+// Higher = more alert/aroused; used to select anticipatory brow/pupil cues.
+static constexpr uint8_t kEmotionEnergy[EMOTION_COUNT] = {
+  3,  // HAPPY
+  1,  // SAD
+  4,  // ANGRY
+  2,  // CURIOUS
+  0,  // SLEEPY
+  1,  // CALM
+  5,  // ALERT
+  2,  // LOVE
+  4,  // SURPRISED
+  5,  // EXCITED
+};
+
+// ── Presence Profile (V2.9 Sprint 1A) ───────────────────────────
+// Centralized timing bounds for idle animation rhythm.
+// Every value has base (central tendency), min, and max.
+// The animation layer applies deterministic xorshift32 jitter within [min, max].
+struct PresenceProfile {
+  uint16_t blinkBase;
+  uint16_t blinkMin;
+  uint16_t blinkMax;
+  uint16_t breathBase;
+  uint16_t breathMin;
+  uint16_t breathMax;
+  uint16_t saccadeBase;
+  uint16_t saccadeMin;
+  uint16_t saccadeMax;
+  uint8_t  eyelidFlutter;   // 0–255, micro-fluctuation amplitude
 };
 
 // ── Animation Intelligence (V2.8 Sprint 2) ──────────────────────
@@ -378,7 +424,14 @@ private:
 
   // Presentation Intelligence (V2.8 Sprint 1)
   PresentationState _pres_state;
-  void updatePresentation();
+  // V2.9 Sprint 2 — Expression Transitions
+  TransitionState _tx_state;
+  uint16_t _tx_elapsed_ms;
+  uint16_t _tx_anticipate_ms;
+  uint16_t _tx_unfold_ms;
+  uint16_t _tx_settle_ms;
+  uint8_t  _tx_curve;
+  void updatePresentation(uint32_t dt_ms);
   uint8_t selectProfile(EmotionType emotion);
   uint8_t activityToBucket(ActivityType a);
   // xorshift32 mutates seed by reference. Every invocation advances the deterministic RNG state.
@@ -393,7 +446,11 @@ private:
   TransitionPhase _transition_phase = TransitionPhase::IDLE;
   uint16_t _transition_timer_ms = 0;     // ms remaining in current phase
   float _breath_phase = 0.0f;            // 0..2π breathing accumulator
+  uint16_t _breath_cycle_ms = 6000;      // V2.9: current breath cycle duration (uint for timing determinism)
   float _breath_accum = 0.0f;            // Sub-pixel breathing fraction
+  float _eyelid_flutter_phase = 0.0f;    // V2.9: eyelid micro-fluctuation oscillator
+  float _drift_phase = 0.0f;             // V2.9: Lissajous drift phase (was local static)
+  float _drift_pause_timer = 100.0f;     // V2.9: >0=active, ≤0=paused (dt units)
   float _recovery_modifier = 0.0f;       // 1.0→0.0 emotional after-effect
   uint32_t _recovery_start_ms = 0;       // When recovery began
   EmotionType _last_high_emotion = EMOTION_CALM;
@@ -408,6 +465,7 @@ private:
   int8_t _micro_mod_y = 0;             // Pupil Y delta (pupil flick)
   int8_t _micro_brow_delta = 0;        // Brow Y delta (brow twitch)
   uint32_t _micro_rng_seed = 0;          // Deterministic RNG seed for micro mods
+  uint32_t _rhythm_seed = 0;             // V2.9: deterministic RNG for timing rhythm
   // Decision-layer edge-detection state (owned by detectMicroTriggers)
   EmotionType _micro_prev_emotion = EMOTION_CALM;
   AttentionTarget _micro_prev_target = TARGET_NONE;
@@ -421,12 +479,16 @@ private:
   void produceAnimationPose();
   void updateMicroExpressions(uint32_t now);  // V2.8 Sprint 3 — execution only
   void detectMicroTriggers();                 // V2.8 Sprint 3 — decision layer
+  static uint16_t triangularRandom(uint32_t& seed, uint16_t minVal, uint16_t maxVal, uint16_t baseVal); // V2.9: base-biased distribution
 
 public:
   void begin();
   void updateAnimations(int frame);
   void render(TFT_eSprite* spr, int frame);
   
+  // V2.9 Sprint 1A — Presence Profile accessor
+  const PresenceProfile& currentPresenceProfile() const;
+
   // Micro-expression API (V2.8 Sprint 3)
   void queueMicroExpression(MicroExpression type);
   

@@ -167,7 +167,7 @@
 // state on the display for visual validation of Sprint 2 animation.
 // Set to 0 for production builds.
 #ifndef ANIM_DEBUG
-  #define ANIM_DEBUG 1
+  #define ANIM_DEBUG 0
 #endif
 
 // ── System constants ─────────────────────────────────────────────

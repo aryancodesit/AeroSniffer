@@ -16,11 +16,32 @@ static constexpr float MICRO_DRIFT_AMP = 2.0f;
 static constexpr float BREATH_CYCLE_MS = 6000.0f; // 6-second full breath
 static constexpr uint8_t FOCUS_LOCK_ON  = 25;
 static constexpr uint8_t FOCUS_LOCK_OFF = 20;
-static constexpr uint16_t ANTICIPATE_MS = 50;
-static constexpr uint16_t TRANSITION_MS = 150;
-static constexpr uint16_t SETTLE_MS     = 100;
-static constexpr uint16_t RECOVERY_BROW_MS = 1500;
-static constexpr uint16_t RECOVERY_EYELID_MS = 2000;
+// V2.9 Sprint 2 — per-emotion-pair transition timing overrides
+struct TransitionOverride {
+  EmotionType from;
+  EmotionType to;
+  uint8_t anticipate_ms;  // < 256ms
+  uint8_t unfold_ms;
+  uint8_t settle_ms;
+  uint8_t curve;  // 0=linear, 1=ease-in, 2=ease-out, 3=smoothstep
+};
+static constexpr TransitionOverride kTransitionOverrides[] = {
+  {EMOTION_CALM,    EMOTION_HAPPY,    25, 160,  65, 1},  // V2.9 timing: was 30/200/80
+  {EMOTION_ALERT,   EMOTION_CALM,     65, 145,  95, 3},  // was 80/180/120
+  {EMOTION_HAPPY,   EMOTION_SAD,      50,  95,  80, 2},  // was 60/120/100
+  {EMOTION_SLEEPY,  EMOTION_ALERT,    80,  80,  65, 1},  // was 100/100/80
+  {EMOTION_ANGRY,   EMOTION_CALM,     50, 160,  80, 3},  // was 60/200/100
+  {EMOTION_EXCITED, EMOTION_CALM,     30, 160,  95, 3},  // was 40/200/120
+  {EMOTION_CALM,    EMOTION_ALERT,    40,  80,  65, 1},  // was 50/100/80
+  {EMOTION_ALERT,   EMOTION_HAPPY,    50, 200,  80, 3},  // was 60/250/100
+};
+static constexpr int kTransitionOverrideCount = sizeof(kTransitionOverrides) / sizeof(kTransitionOverrides[0]);
+
+static constexpr uint16_t ANTICIPATE_MS_DEFAULT = 40;    // V2.9 timing: was 50
+static constexpr uint16_t TRANSITION_MS_DEFAULT = 120;   // V2.9 timing: was 150
+static constexpr uint16_t SETTLE_MS_DEFAULT     = 80;    // V2.9 timing: was 100
+static constexpr uint16_t RECOVERY_BROW_MS = 1200;       // V2.9 timing: was 1500
+static constexpr uint16_t RECOVERY_EYELID_MS = 1600;     // V2.9 timing: was 2000
 static constexpr uint16_t MIN_SACCADE_HOLD_MS = 1000;
 
 // V2.8 Sprint 3 — Micro-Expression thresholds
@@ -53,6 +74,25 @@ static MoodProfile profileFor(MoodType mood) {
     default:           return {4000, 1.0f, 1.0f, 1.0f};  // RELAXED + unknown/future moods degrade gracefully
   }
 }
+
+// V2.9 Sprint 1A — Presence profiles: centralized timing bounds per mood
+static const PresenceProfile kPresenceProfiles[MOOD_COUNT] = {
+  // MOOD_RELAXED — slow, calm, wide intervals
+  { 4000, 2800, 6500,    // blink
+    6000, 5000, 7200,    // breath
+    3000, 1500, 5500,    // saccade
+    16 },                 // eyelid flutter — subtle
+  // MOOD_PLAYFUL — quicker, more alert
+  { 3000, 2000, 4800,    // blink
+    4500, 3800, 5800,    // breath
+    2500, 1200, 4200,    // saccade
+    32 },                 // eyelid flutter — moderate
+  // MOOD_ANXIOUS — rapid, vigilant
+  { 2200, 1400, 3800,    // blink
+    5000, 4200, 6200,    // breath
+    2000,  800, 3800,    // saccade
+    64 },                 // eyelid flutter — elevated
+};
 
 // ── Face Engine Colors ────────────────────────────────────────────
 #define C_BG          0x10A2
@@ -124,7 +164,7 @@ static const PresentationProfile kVariantTable[EMOTION_COUNT * MAX_VARIANTS] = {
   {2, PRES_EYE_DEFAULT, PRES_BROW_NORMAL,   PRES_PUPIL_CONSTRICTED, 0,1, { 1, 0, 0},  0, 40, PRES_CONTEXT_CALM,  3000},
   // EMOTION_CURIOUS = 4
   {0, PRES_EYE_ROUND,   PRES_BROW_RAISED,   PRES_PUPIL_DILATED,     0,4, { 0, 1, 0}, 40,100, PRES_CONTEXT_FOCUSED,2500},
-  {1, PRES_EYE_SQUINT,  PRES_BROW_NORMAL,   PRES_PUPIL_CONSTRICTED, 0,4, { 0, 0, 0}, 30,100, PRES_CONTEXT_FOCUSED,3000},
+  {1, PRES_EYE_SOFT_SQUINT, PRES_BROW_NORMAL,   PRES_PUPIL_CONSTRICTED, 0,4, { 0, 0, 0}, 30,100, PRES_CONTEXT_FOCUSED,3000},
   {2, PRES_EYE_WIDE,    PRES_BROW_ONE,      PRES_PUPIL_DILATED,     0,0, { 1, 1, 1},  0,100, PRES_CONTEXT_SOCIAL, 2500},
   // EMOTION_SLEEPY = 5
   {0, PRES_EYE_FLAT,    PRES_BROW_NORMAL,   PRES_PUPIL_HALF,        0,3, { 2, 0, 0},  0, 30, PRES_CONTEXT_CALM,  4000},
@@ -132,7 +172,7 @@ static const PresentationProfile kVariantTable[EMOTION_COUNT * MAX_VARIANTS] = {
   {2, PRES_EYE_DEFAULT, PRES_BROW_NORMAL,   PRES_PUPIL_NORMAL,      0,2, { 0, 0, 0}, 40,100, PRES_CONTEXT_ANY,   3000},
   // EMOTION_ALERT = 6
   {0, PRES_EYE_WIDE,    PRES_BROW_RAISED,   PRES_PUPIL_DILATED,     0,1, { 0, 0, 2}, 50,100, PRES_CONTEXT_ANY,   2000},
-  {1, PRES_EYE_ROUND,   PRES_BROW_FURROWED, PRES_PUPIL_NORMAL,      0,1, { 0, 0, 2}, 30,100, PRES_CONTEXT_FOCUSED,2500},
+  {1, PRES_EYE_ROUND,   PRES_BROW_RAISED,   PRES_PUPIL_DILATED,     0,1, { 0, 0, 2}, 30,100, PRES_CONTEXT_FOCUSED,2500},
   {2, PRES_EYE_DEFAULT, PRES_BROW_NORMAL,   PRES_PUPIL_NORMAL,      0,2, { 1, 0, 0},  0, 40, PRES_CONTEXT_CALM,  3000},
   // EMOTION_LOVE = 7
   {0, PRES_EYE_ARCHED,  PRES_BROW_NORMAL,   PRES_PUPIL_DILATED,     0,5, { 1, 2, 0}, 30,100, PRES_CONTEXT_SOCIAL, 2500},
@@ -144,7 +184,7 @@ static const PresentationProfile kVariantTable[EMOTION_COUNT * MAX_VARIANTS] = {
   {2, PRES_EYE_DEFAULT, PRES_BROW_NORMAL,   PRES_PUPIL_NORMAL,      0,2, { 1, 0, 0},  0, 30, PRES_CONTEXT_CALM,  3000},
   // EMOTION_EXCITED = 9
   {0, PRES_EYE_WIDE,    PRES_BROW_RAISED,   PRES_PUPIL_DILATED,     0,5, { 0, 2, 0}, 50,100, PRES_CONTEXT_ACTIVE, 2000},
-  {1, PRES_EYE_ROUND,   PRES_BROW_NORMAL,   PRES_PUPIL_NORMAL,      0,1, { 1, 1, 1}, 20,100, PRES_CONTEXT_SOCIAL, 2500},
+  {1, PRES_EYE_ROUND,   PRES_BROW_NORMAL,   PRES_PUPIL_DILATED,     0,5, { 1, 1, 1}, 20,100, PRES_CONTEXT_SOCIAL, 2500},
   {2, PRES_EYE_ARCHED,  PRES_BROW_RAISED,   PRES_PUPIL_DILATED,     0,5, { 0, 2, 0},  0, 60, PRES_CONTEXT_ANY,   2500},
 };
 
@@ -236,13 +276,12 @@ uint8_t FaceEngineClass::selectProfile(EmotionType emotion) {
 }
 
 // Update presentation state — variant selection + transition
-void FaceEngineClass::updatePresentation() {
+void FaceEngineClass::updatePresentation(uint32_t dt_ms) {
   // Check for emotion change
   bool emotionChanged = (g_creature.emotion != _pres_state.last_emotion);
 
   // Check for context shift (mood or engagement threshold crossing)
   bool moodChanged = (g_creature.mood != _pres_state.last_mood);
-  // Engagement band: LOW (0-33), MED (34-66), HIGH (67-100)
   uint8_t band = g_creature.engagement_drive / 34;
   if (band > 2) band = 2;
   uint8_t lastBand = _pres_state.last_engagement / 34;
@@ -250,62 +289,129 @@ void FaceEngineClass::updatePresentation() {
   bool engagementShifted = (band != lastBand);
 
   if (emotionChanged) {
-    // Emotion change — restart transition
+    // ── Capture old state before overwriting (V2.9 Sprint 2) ──
+    EmotionType _old_emotion = _pres_state.last_emotion;
+    uint8_t _old_profile = _pres_state.current_profile;
+    const PresentationProfile& _oldP = kVariantTable[presIdx(_old_emotion, _old_profile)];
+    _tx_state.from_emotion    = _old_emotion;
+    _tx_state.from_variant    = _old_profile;
+    _tx_state.from_eye_shape  = _oldP.eye_shape;
+    _tx_state.from_brow_style = _oldP.brow_style;
+    _tx_state.from_pupil_style = _oldP.pupil_style;
+    _tx_state.from_color = presColor(_oldP.color_override ? _oldP.color_override : PRES_EMO_COLORS[_old_emotion]);
+
+    // ── Look up per-pair transition timing ──
+    _tx_anticipate_ms = ANTICIPATE_MS_DEFAULT;
+    _tx_unfold_ms = TRANSITION_MS_DEFAULT;
+    _tx_settle_ms = SETTLE_MS_DEFAULT;
+    _tx_curve = 0;
+    for (int i = 0; i < kTransitionOverrideCount; i++) {
+      if (kTransitionOverrides[i].from == _old_emotion && kTransitionOverrides[i].to == g_creature.emotion) {
+        _tx_anticipate_ms = kTransitionOverrides[i].anticipate_ms;
+        _tx_unfold_ms = kTransitionOverrides[i].unfold_ms;
+        _tx_settle_ms = kTransitionOverrides[i].settle_ms;
+        _tx_curve = kTransitionOverrides[i].curve;
+        break;
+      }
+    }
+
     _pres_state.last_emotion = g_creature.emotion;
     _pres_state.last_mood = g_creature.mood;
     _pres_state.last_engagement = g_creature.engagement_drive;
     uint8_t new_idx = selectProfile(g_creature.emotion);
     _pres_state.pending_profile = new_idx;
     _pres_state.transition_progress = 0;
+    _tx_elapsed_ms = 0;
     _pres_state.hold_remaining_ms = kVariantTable[presIdx(g_creature.emotion, new_idx)].hold_ms;
     return;
   }
 
-  // Decrement hold timer
-  if (_pres_state.hold_remaining_ms > 16) { // approximate frame delta
+  // Decrement hold timer (approximate frame delta)
+  if (_pres_state.hold_remaining_ms > 16) {
     _pres_state.hold_remaining_ms -= 16;
   } else {
     _pres_state.hold_remaining_ms = 0;
   }
 
-  // Advance transition
+  // ── Advance transition with per-pair eased timing (V2.9 Sprint 2) ──
   if (_pres_state.transition_progress < 255) {
-    _pres_state.transition_progress += 8; // ~250ms at 30fps
+    _tx_elapsed_ms += dt_ms;
+    uint16_t _total_ms = _tx_anticipate_ms + _tx_unfold_ms + _tx_settle_ms;
+    float _t_raw = min(1.0f, (float)_tx_elapsed_ms / (float)_total_ms);
+    float _t = _t_raw;
+    if (_tx_curve == 1) _t = _t_raw * _t_raw;
+    else if (_tx_curve == 2) _t = 1.0f - (1.0f - _t_raw) * (1.0f - _t_raw);
+    else if (_tx_curve == 3) _t = _t_raw * _t_raw * (3.0f - 2.0f * _t_raw);
+    _pres_state.transition_progress = (uint8_t)(_t * 255.0f);
     if (_pres_state.transition_progress >= 255) {
       _pres_state.transition_progress = 255;
       _pres_state.current_profile = _pres_state.pending_profile;
     }
-    return; // don't re-select during transition
-  }
-
-  // Re-select on context shift or hold expiry
-  if (moodChanged || engagementShifted || _pres_state.hold_remaining_ms == 0) {
-    _pres_state.last_mood = g_creature.mood;
-    _pres_state.last_engagement = g_creature.engagement_drive;
-    uint8_t new_idx = selectProfile(g_creature.emotion);
-    if (new_idx != _pres_state.current_profile) {
-      _pres_state.pending_profile = new_idx;
-      _pres_state.transition_progress = 0;
-      _pres_state.hold_remaining_ms = kVariantTable[presIdx(g_creature.emotion, new_idx)].hold_ms;
-    } else if (_pres_state.hold_remaining_ms == 0) {
-      // Same profile selected — give it minimum hold to avoid re-picking every frame
-      _pres_state.hold_remaining_ms = kVariantTable[presIdx(g_creature.emotion, new_idx)].hold_ms;
+    // Don't re-select during transition
+  } else {
+    // Re-select on context shift or hold expiry
+    if (moodChanged || engagementShifted || _pres_state.hold_remaining_ms == 0) {
+      _pres_state.last_mood = g_creature.mood;
+      _pres_state.last_engagement = g_creature.engagement_drive;
+      uint8_t new_idx = selectProfile(g_creature.emotion);
+      if (new_idx != _pres_state.current_profile) {
+        // Variant change within emotion — save current color, reset timing
+        const PresentationProfile& _curP = kVariantTable[presIdx(g_creature.emotion, _pres_state.current_profile)];
+        _tx_state.from_color = presColor(_curP.color_override ? _curP.color_override : PRES_EMO_COLORS[g_creature.emotion]);
+        _tx_anticipate_ms = ANTICIPATE_MS_DEFAULT;
+        _tx_unfold_ms = TRANSITION_MS_DEFAULT;
+        _tx_settle_ms = SETTLE_MS_DEFAULT;
+        _tx_curve = 0;
+        _pres_state.pending_profile = new_idx;
+        _pres_state.transition_progress = 0;
+        _tx_elapsed_ms = 0;
+        _pres_state.hold_remaining_ms = kVariantTable[presIdx(g_creature.emotion, new_idx)].hold_ms;
+      } else if (_pres_state.hold_remaining_ms == 0) {
+        _pres_state.hold_remaining_ms = kVariantTable[presIdx(g_creature.emotion, new_idx)].hold_ms;
+      }
     }
   }
 
-  // ── Produce PresentationTarget (V2.8 Sprint 2, additive) ──────
+  // ── Produce PresentationTarget (V2.9 Sprint 2 enhanced) ──────
   EmotionType _emo = _pres_state.last_emotion;
-  uint8_t _cur_idx = _pres_state.current_profile;
   uint8_t _pen_idx = _pres_state.pending_profile;
-  float _t = min(1.0f, _pres_state.transition_progress / 255.0f);
-  const PresentationProfile& _curP = kVariantTable[presIdx(_emo, _cur_idx)];
   const PresentationProfile& _penP = kVariantTable[presIdx(_emo, _pen_idx)];
-  uint16_t _color_cur = presColor(_curP.color_override ? _curP.color_override : PRES_EMO_COLORS[_emo]);
-  uint16_t _color_pen = presColor(_penP.color_override ? _penP.color_override : PRES_EMO_COLORS[_emo]);
-  _pres_target.color = (_t >= 1.0f) ? _color_pen : lerpColor(_color_cur, _color_pen, _t);
-  _pres_target.eye_shape = _penP.eye_shape;
-  _pres_target.brow_style = _penP.brow_style;
-  _pres_target.pupil_style = _penP.pupil_style;
+  float _t = min(1.0f, _pres_state.transition_progress / 255.0f);
+
+  // Color: blend from SAVED old-emotion color → target (fixes pre-existing bug)
+  uint16_t _color_to = presColor(_penP.color_override ? _penP.color_override : PRES_EMO_COLORS[_emo]);
+  _pres_target.color = (_t >= 1.0f) ? _color_to : lerpColor(_tx_state.from_color, _color_to, _t);
+
+  // Visual phase (derived from elapsed ms, independent of easing curve)
+  uint16_t _elapsed = _tx_elapsed_ms;
+  uint16_t _total_ms = _tx_anticipate_ms + _tx_unfold_ms + _tx_settle_ms;
+  uint8_t _vphase = 2; // 0=anticipate, 1=unfold, 2=settle/idle
+  if (_elapsed < _total_ms && _pres_state.transition_progress < 255) {
+    if (_elapsed < _tx_anticipate_ms) _vphase = 0;
+    else if (_elapsed < _tx_anticipate_ms + _tx_unfold_ms) _vphase = 1;
+  }
+
+  if (_vphase == 0) {
+    // ANTICIPATE: keep old eye shape, override brow/pupil for prep cue
+    _pres_target.eye_shape = _tx_state.from_eye_shape;
+    uint8_t _from_energy = kEmotionEnergy[_tx_state.from_emotion];
+    uint8_t _to_energy = kEmotionEnergy[_emo];
+    if (_to_energy > _from_energy) {
+      _pres_target.brow_style = PRES_BROW_RAISED;
+      _pres_target.pupil_style = PRES_PUPIL_DILATED;
+    } else if (_to_energy < _from_energy) {
+      _pres_target.brow_style = PRES_BROW_WORRIED;
+      _pres_target.pupil_style = PRES_PUPIL_HALF;
+    } else {
+      _pres_target.brow_style = PRES_BROW_NORMAL;
+      _pres_target.pupil_style = PRES_PUPIL_NORMAL;
+    }
+  } else {
+    // UNFOLD, SETTLE, IDLE: apply target styles (micro-return handled in produceAnimationPose)
+    _pres_target.eye_shape = _penP.eye_shape;
+    _pres_target.brow_style = _penP.brow_style;
+    _pres_target.pupil_style = _penP.pupil_style;
+  }
   _pres_target.anim_profile_id = _penP.anim_profile_id;
 }
 
@@ -794,6 +900,32 @@ static void local_draw_dotted_frown(TFT_eSprite* spr, int cx, int cy, int width,
   spr->fillRect(cx + width / 2, cy + drop, 4, 4, color);
 }
 
+// V2.9 Sprint 1A — centralized profile accessor
+const PresenceProfile& FaceEngineClass::currentPresenceProfile() const {
+  uint8_t __m = g_creature.mood;
+  if (__m >= MOOD_COUNT) { __m = MOOD_RELAXED; }
+  return kPresenceProfiles[__m];
+}
+
+// V2.9 Sprint 1A — base-biased triangular distribution
+uint16_t FaceEngineClass::triangularRandom(uint32_t& seed, uint16_t minVal, uint16_t maxVal, uint16_t baseVal) {
+  if (maxVal <= minVal) return minVal;
+  if (baseVal <= minVal) baseVal = minVal + 1;
+  if (baseVal >= maxVal) baseVal = maxVal - 1;
+  uint32_t __r = xorshift32(seed);
+  float __u = (float)__r / 4294967296.0f;
+  float __fc = (float)(baseVal - minVal) / (float)(maxVal - minVal);
+  float __result;
+  if (__u <= __fc) {
+    __result = (float)minVal + sqrtf((float)(baseVal - minVal) * (float)(maxVal - minVal) * __u);
+  } else {
+    __result = (float)maxVal - sqrtf((float)(maxVal - baseVal) * (float)(maxVal - minVal) * (1.0f - __u));
+  }
+  if (__result < (float)minVal) __result = (float)minVal;
+  if (__result > (float)maxVal) __result = (float)maxVal;
+  return (uint16_t)(__result + 0.5f);
+}
+
 void FaceEngineClass::begin() {
   anim_blink_scale = 1.0f;
   anim_is_blinking = false;
@@ -821,6 +953,7 @@ void FaceEngineClass::begin() {
   _pres_state.last_emotion   = g_creature.emotion;
   // Initialize micro-expression RNG seed (non-zero for xorshift32 liveness)
   _micro_rng_seed = g_creature.uptime_minutes + millis() + 1;
+  _rhythm_seed = g_creature.uptime_minutes + millis() + 0xABCD; // V2.9: timing rhythm RNG
   _pres_state.last_mood      = g_creature.mood;
   _pres_state.last_engagement = g_creature.engagement_drive;
   _pres_state.current_profile = selectProfile(g_creature.emotion);
@@ -833,7 +966,17 @@ void FaceEngineClass::begin() {
   _transition_phase = TransitionPhase::IDLE;
   _transition_timer_ms = 0;
   _breath_phase = 0.0f;
+  _breath_cycle_ms = kPresenceProfiles[MOOD_RELAXED].breathBase; // V2.9: init from profile
   _breath_accum = 0.0f;
+
+  // V2.9 Sprint 2 — Expression Transition init
+  _tx_state = TransitionState();
+  _tx_elapsed_ms = 0;
+  _tx_anticipate_ms = 50;
+  _tx_unfold_ms = 150;
+  _tx_settle_ms = 100;
+  _tx_curve = 0;
+  _eyelid_flutter_phase = 0.0f;
   _recovery_modifier = 0.0f;
   _recovery_start_ms = 0;
   _last_high_emotion = EMOTION_CALM;
@@ -883,6 +1026,12 @@ void FaceEngineClass::updateAnimations(int frame) {
   float drowsiness = 1.0f - (g_creature.engagement_drive / 100.0f);
   float target_eyelid = 1.0f - pow(drowsiness, 1.5f) * 0.7f;
   _eyelid_factor = _eyelid_factor * 0.95f + target_eyelid * 0.05f;
+  // V2.9: rhythmic micro-fluctuation so eyelids aren't perfectly static between blinks
+  _eyelid_flutter_phase += dt * 0.04f;
+  float _flutter = sinf(_eyelid_flutter_phase) * (currentPresenceProfile().eyelidFlutter / 255.0f) * 0.015f;
+  _eyelid_factor += _flutter;
+  if (_eyelid_factor < 0.5f) _eyelid_factor = 0.5f;
+  if (_eyelid_factor > 1.0f) _eyelid_factor = 1.0f;
 
   // ── 3. Update mood presentation if mood or strength changed ──
   if (g_creature.mood != _last_mood || g_creature.mood_strength != _last_mood_strength) {
@@ -907,9 +1056,9 @@ void FaceEngineClass::updateAnimations(int frame) {
     // Time-based blink progress using dt_ms from the animation frame
     anim_blink_accum_ms += dt_ms;
 
-    static constexpr uint32_t BLINK_CLOSE_MS = 80;
-    static constexpr uint32_t BLINK_HOLD_MS  = 50;
-    static constexpr uint32_t BLINK_OPEN_MS  = 150;
+    static constexpr uint32_t BLINK_CLOSE_MS = 65;   // V2.9 timing: was 80
+    static constexpr uint32_t BLINK_HOLD_MS  = 30;   // V2.9 timing: was 50 (snappy)
+    static constexpr uint32_t BLINK_OPEN_MS  = 120;  // V2.9 timing: was 150
     static constexpr uint32_t BLINK_TOTAL_MS = BLINK_CLOSE_MS + BLINK_HOLD_MS + BLINK_OPEN_MS;
 
     uint32_t t = anim_blink_accum_ms;
@@ -930,8 +1079,11 @@ void FaceEngineClass::updateAnimations(int frame) {
           ? _pres_state.current_profile : _pres_state.pending_profile;
         uint8_t pid = kVariantTable[presIdx(_pres_state.last_emotion, _pid_)].anim_profile_id;
         if (pid >= PRES_ANIM_COUNT) pid = 0;
-        uint32_t blink_ms = _mood_pres.blink_interval_ms * kAnimProfiles[pid].blink_mod / 128;
-        anim_blink_next = now + blink_ms + random(-500, 500);
+        // V2.9: base-biased triangular distribution via currentPresenceProfile
+        const PresenceProfile& __bp = currentPresenceProfile();
+        uint32_t blink_ms = (uint32_t)triangularRandom(_rhythm_seed, __bp.blinkMin, __bp.blinkMax, __bp.blinkBase)
+                          * kAnimProfiles[pid].blink_mod / 128;
+        anim_blink_next = now + blink_ms;
       }
     }
   }
@@ -940,8 +1092,21 @@ void FaceEngineClass::updateAnimations(int frame) {
   advanceTransitionPhase(dt_ms);
 
   // ── 6. Biological breathing waveform ─────────────────────────
-  _breath_phase += dt * (2.0f * PI) / (BREATH_CYCLE_MS / 16.666f);
-  if (_breath_phase >= 2.0f * PI) _breath_phase -= 2.0f * PI;
+  {
+    float _breath_rate = (2.0f * PI) / ((float)_breath_cycle_ms / 16.666f);
+    _breath_phase += dt * _breath_rate;
+    if (_breath_phase >= 2.0f * PI) {
+      _breath_phase -= 2.0f * PI;
+      // V2.9: cycle complete — converge target with bounded change per cycle
+      const PresenceProfile& __bp = currentPresenceProfile();
+      uint16_t __new_target = triangularRandom(_rhythm_seed, __bp.breathMin, __bp.breathMax, __bp.breathBase);
+      int32_t __diff = (int32_t)__new_target - (int32_t)_breath_cycle_ms;
+      static constexpr int32_t BREATH_MAX_DELTA = 500; // max ms change per cycle
+      if (__diff > BREATH_MAX_DELTA) __diff = BREATH_MAX_DELTA;
+      if (__diff < -BREATH_MAX_DELTA) __diff = -BREATH_MAX_DELTA;
+      _breath_cycle_ms = (uint16_t)((int32_t)_breath_cycle_ms + __diff);
+    }
+  }
 
   // ── 7. Emotional recovery curve ──────────────────────────────
   updateRecovery(now);
@@ -975,17 +1140,28 @@ void FaceEngineClass::updateAnimations(int frame) {
         if (pid >= PRES_ANIM_COUNT) pid = 0;
         int range_x = (int)(kAnimProfiles[pid].gaze_range * _mood_pres.eye_intensity);
         int range_y = max(1, range_x * 2 / 3);
-        _eye_physics.target_x = (float)random(-range_x, range_x + 1);
-        _eye_physics.target_y = (float)random(-range_y, range_y + 1);
+        // V2.9: center-biased gaze via sum-of-two-uniforms (triangular distribution, deterministic)
+        int32_t _gx = (int32_t)(xorshift32(_rhythm_seed) % (range_x * 2 + 1)) - range_x;
+        int32_t _gy = (int32_t)(xorshift32(_rhythm_seed) % (range_y * 2 + 1)) - range_y;
+        _gx += (int32_t)(xorshift32(_rhythm_seed) % (range_x * 2 + 1)) - range_x;
+        _gy += (int32_t)(xorshift32(_rhythm_seed) % (range_y * 2 + 1)) - range_y;
+        _eye_physics.target_x = (float)_gx * 0.5f;
+        _eye_physics.target_y = (float)_gy * 0.5f;
       } else {
         _eye_physics.target_x = 0.0f;
         _eye_physics.target_y = 0.0f;
       }
       // Saccade interval: min hold clamped to MIN_SACCADE_HOLD_MS
-      int base_interval = 3000 + (100 - (int)g_creature.engagement_drive) * 270;
-      int jitter = base_interval / 2;
-      int next_interval = base_interval + random(-jitter, jitter + 1);
-      anim_look_next = now + (uint32_t)max((int)MIN_SACCADE_HOLD_MS, next_interval);
+      {
+        const PresenceProfile& __sp = currentPresenceProfile();
+        uint32_t next_interval = (uint32_t)triangularRandom(_rhythm_seed, __sp.saccadeMin, __sp.saccadeMax, __sp.saccadeBase);
+        // Engagement modulation: lower engagement → longer holds (same slope as V2.8)
+        uint32_t __engage_bonus = (100 - (uint32_t)g_creature.engagement_drive) * 150;
+        if (__engage_bonus > 0) {
+          next_interval = max(next_interval, min(next_interval + __engage_bonus, (uint32_t)__sp.saccadeMax * 2));
+        }
+        anim_look_next = now + max((uint32_t)MIN_SACCADE_HOLD_MS, next_interval);
+      }
     }
   }
 
@@ -1000,7 +1176,8 @@ void FaceEngineClass::updateAnimations(int frame) {
   float mod_bounce = kAnimProfiles[_pid].bounce_mod / 128.0f;
 
   float breath_val = computeBreathValue();
-  float breath_bounce = breath_val * 0.5f;
+  // V2.9: mood-aware breath depth (idle_amplitude: RELAXED=1.0, PLAYFUL=1.5, ANXIOUS=0.5)
+  float breath_bounce = breath_val * 0.5f * _mood_pres.idle_amplitude;
 
   if (g_creature.emotion == EMOTION_EXCITED || g_creature.emotion == EMOTION_HAPPY || g_creature.emotion == EMOTION_LOVE) {
     anim_bounce_y = (int)(breath_bounce + breath_val * 4.0f * _mood_pres.idle_amplitude * mod_bounce);
@@ -1125,11 +1302,11 @@ void FaceEngineClass::detectMicroTriggers() {
 // ── V2.8 Sprint 2 Helper Methods ────────────────────────────────
 
 void FaceEngineClass::advanceTransitionPhase(uint32_t dt_ms) {
-  // Sync TransitionPhase with Sprint 1 transition_progress
+  // V2.9 Sprint 2 — uses per-emotion-pair timing from _tx_* members
   if (_pres_state.transition_progress < 255) {
     if (_transition_phase == TransitionPhase::IDLE) {
       _transition_phase = TransitionPhase::ANTICIPATE;
-      _transition_timer_ms = ANTICIPATE_MS;
+      _transition_timer_ms = _tx_anticipate_ms;
     }
     if (_transition_timer_ms > dt_ms) {
       _transition_timer_ms -= dt_ms;
@@ -1138,11 +1315,11 @@ void FaceEngineClass::advanceTransitionPhase(uint32_t dt_ms) {
       switch (_transition_phase) {
         case TransitionPhase::ANTICIPATE:
           _transition_phase = TransitionPhase::TRANSITION;
-          _transition_timer_ms = TRANSITION_MS;
+          _transition_timer_ms = _tx_unfold_ms;
           break;
         case TransitionPhase::TRANSITION:
           _transition_phase = TransitionPhase::SETTLE;
-          _transition_timer_ms = SETTLE_MS;
+          _transition_timer_ms = _tx_settle_ms;
           break;
         default:
           break;
@@ -1178,9 +1355,21 @@ float FaceEngineClass::computeBreathValue() const {
 }
 
 void FaceEngineClass::integrateSpringDamper(float dt) {
-  // Micro-drift: sub-pixel Lissajous for organic eye drift
-  static float _drift_phase = 0.0f;
-  _drift_phase += dt * 0.03f;
+  // V2.9: micro-drift with occasional pauses (deterministic via _rhythm_seed)
+  if (_drift_pause_timer > 0.0f) {
+    _drift_phase += dt * 0.03f;
+    _drift_pause_timer -= dt;
+    if (_drift_pause_timer <= 0.0f) {
+      uint32_t __r = xorshift32(_rhythm_seed);
+      _drift_pause_timer = -(20.0f + (__r & 0x3F));
+    }
+  } else {
+    _drift_pause_timer += dt;
+    if (_drift_pause_timer >= 0.0f) {
+      uint32_t __r = xorshift32(_rhythm_seed);
+      _drift_pause_timer = 60.0f + (__r & 0xFF);
+    }
+  }
   float drift_x = sinf(_drift_phase * 0.7f) * MICRO_DRIFT_AMP;
   float drift_y = cosf(_drift_phase * 0.5f) * MICRO_DRIFT_AMP;
 
@@ -1229,9 +1418,15 @@ void FaceEngineClass::produceAnimationPose() {
   // Eye height: 32px base * blink * pulse * eyelid * transition * breathing * recovery
   float h = 32.0f * anim_blink_scale * anim_pulse_scale * _eyelid_factor;
 
-  // Transition phase physical effects
+  // V2.9 Sprint 2 — Transition phase physical effects with height ease-in + micro-return
   if (_transition_phase == TransitionPhase::ANTICIPATE) {
     h *= 0.90f;
+  } else if (_transition_phase == TransitionPhase::TRANSITION) {
+    float _unfold_t = (_tx_unfold_ms > 0) ? (1.0f - _transition_timer_ms / (float)_tx_unfold_ms) : 1.0f;
+    if (_unfold_t < 0.0f) _unfold_t = 0.0f;
+    if (_unfold_t > 1.0f) _unfold_t = 1.0f;
+    _unfold_t = 1.0f - (1.0f - _unfold_t) * (1.0f - _unfold_t); // ease-out
+    h *= 0.75f + 0.25f * _unfold_t;
   } else if (_transition_phase == TransitionPhase::SETTLE) {
     h *= 1.05f;
   }
@@ -1286,15 +1481,36 @@ void FaceEngineClass::produceAnimationPose() {
     p.right_eye.pupil_y += _micro_mod_y;
   }
 
-  // Styles from PresentationTarget (Stage 1 output)
+  // Expression sequencing (V2.9 Final Polish): stagger features from a single transition timer
+  //        0ms          20ms        40ms       120ms
+  //        │ Mouth ─────┤           │           │
+  //        │            Eyes ───────┤           │
+  //        │                       Brows ───────┤
+  // Mouth changes immediately (g_creature.emotion is updated on detection).
+  // Eyes/brows use staggered progress derived from _pres_state.transition_progress.
+  bool _is_transitioning = (_pres_state.transition_progress < 255);
   p.left_eye.shape = _pres_target.eye_shape;
   p.right_eye.shape = _pres_target.eye_shape;
   p.left_eye.pupil_style = _pres_target.pupil_style;
   p.right_eye.pupil_style = _pres_target.pupil_style;
+  p.brow.style = _pres_target.brow_style;
+  if (_is_transitioning) {
+    float _t_seq = _pres_state.transition_progress / 255.0f;
+    float _eye_t = (_t_seq < 0.10f) ? 0.0f : min(1.0f, (_t_seq - 0.10f) * 1.25f);
+    float _brow_t = (_t_seq < 0.20f) ? 0.0f : min(1.0f, (_t_seq - 0.20f) * 1.25f);
+    if (_eye_t < 1.0f) {
+      p.left_eye.shape = _tx_state.from_eye_shape;
+      p.right_eye.shape = _tx_state.from_eye_shape;
+      p.left_eye.pupil_style = _tx_state.from_pupil_style;
+      p.right_eye.pupil_style = _tx_state.from_pupil_style;
+    }
+    if (_brow_t < 1.0f) {
+      p.brow.style = _tx_state.from_brow_style;
+    }
+  }
 
   // Brow
   p.brow.y_offset = bounce_y;
-  p.brow.style = _pres_target.brow_style;
 
   // V2.8 Sprint 3 — Micro-expression: Brow Twitch
   if (_active_micro == MicroExpression::BROW_TWITCH) {
@@ -1338,7 +1554,8 @@ static void drawEye(TFT_eSprite* spr, int cx, int cy, int w, int h, uint16_t col
       if (h > 6) {
         int ps = (pupil_type == PRES_PUPIL_DILATED) ? 5 :
                  (pupil_type == PRES_PUPIL_CONSTRICTED) ? 2 : 3;
-        spr->fillRect(cx - ps + look_x, cy + 2 + look_y, ps * 2, ps * 2, C_BLACK);
+        if (pupil_type != PRES_PUPIL_NONE && pupil_type != PRES_PUPIL_HALF)
+          spr->fillCircle(cx + look_x, cy + 2 + look_y, ps, C_BLACK);
       }
       break;
     }
@@ -1369,6 +1586,17 @@ static void drawEye(TFT_eSprite* spr, int cx, int cy, int w, int h, uint16_t col
       }
       break;
     }
+    case PRES_EYE_SOFT_SQUINT: {
+      // Soft squint — rounded capsule (for Curious; preserves triangle for Angry)
+      spr->fillRoundRect(cx - w / 2, cy + 2, w, max(4, h - 2), 6, color);
+      if (h > 6) {
+        int ps = (pupil_type == PRES_PUPIL_DILATED) ? 3 :
+                 (pupil_type == PRES_PUPIL_CONSTRICTED) ? 1 : 2;
+        if (pupil_type != PRES_PUPIL_NONE && pupil_type != PRES_PUPIL_HALF)
+          spr->fillCircle(cx + look_x / 2, cy + h / 2 + look_y / 2, ps, C_BLACK);
+      }
+      break;
+    }
     case PRES_EYE_WIDE: {
       // Wide — big circles
       int r = max(8, w * 3 / 4);
@@ -1391,7 +1619,7 @@ static void drawEye(TFT_eSprite* spr, int cx, int cy, int w, int h, uint16_t col
           // Half pupil — only top half of eye filled with pupil color
           spr->fillRect(cx - w / 4 + look_x / 2, cy + 2 + look_y / 2, w / 2, h / 2 - 2, C_BLACK);
         } else if (pupil_type != PRES_PUPIL_NONE) {
-          spr->fillRect(cx - ps + look_x, cy + h / 2 - ps + look_y, ps * 2, ps * 2, C_BLACK);
+          spr->fillCircle(cx + look_x, cy + h / 2 + look_y, ps, C_BLACK);
         }
       }
       break;
@@ -1459,9 +1687,12 @@ void FaceEngineClass::renderActivityLayer(TFT_eSprite* spr, int frame) {
   if (g_creature.activity == ACTIVITY_SLEEPING) {
     spr->fillRect(105, 160 + anim_bounce_y, 30, 4, C_SLEEPY);
   }
-  else if (g_creature.emotion == EMOTION_HAPPY || g_creature.emotion == EMOTION_LOVE) {
-    spr->fillCircle(120, 155 + anim_bounce_y, 12, color);
-    spr->fillCircle(120, 151 + anim_bounce_y, 12, C_BG);
+  else if (g_creature.emotion == EMOTION_HAPPY || g_creature.emotion == EMOTION_LOVE || g_creature.emotion == EMOTION_EXCITED) {
+    // Excited uses the widest smile: bigger radius + more bounce offset
+    int _smile_r = (g_creature.emotion == EMOTION_EXCITED) ? 14 : 12;
+    int _smile_off = (g_creature.emotion == EMOTION_EXCITED) ? 4 : 4;
+    spr->fillCircle(120, 155 + anim_bounce_y, _smile_r, color);
+    spr->fillCircle(120, 155 + anim_bounce_y - _smile_off, _smile_r, C_BG);
   }
   else if (g_creature.emotion == EMOTION_SAD) {
     local_draw_frown(spr, 120, 160 + anim_bounce_y, 40, 10, color);
@@ -1474,20 +1705,19 @@ void FaceEngineClass::renderActivityLayer(TFT_eSprite* spr, int frame) {
     spr->fillRect(95, 160 + anim_bounce_y, 50, 6, color);
   }
   
-  // Status Bar rendering: status_l1 and status_l2
+  // Bottom text: Emotion (line 1) + Action (line 2)
   spr->fillRect(0, 200, TFT_W, 40, C_BG);
-  if (strlen(status_l1) > 0) {
-    spr->setTextColor(TFT_WHITE);
-    spr->setTextSize(1);
-    spr->setCursor((TFT_W - strlen(status_l1) * 6) / 2, 206);
-    spr->print(status_l1);
-  }
-  if (strlen(status_l2) > 0) {
-    spr->setTextColor(0x7BEF); // light gray/cyan
-    spr->setTextSize(1);
-    spr->setCursor((TFT_W - (strlen(status_l2) + 2) * 6) / 2, 222);
-    spr->printf("[%s]", status_l2);
-  }
+  spr->setTextColor(TFT_WHITE);
+  spr->setTextSize(1);
+  const char* emo = (g_creature.emotion >= 0 && g_creature.emotion < EMOTION_COUNT)
+                    ? kEmotionLabels[g_creature.emotion] : "---";
+  spr->setCursor((TFT_W - strlen(emo) * 6) / 2, 206);
+  spr->print(emo);
+  const char* act = (g_creature.activity >= 0 && g_creature.activity < ACTIVITY_COUNT)
+                    ? kActivityLabels[g_creature.activity] : "---";
+  spr->setTextColor(0x7BEF);
+  spr->setCursor((TFT_W - strlen(act) * 6) / 2, 222);
+  spr->print(act);
 }
 
 void FaceEngineClass::renderEffectLayer(TFT_eSprite* spr, int frame) {
@@ -1562,9 +1792,14 @@ void FaceEngineClass::renderDebugOverlay(TFT_eSprite* spr) {
 void FaceEngineClass::render(TFT_eSprite* spr, int frame) {
   // Overdraw background
   spr->fillRect(0, 40, TFT_W, 160, C_BG);
+
+  // V2.9: compute dt_ms for transition timing (read-only, does NOT update _last_frame_us)
+  uint32_t _now_us = micros();
+  uint32_t _dt_ms = (_now_us - _last_frame_us) / 1000;
+  if (_dt_ms > 50) _dt_ms = 50;
   
   // V2.8 Sprint 1 + 3: presentation & micro-expression decision
-  updatePresentation();
+  updatePresentation(_dt_ms);
   detectMicroTriggers();
   updateAnimations(frame);
   // V2.8 Sprint 3: micro-expression execution between animation and rasterization
