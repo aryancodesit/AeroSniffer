@@ -1540,6 +1540,15 @@ static uint16_t lerpColor(uint16_t from, uint16_t to, float t) {
 }
 
 // Draw one eye given shape, position, size, color, pupil type, and lookup
+// ── Face layout constants ────────────────────────────────────────
+static constexpr int16_t FACE_CX       = 120;   // 240/2 — horizontal center
+static constexpr int16_t FACE_EYE_W    = 40;    // default eye width
+static constexpr int16_t FACE_BROW_X   = 78;    // brow X center
+static constexpr int16_t FACE_MOUTH_Y  = 155;   // mouth Y baseline (adjusted by bounce)
+static constexpr int16_t FACE_SLEEP_Y  = 160;   // sleeping mouth Y
+static constexpr int16_t FACE_TEXT_Y1  = 206;   // emotion label Y
+static constexpr int16_t FACE_TEXT_Y2  = 222;   // activity label Y
+
 static void drawEye(TFT_eSprite* spr, int cx, int cy, int w, int h, uint16_t color,
                     uint8_t eye_shape, uint8_t pupil_type, int look_x, int look_y,
                     float pulse, uint16_t bg) {
@@ -1653,15 +1662,14 @@ static void drawBrows(TFT_eSprite* spr, int y_base, int bounce_y, uint16_t color
 }
 
 void FaceEngineClass::renderEmotionLayer(TFT_eSprite* spr, int frame) {
-  // Consume AnimationPose (Stage 2 output) — all values are integer
   const AnimationPose& p = _anim_pose;
-  drawEye(spr, p.left_eye.x, p.left_eye.y, 40, p.left_eye.height,
+  drawEye(spr, p.left_eye.x, p.left_eye.y, FACE_EYE_W, p.left_eye.height,
           p.global.color, p.left_eye.shape, p.left_eye.pupil_style,
           p.left_eye.pupil_x, p.left_eye.pupil_y, 1.0f, C_BG);
-  drawEye(spr, p.right_eye.x, p.right_eye.y, 40, p.right_eye.height,
+  drawEye(spr, p.right_eye.x, p.right_eye.y, FACE_EYE_W, p.right_eye.height,
           p.global.color, p.right_eye.shape, p.right_eye.pupil_style,
           p.right_eye.pupil_x, p.right_eye.pupil_y, 1.0f, C_BG);
-  drawBrows(spr, 78, p.global.bounce_y, p.global.color, p.brow.style);
+  drawBrows(spr, FACE_BROW_X, p.global.bounce_y, p.global.color, p.brow.style);
 }
 
 static void local_draw_frown(TFT_eSprite* spr, int32_t cx, int32_t cy, int32_t w, int32_t h, uint16_t color) {
@@ -1685,24 +1693,22 @@ void FaceEngineClass::renderActivityLayer(TFT_eSprite* spr, int frame) {
   
   // Mouth drawing based on activity / emotion combo
   if (g_creature.activity == ACTIVITY_SLEEPING) {
-    spr->fillRect(105, 160 + anim_bounce_y, 30, 4, C_SLEEPY);
+    spr->fillRect(FACE_CX - 15, FACE_SLEEP_Y + anim_bounce_y, 30, 4, C_SLEEPY);
   }
   else if (g_creature.emotion == EMOTION_HAPPY || g_creature.emotion == EMOTION_LOVE || g_creature.emotion == EMOTION_EXCITED) {
-    // Excited uses the widest smile: bigger radius + more bounce offset
     int _smile_r = (g_creature.emotion == EMOTION_EXCITED) ? 14 : 12;
-    int _smile_off = (g_creature.emotion == EMOTION_EXCITED) ? 4 : 4;
-    spr->fillCircle(120, 155 + anim_bounce_y, _smile_r, color);
-    spr->fillCircle(120, 155 + anim_bounce_y - _smile_off, _smile_r, C_BG);
+    spr->fillCircle(FACE_CX, FACE_MOUTH_Y + anim_bounce_y, _smile_r, color);
+    spr->fillCircle(FACE_CX, FACE_MOUTH_Y + anim_bounce_y - 4, _smile_r, C_BG);
   }
   else if (g_creature.emotion == EMOTION_SAD) {
-    local_draw_frown(spr, 120, 160 + anim_bounce_y, 40, 10, color);
+    local_draw_frown(spr, FACE_CX, FACE_SLEEP_Y + anim_bounce_y, 40, 10, color);
   }
   else if (g_creature.activity == ACTIVITY_WATCHING_FLIGHTS || g_creature.emotion == EMOTION_SURPRISED) {
-    spr->fillCircle(120, 160 + anim_bounce_y, 10, color);
-    spr->fillCircle(120, 160 + anim_bounce_y, 4, C_BG);
+    spr->fillCircle(FACE_CX, FACE_SLEEP_Y + anim_bounce_y, 10, color);
+    spr->fillCircle(FACE_CX, FACE_SLEEP_Y + anim_bounce_y, 4, C_BG);
   }
   else {
-    spr->fillRect(95, 160 + anim_bounce_y, 50, 6, color);
+    spr->fillRect(FACE_CX - 25, FACE_SLEEP_Y + anim_bounce_y, 50, 6, color);
   }
   
   // Bottom text: Emotion (line 1) + Action (line 2)
@@ -1711,12 +1717,12 @@ void FaceEngineClass::renderActivityLayer(TFT_eSprite* spr, int frame) {
   spr->setTextSize(1);
   const char* emo = (g_creature.emotion >= 0 && g_creature.emotion < EMOTION_COUNT)
                     ? kEmotionLabels[g_creature.emotion] : "---";
-  spr->setCursor((TFT_W - strlen(emo) * 6) / 2, 206);
+  spr->setCursor((TFT_W - strlen(emo) * 6) / 2, FACE_TEXT_Y1);
   spr->print(emo);
   const char* act = (g_creature.activity >= 0 && g_creature.activity < ACTIVITY_COUNT)
                     ? kActivityLabels[g_creature.activity] : "---";
   spr->setTextColor(0x7BEF);
-  spr->setCursor((TFT_W - strlen(act) * 6) / 2, 222);
+  spr->setCursor((TFT_W - strlen(act) * 6) / 2, FACE_TEXT_Y2);
   spr->print(act);
 }
 
@@ -2016,6 +2022,30 @@ void StorageServiceClass::saveWiFi(String ssid, String pass) {
   p.begin("aerosniffer", false);
   p.putString("ssid", ssid);
   p.putString("pass", pass);
+  p.end();
+}
+
+String StorageServiceClass::getOpenSkyUser() {
+  Preferences p;
+  p.begin("aerosniffer", true);
+  String val = p.getString("osk_user", DEFAULT_OPENSKY_USER);
+  p.end();
+  return val;
+}
+
+String StorageServiceClass::getOpenSkyPass() {
+  Preferences p;
+  p.begin("aerosniffer", true);
+  String val = p.getString("osk_pass", DEFAULT_OPENSKY_PASS);
+  p.end();
+  return val;
+}
+
+void StorageServiceClass::saveOpenSkyCredentials(String user, String pass) {
+  Preferences p;
+  p.begin("aerosniffer", false);
+  p.putString("osk_user", user);
+  p.putString("osk_pass", pass);
   p.end();
 }
 

@@ -572,6 +572,11 @@ public:
   void setStat(const char* key, uint32_t val);
   void incrementStat(const char* key, uint32_t amount = 1);
 
+  // ── OpenSky API Credentials (NVS-backed) ──
+  String getOpenSkyUser();
+  String getOpenSkyPass();
+  void saveOpenSkyCredentials(String user, String pass);
+
   // ── Security / Control Layer Settings ──
   String getDeviceName();
   void saveDeviceName(String name);

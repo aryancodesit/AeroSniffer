@@ -29,7 +29,7 @@ public:
     HTTPClient http;
     http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
     http.begin(url);
-    http.setAuthorization(OPENSKY_USER, OPENSKY_PASS);
+    http.setAuthorization(StorageService.getOpenSkyUser().c_str(), StorageService.getOpenSkyPass().c_str());
     
     const char* headerKeys[] = {"X-Rate-Limit-Limit", "X-Rate-Limit-Remaining", "X-Rate-Limit-Reset"};
     http.collectHeaders(headerKeys, 3);

@@ -185,9 +185,11 @@ constexpr uint16_t HOLD_MAX_MS    = 800;
 extern String sys_wifi_ssid;
 extern String sys_wifi_pass;
 
-// ── OpenSky API Credentials ─────────────────────────────────────
-#define OPENSKY_USER              "aaluparatha-api-client"
-#define OPENSKY_PASS              "pgFnDE9qJrf9KaTsiqRnBV7IHl4xV9xF"
+// ── OpenSky API Credentials (fallback defaults) ──────────────────
+// Credentials are loaded from NVS at runtime. Define defaults here
+// for first boot; update via the Portal settings UI or serial command.
+#define DEFAULT_OPENSKY_USER      "your_opensky_username"
+#define DEFAULT_OPENSKY_PASS      "your_opensky_password"
 
 // ── OpenSky Network REST API bounding box ────────────────────────
 //    Default: ~60 km radius over Bhubaneswar, Odisha, India

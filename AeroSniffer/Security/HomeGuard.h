@@ -10,11 +10,12 @@
 #include "Config.h"
 
 // ── Home Guard & Privacy States ──────────────────────────────────
-static uint8_t  welcome_mac[6] = {0};
-static char     welcome_name[32] = "";
-static volatile bool welcome_triggered = false;
-static uint32_t welcome_triggered_ms = 0;
-static uint32_t welcome_last_seen_ms = 0;
+namespace HomeGuardState {
+inline uint8_t  welcome_mac[6] = {0};
+inline char     welcome_name[32] = "";
+inline volatile bool welcome_triggered = false;
+inline uint32_t welcome_triggered_ms = 0;
+inline uint32_t welcome_last_seen_ms = 0;
 
 #define MAX_KNOWN_DEVICES 50
 
@@ -27,13 +28,16 @@ struct KnownDevice {
   bool trusted;        // true if trusted
 };
 
-static KnownDevice known_devices[MAX_KNOWN_DEVICES];
-static int known_device_count = 0;
+inline KnownDevice known_devices[MAX_KNOWN_DEVICES];
+inline int known_device_count = 0;
 
-static char     find_ssid[33] = "";
-static volatile int8_t find_rssi = -100;
-static uint32_t find_last_seen_ms = 0;
-static volatile bool find_mode_active = false;
+inline char     find_ssid[33] = "";
+inline volatile int8_t find_rssi = -100;
+inline uint32_t find_last_seen_ms = 0;
+inline volatile bool find_mode_active = false;
+}
+
+using namespace HomeGuardState;
 
 static bool parse_mac_string(const String& mac_str, uint8_t* mac_bytes) {
   int values[6];
