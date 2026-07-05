@@ -76,10 +76,7 @@ serial_output.txt
 .idea/
 
 # ── Docs ─────────────────────────────────────────────────────────
-# Ignore only generated binary formats; all source docs (.md, .txt) are tracked.
-docs/*.docx
-docs/*.pptx
-docs/working.png
+docs/
 
 # ── Local AI CLI assistant ──────────────────────────────────────
 aerosniffer-ai.py
