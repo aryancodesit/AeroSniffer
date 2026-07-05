@@ -1,24 +1,5 @@
-// ================================================================
-//  MultiBoot_DeskGadget.ino  —  Orchestration Layer
-//  AeroSniffer | ESP32-S3 Multi-Boot Desk Gadget
-//
-//  Architecture: 
-//    Core 0 → Background processing (FFT / network / API)
-//    Core 1 → UI rendering + sensor reads (display thread)
-//
-//  Mode cycle (touch long-press on DeskBuddy / BOOT button on DevKitC):
-//    0 = Companion (Pet)   →   1 = Security Monitor   →   2 = Flight Radar
-//
-//  Required Libraries (install via Arduino Library Manager):
-//    • TFT_eSPI        by Bodmer
-//    • ArduinoFFT      by kosme       (only if HAS_MIC)
-//    • ArduinoJson     by Benoit Blanchon
-//    • (ESP32 Arduino core ships FreeRTOS, WiFi, HTTPClient, I2S, Wire)
-//
-//  IMPORTANT: Before flashing, configure TFT_eSPI by copying
-//  the provided TFT_eSPI_UserSetup.h content into:
-//    Arduino/libraries/TFT_eSPI/User_Setup.h
-// ================================================================
+// AeroSniffer.ino  —  Orchestration layer
+// Core 0 → Background, Core 1 → UI. Modes: 0=Pet, 1=Security, 2=Aviation
 
 #include <WiFi.h>
 #include "Config.h"
@@ -36,12 +17,10 @@
 #include <Preferences.h>
 #include <ArduinoJson.h>
 
-// ── Build version (injected by CI, fallback for local builds) ───
 #ifndef FW_VERSION
 #define FW_VERSION "local-dev"
 #endif
 
-// ── Build identity macros (injected by CI, fallback for local) ──
 #ifndef GIT_HASH
 #define GIT_HASH "unknown"
 #endif
@@ -54,10 +33,9 @@
 #endif
 #endif
 
-// ── Global TFT instance ──────────────────────────────────────────
 TFT_eSPI tft = TFT_eSPI();
 
-// ── Global Settings (loaded from Preferences) ────────────────────
+
 String sys_wifi_ssid;
 String sys_wifi_pass;
 float sys_sky_lamin;
@@ -100,7 +78,7 @@ static void memory_event_callback(EventType event, void* data) {
   }
 }
 
-// ── WiFi Event Logger ────────────────────────────────────────────
+
 static void ae_event_callback(EventType event, void* data) {
   (void)data;
   AttentionEngine.queueEvent(event, nullptr);
@@ -149,24 +127,22 @@ void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
     }
 }
 
-// ── State machine ────────────────────────────────────────────────
+
 volatile uint8_t  g_mode       = 0;      // 0=Pet  1=Security  2=Aviation
 volatile uint8_t  g_active_mode = 0;
 volatile bool     g_mode_dirty = false;  // Set by ISR/touch, consumed by Core 1
 volatile bool     g_mode_transitioning = false; // Core 0/1 sync: skip Core 0 task during transition
 volatile uint32_t g_last_btn   = 0;      // Debounce timestamp
 
-// ── Touch interaction signal (shared with Mode 1) ────────────────
+
 volatile uint16_t g_touch_duration_ms = 0;  // Duration of last short tap (ms)
 volatile bool     g_block_touch = false; // Global block touch flag
 
-// ── FreeRTOS task handles ────────────────────────────────────────
+
 static TaskHandle_t h_core0 = nullptr;
 static TaskHandle_t h_core1 = nullptr;
 
-// ================================================================
-//  INTERRUPT SERVICE ROUTINE — Mode button (DevKitC only)
-// ================================================================
+// Mode button ISR (DevKitC only)
 #if defined(MODE_BTN_PIN) && MODE_BTN_PIN >= 0
 void IRAM_ATTR isr_mode_btn() {
   uint32_t now = millis();
@@ -177,9 +153,7 @@ void IRAM_ATTR isr_mode_btn() {
 }
 #endif
 
-// ================================================================
-//  CAPACITIVE TOUCH — Long-press mode switch (DeskBuddy 2.0)
-// ================================================================
+// Capacitive touch polling (DeskBuddy 2.0)
 #if HAS_TOUCH
 static uint32_t _touch_start   = 0;
 static bool     _touch_active  = false;
@@ -239,29 +213,24 @@ static void poll_touch_input() {
 }
 #endif
 
-// ================================================================
-//  BOOT SPLASH SCREEN (adapts to display resolution)
-// ================================================================
+// Boot splash screen
 static void show_splash() {
   tft.fillScreen(TFT_BLACK);
 
   int cx = TFT_W / 2;
   int cy = TFT_H / 2 - 16;
 
-  // Outer glow ring
   tft.fillCircle(cx, cy, 56, 0x000F);
   tft.drawCircle(cx, cy, 56, 0x07FF);
   tft.drawCircle(cx, cy, 54, 0x034B);
 
-  // "ESP" silhouette dots
   tft.fillCircle(cx - 22, cy, 11, 0x001F);
   tft.fillCircle(cx,      cy, 11, 0x0340);
   tft.fillCircle(cx + 22, cy, 11, 0x4000);
 
-  // Title
   tft.setTextColor(TFT_WHITE);
   tft.setTextSize(2);
-  int title_x = cx - 66;   // Approximate centering for "AeroSniffer"
+  int title_x = cx - 66;
   tft.setCursor(title_x, cy + 30);
   tft.print("AeroSniffer");
 
@@ -279,7 +248,6 @@ static void show_splash() {
     tft.print("ESP32-S3 | FreeRTOS | " FW_VERSION);
   #endif
 
-  // Mode icons
   int iconY = cy + 84;
   tft.setTextSize(1);
   tft.setTextColor(0x07E0); tft.setCursor(cx - 98, iconY); tft.print("Pet");
@@ -290,9 +258,7 @@ static void show_splash() {
   tft.fillScreen(TFT_BLACK);
 }
 
-// ================================================================
-//  MODE TEARDOWN HELPER
-// ================================================================
+
 static void teardown_mode(uint8_t mode) {
   switch (mode) {
     case 0: pet_teardown();       break;
@@ -302,9 +268,7 @@ static void teardown_mode(uint8_t mode) {
   WiFiService.stop();
 }
 
-// ================================================================
-//  MODE SETUP HELPER
-// ================================================================
+
 static void setup_mode(uint8_t mode) {
   DisplayService.clear();
   switch (mode) {
@@ -315,9 +279,7 @@ static void setup_mode(uint8_t mode) {
   DisplayService.commit();
 }
 
-// ================================================================
-//  GLOBAL & LOCAL SERIAL PROTOCOL ROUTER (Non-Blocking)
-// ================================================================
+// Serial protocol router
 
 static bool handle_global_command(const String& line) {
   if (line.startsWith("{")) {
@@ -582,11 +544,9 @@ static void process_serial_commands() {
   }
 }
 
-// ================================================================
-//  FREERTOS TASKS
-// ================================================================
+// FreeRTOS tasks
 
-// ── Core 0 — Background processing ──────────────────────────────
+// Core 0 — Background
 void task_core0(void*) {
   for (;;) {
     // Skip processing during mode transition to avoid race with Core 1's teardown/setup.
@@ -602,7 +562,7 @@ void task_core0(void*) {
   }
 }
 
-// ── Core 1 — UI rendering + state management ────────────────────
+// Core 1 — UI
 void task_core1(void*) {
   // Initial mode boot
   setup_mode(g_mode);
@@ -614,46 +574,32 @@ void task_core1(void*) {
     uint32_t _t0 = micros();
 #endif
 
-    // ── Heartbeat (every 1s) ────────────────────────────────
     uint32_t now = millis();
     if (now - last_heartbeat >= 1000) {
       last_heartbeat = now;
       Serial.println("[FACE] heartbeat");
     }
 
-    // ── Tick Attention Engine ────────────────────────────────
     uint32_t ae_delta = now - last_ae_tick;
     last_ae_tick = now;
     AttentionEngine.tick(ae_delta);
-
-    // ── Tick Emotion Engine ──────────────────────────────────
     EmotionEngine.tick();
-
-    // ── Tick Mood Engine ─────────────────────────────────────
     MoodEngine.tick(ae_delta);
-
-    // ── Tick Persistence Service (observer, not pipeline) ────
     CreaturePersistence.tick();
-
-    // ── Tick Memory Engine (observer — reads g_creature) ─────
     MemoryEngine.tick();
-
-    // ── Tick Behavior Engine (pipeline pos 6) ────────────────
     BehaviorEngine.tick();
 
 #if defined(CALIBRATION)
     CALIB_RATE("loop_us", (int)(micros() - _t0), 1000);
 #endif
 
-    // ── Non-Blocking Serial Processing ───────────────────────
     process_serial_commands();
 
-    // ── Poll capacitive touch (DeskBuddy 2.0) ────────────────
     #if HAS_TOUCH
       poll_touch_input();
     #endif
 
-    // ── Handle mode switch (triggered by ISR or touch) ──────
+    // Mode switch (ISR or touch triggered)
     if (g_mode_dirty) {
       g_mode_dirty  = false;
       g_mode_transitioning = true;
@@ -696,7 +642,7 @@ void task_core1(void*) {
       g_mode_transitioning = false;
     }
 
-    // ── Dispatch UI update for current mode ────────────────────
+    // Dispatch UI for current mode
     switch (g_mode) {
       case 0: pet_core1_task();       break;
       case 1: security_core1_task();  break;
@@ -709,9 +655,7 @@ void task_core1(void*) {
   }
 }
 
-// ================================================================
-//  ARDUINO SETUP
-// ================================================================
+// Arduino setup
 void setup() {
   Serial.begin(115200);
   Serial.println("\n[AeroSniffer] Booting...");
@@ -727,12 +671,10 @@ void setup() {
     Serial.println("[HW] DevKitC — ESP32-S3 + ILI9341 240x320");
   #endif
 
-  // ── TFT init ──────────────────────────────────────────────────
   tft.init();
-  tft.setRotation(1);        // Rotate 90 degrees clockwise to make upright
+  tft.setRotation(1);
   tft.fillScreen(TFT_BLACK);
 
-  // ── Initialize OS Services ───────────────────────────────────────
   StorageService.begin();
   EmotionEngine.begin();
   MoodEngine.begin();
@@ -741,7 +683,6 @@ void setup() {
   BehaviorEngine.begin();
   AttentionEngine.begin();
 
-  // ── Subscribe MemoryEngine to EventBus events ────────────────
   EventBus.subscribe(EVENT_TOUCH_SHORT, memory_event_callback);
   EventBus.subscribe(EVENT_ATTACK_DEAUTH, memory_event_callback);
   EventBus.subscribe(EVENT_ATTACK_EVILTWIN, memory_event_callback);
@@ -751,7 +692,6 @@ void setup() {
   EventBus.subscribe(EVENT_FLIGHT_DETECTED, memory_event_callback);
   EventBus.subscribe(EVENT_FLIGHT_RARE, memory_event_callback);
 
-  // ── Subscribe Attention Engine to EventBus events ────────────
   EventBus.subscribe(EVENT_ATTACK_DEAUTH, ae_event_callback);
   EventBus.subscribe(EVENT_ATTACK_EVILTWIN, ae_event_callback);
   EventBus.subscribe(EVENT_FLIGHT_DETECTED, ae_event_callback);
@@ -784,7 +724,7 @@ void setup() {
   sys_aviation_enabled = StorageService.getAviationEnabled();
   Serial.printf("[BOOT] Aviation Enabled preference: %s\n", sys_aviation_enabled ? "true" : "false");
 
-  // ── Backlight (DevKitC only — DeskBuddy BL is always-on) ─────
+  // Backlight (DevKitC)
   #if defined(TFT_BL) && TFT_BL >= 0
     pinMode(TFT_BL, OUTPUT);
     // ESP32 Core v3 API
@@ -792,14 +732,14 @@ void setup() {
     ledcWrite(TFT_BL, 255);      // Full brightness (0-255)
   #endif
 
-  // ── I2C for MPU-6050 (only if IMU present) ────────────────────
+  // I2C (IMU)
   #if HAS_IMU
     Wire.begin(I2C_SDA, I2C_SCL);
   #endif
 
-  // ── Input setup ───────────────────────────────────────────────
+
   #if HAS_TOUCH
-    // Capacitive touch — digital input with pull-down
+
     pinMode(TOUCH_PIN, INPUT_PULLDOWN);
     Serial.println("[INPUT] Capacitive touch on GPIO " + String(TOUCH_PIN));
     Serial.println("[INPUT] Short tap = interact | Long press = mode switch");
@@ -812,18 +752,13 @@ void setup() {
     Serial.println("[INPUT] Mode button on GPIO " + String(MODE_BTN_PIN));
   #endif
 
-  // ── Splash screen ─────────────────────────────────────────────
   show_splash();
-
-  // ── Spawn FreeRTOS tasks (after splash so I2S/WiFi start clean) ─
   // Stack sizes: 16384 to prevent SSL stack overflows; UI engine 8192
   xTaskCreatePinnedToCore(task_core0, "BG_Engine", 16384, nullptr, 1, &h_core0, 0);
   xTaskCreatePinnedToCore(task_core1, "UI_Engine",  8192, nullptr, 2, &h_core1, 1);
 }
 
-// ================================================================
-//  ARDUINO LOOP  — surrendered to FreeRTOS
-// ================================================================
+// Arduino loop — surrendered to FreeRTOS
 void loop() {
   // All work done in FreeRTOS tasks; delete this Arduino task
   vTaskDelete(nullptr);

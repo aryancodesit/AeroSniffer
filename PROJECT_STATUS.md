@@ -1,6 +1,6 @@
-# Project Status — AeroSniffer V2.7
+# Project Status — AeroSniffer V2.8
 
-## Phase: Memory & Behavior
+## Phase: Presentation & Animation Intelligence
 
 ### Completed
 
@@ -20,6 +20,8 @@
 | **V2.6 Sprint 2** | Memory Formation Expansion | ✅ Certified: PendingTouch ring buffer, duration-based TAP/HOLD/LONG_HOLD/DOUBLE/BURST classification. 30-min hardware soak. All 5 subtypes verified on hardware. |
 | **V2.6 Sprint 3** | Memory Domain Expansion | ✅ Implemented: Security, Aviation, Mood memory domains (15 subtypes). Additive-only — no changes to certified subsystems. Hardware certification pending (30-min multi-domain soak). |
 | **Release Engineering** | CI Pipeline + Evidence Framework | ✅ Certified: 5-run validation (cold/warm/failure/recovery). GitHub Actions pipeline with arduino-cli v2, pip caching, evidence pack generation, 26/26 tests passing. 95/100 certification score. |
+| **V2.8 Sprint 1** | Presentation Intelligence | ✅ Certified: PresentationProfile/PresentationState structs, 30 profile variants across 10 emotions in PROGMEM, event-driven Q8 scoring, xorshift32 PRNG, transition interpolation, animation modulation, gaze range modulation, mood affinity scoring, engagement band threshold crossing, context bucket mapping. Hardware-validated. |
+| **V2.8 Sprint 2** | Animation Intelligence | ✅ Certified: Spring-damper eye physics, biological breathing, focus lock with hysteresis, TransitionPhase state machine (IDLE/Anticipate/Transition/Settle), emotional recovery curves, PresentationTarget additive contract, integer-only AnimationPose, wall-clock dt. Build-verified, runtime-validated, animation-validated. |
 
 ### Blocked
 
@@ -51,6 +53,8 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 | `v2.7-sprint1` | V2.7 Sprint 1 — BehaviorEngine V1 certified |
 | `v2.7.2` | V2.7.2 — Behavioral Consolidation (engagement lifecycle ownership, build-verified, hardware soak pending) |
 | `v2.7.3` | V2.7.3 — Calibration Release (B1/M8/M9 closed as No Change, calibration infrastructure, macro guard, drop counter, all artifacts) |
+| `v2.8-sprint1` | V2.8 Sprint 1 — Presentation Intelligence certified |
+| `v2.8-sprint2` | V2.8 Sprint 2 — Animation Intelligence certified |
 
 ### Recent Commits
 
@@ -66,12 +70,13 @@ See [BUG_LOG.md](BUG_LOG.md) for full details.
 | 2026-06-28 | `db34556` | docs: redesign README into production-grade GitHub landing page |
 | 2026-06-28 | `9cf1869` | Release Engineering: CI pipeline, evidence framework, build caching, failure-path handling (merged) |
 | 2026-06-25 | `3023b35` | V2.6 Sprint 3 — Memory Domain Expansion implemented |
+| 2026-07-03 | `v2.8-sprint2` | V2.8 Sprint 2 — Animation Intelligence certified (spring-damper, breathing, focus lock, recovery, transition phases, PresentationTarget, integer AnimationPose, debug overlay) |
 
 ### Branch
 
 - Active: `main`
 - Upstream: `origin/main`
-- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`, `v2.5-persistence`, `v2.6-memory-expansion`, `v2.6-memory-expansion-certified`, `v2.6-releng`, `v2.7-sprint1`
+- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`, `v2.5-persistence`, `v2.6-memory-expansion`, `v2.6-memory-expansion-certified`, `v2.6-releng`, `v2.7-sprint1`, `v2.7.2`, `v2.7.3`, `v2.8-sprint1`, `v2.8-sprint2`
 - Merged: All V2.6 branches merged — `feature/v2.6-releng-validation` → `main` (`9cf1869`)
 
 ### Current Architecture
@@ -155,19 +160,67 @@ The initial EventBus capacity was undersized for the number of registered subscr
 **Backlog (post-V2.7.x):**
 - EventBus Capacity Audit — Determine required subscriber capacity from actual registrations. Deliverables: subscriber inventory, headroom target, memory cost, scalability recommendation.
 
-### V2.8 — Next Capability (Planned)
+### V2.8 — Presentation & Animation Intelligence (Complete ✅)
 
-**Objective:** New feature development. Calibration freeze lifted — all infrastructure remains in place for future campaigns.
+**Sprint 1 — Presentation Intelligence (Certified ✅)**
 
-**Candidate areas** (not committed — scope TBD in Sprint 0):
-- Behavior Layer V2 (memory-informed action selection)
-- Serial Bridge Service (TCP + WebSocket COM port sharing)
-- EventBus capacity expansion
-- `ms_since_last_touch` uint16_t saturation fix (BehaviorEngine.cpp:52)
-- MoodEngine PLAYFUL entry tuning (UX polish)
-- Any other feature the project owner finds exciting
+**Objective:** Implement a presentation-layer intelligence system with emotion-based profile selection, smooth transitions, and animation modulation.
 
-**Status:** 📋 Planning — no commits yet. Branch from `v2.7.3` tag when ready.
+**Delivered:**
+- Presentation Intelligence architecture doc (`docs/V2.8_PRESENTATION_INTELLIGENCE.md`) created
+- `PresentationProfile`/`PresentationState` structs implemented
+- 30 profile variants across 10 emotions in PROGMEM
+- Event-driven selection with integer Q8 scoring
+- Deterministic xorshift32 PRNG
+- Transition interpolation (geometry snap, color lerp)
+- Animation profile modulation (blink, gaze, bounce, speed)
+- Gaze range modulation
+- Mood affinity scoring
+- Engagement band threshold crossing
+- Context bucket mapping (CALM/ACTIVE/FOCUSED/SOCIAL)
+- Hardware validation PASS — all emotion variants fire correctly, transitions smooth, zero crashes
+
+**Test log:** `docs/v2.8 tests/sprint1_v2.8.txt`
+
+### V2.8 Sprint 2 — Animation Intelligence (Complete ✅)
+
+**Objective:** Build a physical-model and biological animation layer (Animation Intelligence Layer) that governs lifelike movement, focus locking, breathing, and emotional recovery within FaceEngine with zero changes to behavioral engines.
+
+**Status:** ✅ **COMPLETE** — Certified via build verification, runtime validation, and animation validation.
+
+**Deliverables (All Delivered):**
+- ✅ **Physical Saccades:** Smooth eye movement using spring-damper equations (Target → Velocity → Ease → Settle) and steady-state micro-drift tremor. Wall-clock dt clamped at 3.0x max.
+- ✅ **Biological Breathing:** Non-symmetrical 4-phase breathing cycle (inhale → hold → exhale → rest) modulating eye scale and vertical position.
+- ✅ **Focus Lock:** Hysteresis-based lock (engage ≥25, release <20) suspending random saccades and locking gaze to attention source.
+- ✅ **Emotional Recovery:** Slow decay of brows (~1.5s) and eyelids (~2s) when reverting from ALERT/ANGRY to CALM.
+- ✅ **Transition Polish:** 4-phase wall-clock timer-driven state machine (IDLE → Anticipate → Transition → Settle) with squeeze, overshoot, and elastic bounce.
+- ✅ **PresentationTarget (Additive):** Stage 1 output contract emitted alongside existing PresentationState — zero changes to Sprint 1.
+- ✅ **Integer-Only AnimationPose:** Stage 2 produces integer coordinates for Stage 3 rasterization — no float leakage to drawEye/drawBrows.
+- ✅ **ANIM_DEBUG Overlay:** Build-time toggle showing current emotion + touch state on display for visual validation.
+- ✅ **Compatibility:** All backward-compat fields (anim_look_x/y, anim_bounce_y) maintained — renderActivityLayer, renderEffectLayer unchanged.
+
+**Architecture Preserved:**
+- Behavioral engines (BehaviorEngine, MoodEngine, MemoryEngine, AttentionEngine) — zero changes.
+- CreatureState — zero changes.
+- Sprint 1 PresentationState — zero changes (PresentationTarget is additive).
+- Existing render pipeline — renderEmotionLayer refactored to consume AnimationPose, renderActivityLayer/renderEffectLayer use backward-compat fields.
+- No heap allocation — all state is statically declared in FaceEngineClass.
+
+**Build Metrics:**
+- Flash: +1,308 bytes (1,256,705 total, 95% of 4MB)
+- RAM: +8 bytes (71,900 total, 21% of 327,680)
+- Compile: 0 errors, 0 warnings
+
+**Validation Log:** `docs/v2.8 tests/sprint2_v2.8.txt`
+
+### V2.8 Sprint 3 — Micro-Expressions (Planned 📋)
+
+**Objective:** Add high-frequency visual overlays to represent fast micro-states:
+- Double blinks, one-eye blinks, squints, pupil flicks, eyebrow twitches.
+
+### V2.8 Sprint 4 — Desktop Observer (Planned 📋)
+
+**Objective:** Integrate `aerosniffer.vbat` / PC agent to stream PC user observations (keyboard burst, Spotify track, VS Code focus) to trigger corresponding CreatureState activity and emotional changes, driven through the mature animation system.
 
 ### Previous Sprints
 

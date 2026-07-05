@@ -1,9 +1,6 @@
 <p align="center">
-  <img src="docs/working.png" alt="AeroSniffer" width="640">
-</p>
-
-<p align="center">
-  <strong>Multi-Boot ESP32-S3 Desk Gadget — Companion · Security · Aviation</strong><br>
+  <strong>AeroSniffer</strong><br>
+  <em>Multi-Boot ESP32-S3 Desk Gadget — Companion · Security · Aviation</em><br>
   Three embedded personas, one XIAO ESP32S3, zero compromises.
 </p>
 
@@ -11,9 +8,7 @@
   <a href="https://github.com/aryancodesit/AeroSniffer/actions/workflows/firmware-build.yml">
     <img src="https://github.com/aryancodesit/AeroSniffer/actions/workflows/firmware-build.yml/badge.svg" alt="CI">
   </a>
-  <a href="https://aero-sniffer.vercel.app/">
-    <img src="https://img.shields.io/badge/web%20app-vercel-000?logo=vercel" alt="Web App">
-  </a>
+
   <img src="https://img.shields.io/badge/ESP32--S3-240MHz%20dual--core-blue?logo=espressif" alt="ESP32-S3">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CI-95%2F100%20certified-brightgreen" alt="CI Certification">
@@ -29,7 +24,6 @@ AeroSniffer is a production-grade embedded systems project that treats the ESP32
 |---|---|
 | **Repository** | [github.com/aryancodesit/AeroSniffer](https://github.com/aryancodesit/AeroSniffer) |
 | **Firmware** | C++17, Arduino framework, ESP-IDF 5.x, FreeRTOS |
-| **Web Companion** | React + TypeScript + Vite + TanStack Router (shadcn/ui) |
 | **PC Agent** | Python (pyserial, psutil, pynput) |
 | **CI/CD** | GitHub Actions, arduino-cli v2, evidence framework, pip caching |
 | **License** | MIT |
@@ -161,17 +155,6 @@ See `AeroSniffer/Config.h` for complete pin definitions and hardware variant sel
 | Storage | Preferences (NVS) + LittleFS | Settings persistence + MemoryEngine record storage |
 | Face Rendering | Procedural meta-pixel (4×4 px) | 12 expressions, animated (blink, tears, music notes, Zzz) |
 
-### Companion App (TypeScript/React)
-
-| Layer | Technology |
-|-------|-----------|
-| Framework | React 18 + Vite |
-| Routing | TanStack Router |
-| UI | shadcn/ui (Radix + Tailwind) |
-| Serial | Web Serial API |
-| Charts | Recharts |
-| Deployment | Vercel |
-
 ### PC Agent (Python)
 
 | Layer | Technology |
@@ -210,11 +193,11 @@ V2 ─────────────────────────�
   │   ├── PersistenceService (CreatureProfile, schema migration)
   │   └── Behavior Layer V1 (engagement_drive, 32-min certified)
   │
-  └── V2.6 — Memory & Release Engineering
-      ├── Memory Layer Foundation (ring buffer, decay, LittleFS)
-      ├── Memory Formation Expansion (5 touch subtypes)
-      ├── Memory Domain Expansion (Security, Aviation, Mood)
-      └── Release Engineering (CI pipeline, evidence framework, certified)
+  ├── V2.6 — Memory & Release Engineering
+  │   ├── Memory Layer Foundation (ring buffer, decay, LittleFS)
+  │   ├── Memory Formation Expansion (5 touch subtypes)
+  │   ├── Memory Domain Expansion (Security, Aviation, Mood)
+  │   └── Release Engineering (CI pipeline, evidence framework, certified)
   │
   ├── V2.7 — Behavioral Consolidation & Calibration
   │   ├── V2.7.2 — Behavioral Consolidation
@@ -229,12 +212,17 @@ V2 ─────────────────────────�
   │       ├── Macro guard verified — USB CDC stall prevention
   │       └── Full evidence pipeline (raw/processed/reports/metadata)
   │
-V3 ───────────────────────────────────────────────────────── (Planned)
+  ├── V2.8 — Animation Intelligence
+  │   ├── Procedural blink/bounce/squash easing functions
+  │   ├── Spring-damper eye physics (mass, stiffness, damping)
+  │   ├── Presentation Intelligence pipeline (Pose → Animate → Present)
+  │   └── Memory-informed face recall (emotion → animation style mapping)
   │
-  ├── Behavior Layer V2 (memory-informed action selection)
-  ├── Cloud Analytics (historical threat/flight/behavior data)
-  ├── MQTT / Home Assistant integration
-  └── Multi-device fleet management
+  └── V2.9 — Privacy Intelligence (Final)
+      ├── Desktop awareness infrastructure (ASv1 protocol)
+      ├── PC Agent ↔ firmware handshake (heartbeat, capability exchange)
+      ├── Activity label display (coding|VS Code)
+      └── Final Identity Pass release
 ```
 
 ---
@@ -252,9 +240,8 @@ V3 ─────────────────────────�
 | Release Engineering | V2.6 | ✅ Certified | CI pipeline, evidence framework, 95/100 score |
 | Behavioral Consolidation | V2.7.2 | ✅ Released | BehaviorEngine canonical ownership, FaceEngine cleanup |
 | Calibration Release | V2.7.3 | ✅ Released | B1/M8/M9 measured (all No Change), calibration infrastructure, macro guard, evidence pipeline |
-| Behavior Layer V2 | V2.8 | 📋 Planned | Memory-informed action selection, learned preferences |
-| Cloud Analytics | V3 | 🔭 Vision | Historical analysis, threat/flight/behavior dashboards |
-| Home Assistant | V3 | 🔭 Vision | MQTT bridge, smart home integration |
+| Animation Intelligence | V2.8 | ✅ Released | Procedural blink/bounce/squash, spring-damper eye physics, Presentation Intelligence pipeline |
+| Privacy Intelligence | V2.9 | ✅ Released | Desktop awareness infrastructure, ASv1 protocol, PC agent handshake, activity label display |
 
 ---
 
@@ -290,11 +277,10 @@ V3 ─────────────────────────�
 | Calibration Evidence Pipeline | ✅ Released | V2.7.3 | raw/processed/reports/runtime artifacts, metadata schema |
 | Runtime Validation | ✅ Released | V2.7.3 | Macro guard verified, USB CDC stall prevention |
 | B1/M8/M9 Calibration | ✅ Released | V2.7.3 | All Measure items closed as No Change |
-| Serial Bridge Service | 📋 Planned | V2.8 | TCP + WebSocket, single COM port owner |
-| Behavior Layer V2 | 📋 Planned | V2.8 | Memory-informed action selection |
-| Cloud Analytics | 🔭 Vision | V3 | Historical dashboards |
-| Home Assistant | 🔭 Vision | V3 | MQTT bridge |
-| Multi-Device Fleet | 🔭 Vision | V3 | Coordinated deployment |
+| Animation Intelligence | ✅ Released | V2.8 | Procedural blink/bounce/squash, spring-damper eye physics |
+| Presentation Intelligence | ✅ Released | V2.8 | Pose → Animate → Present pipeline |
+| Privacy Intelligence | ✅ Released | V2.9 | ASv1 protocol, handshake, activity label display |
+| Final Identity Pass | ✅ Released | V2.9 | v2.9.0 release — development freeze |
 
 ---
 
@@ -370,17 +356,11 @@ graph LR
 - **Tag-based release** on `v*` tags
 - **Evidence pack** collects: build manifest, compiler defines, git state, symbol table, TFT config
 - **If: always()** on all upload steps — evidence guaranteed even on failure
-- **Push trigger**: `main` only. **PR trigger**: `main` only.
+- **Push trigger**: `v2.9-dev` only. **PR trigger**: `v2.9-dev` only.
 
 ---
 
 ## Screenshots
-
-### Companion Web App
-
-![Web App Architecture](assets/Webapp-workflow.png)
-
-The web companion dashboard provides real-time visualization, device configuration, and serial control via Web Serial API. Built with React + shadcn/ui and deployed on Vercel.
 
 ### Mode Displays
 
@@ -396,7 +376,7 @@ The web companion dashboard provides real-time visualization, device configurati
 |--------|-------|
 | **Firmware source** | ~4,500 lines (C++17, 30 files) |
 | **Python tools** | ~2,000 lines (18 files) |
-| **Web companion** | ~3,500 lines (TypeScript/React, 60+ components) |
+| **Web companion** | ~3,500 lines (TypeScript/React) — in-repo but not actively deployed |
 | **CI pipeline** | 9-step GitHub Actions workflow |
 | **Regression tests** | 30 (signature matcher + evidence framework) |
 | **Test coverage** | Signature matcher: 96%, Evidence module: 99% |
@@ -428,15 +408,16 @@ tools\install_libraries.bat            # Windows
 # Flash via USB-C
 ```
 
-### Configure via Web App
+### Configure the Firmware
 
-Open **[aero-sniffer.vercel.app](https://aero-sniffer.vercel.app/)** and connect via USB. The Global Setup Wizard walks you through:
+Copy `Config.h.example` to `Config.h` and set your Wi-Fi credentials, bounding box, and theme colors:
 
-- Wi-Fi credentials (for Aviation mode)
-- GPS bounding box for flight tracking (with OpenStreetMap city search)
-- Theme colors for the display
+```bash
+cp AeroSniffer/Config.h.example AeroSniffer/Config.h
+# Edit AeroSniffer/Config.h with your settings
+```
 
-Settings persist to NVS flash — no code changes needed.
+Settings persist to NVS flash — no code changes needed for subsequent updates via the Portal web UI.
 
 ### Run the PC Agent
 
@@ -459,20 +440,14 @@ python tools/releng.py verify     # Run all regression tests
 
 ---
 
-## Future Vision
+## Future Exploration
 
-### V2.7 — Behavior Layer V2
+Ideas for extending AeroSniffer if development resumes:
 
-- **Serial Bridge Service**: Single process owns the COM port, exposes TCP + WebSocket to multiple clients (PC Agent, companion app, CLI tools). Enables wireless-first PC Agent operation.
+- **Serial Bridge Service**: Single process owns the COM port, exposes TCP + WebSocket to multiple clients (PC Agent, CLI tools). Enables wireless-first operation.
 - **Memory-Informed Behavior**: Behaviour Layer V2 uses memory recall to influence attention, mood, and face — the companion remembers past interactions and adapts its responses.
-- **BUG-007 Resolution**: Firmware-side serial inactivity timeout ensures face always returns to IDLE.
-
-### V3 — Cloud Analytics
-
-- Historical analysis of threat events, flight patterns, and companion behavior
-- Cloud dashboard with time-series charts
-- MQTT bridge for Home Assistant / smart home integration
-- Multi-device fleet management for distributed deployments
+- **Cloud Analytics**: Historical analysis of threat events, flight patterns, and companion behavior with time-series dashboards.
+- **Home Assistant / MQTT**: Smart home integration for presence-aware automation.
 
 ---
 
@@ -482,7 +457,7 @@ This project welcomes contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for 
 
 - **Bug reports**: Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md)
 - **Feature requests**: Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md)
-- **Pull requests**: Open against `main`. CI validates every build.
+- **Pull requests**: Open against `v2.9-dev`. CI validates every build.
 
 ### Development Principles
 
@@ -501,5 +476,5 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 <p align="center">
   <sub>Built with ❤️ on XIAO ESP32S3 · India</sub><br>
-  <sub>AeroSniffer V2.6 — Release Engineering Certified · 95/100</sub>
+  <sub>AeroSniffer V2.9 — Privacy Intelligence · Final Release</sub>
 </p>

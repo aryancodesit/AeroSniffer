@@ -12,6 +12,10 @@
 static bool parseFlightJSON(const String& payload) {
   Serial.printf("[AVI] Payload size = %d\n", payload.length());
 
+  // 48 KB document handles ~300 aircraft state vectors from OpenSky.
+  // The bounding box used in practice returns <50 aircraft so this is
+  // generous headroom. If deserialization fails due to buffer overflow
+  // the function logs the error and returns false gracefully.
   DynamicJsonDocument doc(49152);
   DeserializationError err = deserializeJson(doc, payload);
 

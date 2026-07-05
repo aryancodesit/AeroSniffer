@@ -6,6 +6,7 @@
 
 #include <Arduino.h>
 #include <HTTPClient.h>
+#include "../Config.h"
 #include "FlightStore.h"
 
 class FlightProvider {
@@ -23,12 +24,12 @@ public:
       "?lamin=%.2f&lomin=%.2f&lamax=%.2f&lomax=%.2f",
       (double)lamin, (double)lomin, (double)lamax, (double)lomax);
 
-    Serial.printf("[AVI] Fetching URL: %s\n", url);
+    DEBUG_PRINTF("[AVI] Fetching URL: %s\n", url);
 
     HTTPClient http;
     http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
     http.begin(url);
-    http.setAuthorization(OPENSKY_USER, OPENSKY_PASS);
+    http.setAuthorization(StorageService.getOpenSkyUser().c_str(), StorageService.getOpenSkyPass().c_str());
     
     const char* headerKeys[] = {"X-Rate-Limit-Limit", "X-Rate-Limit-Remaining", "X-Rate-Limit-Reset"};
     http.collectHeaders(headerKeys, 3);

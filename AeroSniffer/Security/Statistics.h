@@ -8,19 +8,24 @@
 #include "Config.h"
 
 // ── Packet capture state ────────────────────────────────────────
-static volatile uint32_t pkt_total     = 0;
-static volatile uint32_t pkt_deauth    = 0;
-static volatile uint32_t pkt_beacon    = 0;
-static volatile uint32_t pkt_probe     = 0;
-static volatile uint32_t pkt_per_sec   = 0;
-static volatile uint8_t  current_ch    = 1;
-static volatile uint32_t device_count  = 0;
-static volatile bool     sec_scanning  = false;
-static volatile bool     ch_hopping    = true;   // Channel hopping toggle
+// Volatile module-level state is used because the WiFi sniffer ISR and the
+// main loop share these counters. A dedicated SnifferState class would be
+// warranted if multi-instance or testability becomes a requirement.
+namespace SnifferState {
+inline volatile uint32_t pkt_total     = 0;
+inline volatile uint32_t pkt_deauth    = 0;
+inline volatile uint32_t pkt_beacon    = 0;
+inline volatile uint32_t pkt_probe     = 0;
+inline volatile uint32_t pkt_per_sec   = 0;
+inline volatile uint8_t  current_ch    = 1;
+inline volatile uint32_t device_count  = 0;
+inline volatile bool     sec_scanning  = false;
+inline volatile bool     ch_hopping    = true;
 
 // Rolling PPS counter
-static uint32_t _pps_last_ms    = 0;
-static uint32_t _pps_count      = 0;
+inline uint32_t _pps_last_ms    = 0;
+inline uint32_t _pps_count      = 0;
+}
 
 // ── AP tracking table ───────────────────────────────────────────
 struct APRecord {
@@ -32,5 +37,11 @@ struct APRecord {
   uint32_t last_seen;     // seconds since boot
   bool     active;
 };
-static APRecord ap_table[MAX_AP_TABLE];
-static int      ap_count = 0;
+
+namespace APTable {
+inline APRecord ap_table[MAX_AP_TABLE];
+inline int      ap_count = 0;
+}
+
+using namespace SnifferState;
+using namespace APTable;

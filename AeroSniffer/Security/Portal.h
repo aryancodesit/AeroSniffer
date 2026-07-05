@@ -125,9 +125,11 @@ static void portal_draw_display() {
         _stft->print("http://192.168.4.1");
 
         _stft->setCursor(140, 228);
+#if RELEASE_BUILD == 0
         _stft->print("h:");
         _stft->print(ESP.getFreeHeap() / 1024);
         _stft->print("k");
+#endif
     } else {
         // Character Face Mode
         static int frame = 0;
@@ -945,7 +947,7 @@ static void handle_api_save_settings() {
 
     if (!doc["device_name"].isNull()) {
         String val = doc["device_name"].as<String>();
-        if (val.length() > 0 && val != sys_device_name) {
+        if (val.length() > 0 && val.length() <= 32 && val != sys_device_name) {
             sys_device_name = val;
             StorageService.saveDeviceName(val);
             changed = true;
@@ -954,7 +956,7 @@ static void handle_api_save_settings() {
     if (!doc["ap_ssid"].isNull() && !doc["ap_pass"].isNull()) {
         String ssid = doc["ap_ssid"].as<String>();
         String pass = doc["ap_pass"].as<String>();
-        if (ssid.length() > 0 && pass.length() >= 8) {
+        if (ssid.length() > 0 && ssid.length() <= 32 && pass.length() >= 8 && pass.length() <= 63) {
             if (ssid != sys_ap_ssid || pass != sys_ap_pass) {
                 sys_ap_ssid = ssid;
                 sys_ap_pass = pass;

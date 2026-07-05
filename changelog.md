@@ -1,5 +1,42 @@
 # Changelog
 
+## [v2.8-sprint2] — 2026-07-03
+
+### Animation Intelligence
+
+Spring-damper eye physics, biological breathing, focus-lock hysteresis, emotional recovery curves, TransitionPhase state machine, additive PresentationTarget contract, integer-only AnimationPose render cache, ANIM_DEBUG overlay. Zero changes to behavioral engines or CreatureState.
+
+### Added
+- Animation Intelligence layer (FaceEngine, presentation-only)
+- Spring-damper eye movement with micro-drift tremor
+- Biological breathing (4-phase waveform, eye scale + position modulation)
+- Focus-lock hysteresis (engage at strength ≥25, release <20)
+- Emotional recovery (brow ~1.5s, eyelid ~2s decay)
+- TransitionPhase state machine (IDLE/Anticipate/Transition/Settle)
+- PresentationTarget additive output contract
+- AnimationPose integer-only renderer cache
+- ANIM_DEBUG build-time overlay (emotion + touch state on screen)
+
+### Changed
+- `AeroSnifferOS.h` — PresentationTarget, EyePhysics, AnimationPose, TransitionPhase structs; 12 private members; 6 new method declarations
+- `AeroSnifferOS.cpp` — updateAnimations() pipeline, renderEmotionLayer() consumes AnimationPose, updatePresentation() emits additive PresentationTarget, renderDebugOverlay(), begin() init
+- `Config.h` — ANIM_DEBUG build toggle
+- `docs/V2.8_ANIMATION_INTELLIGENCE.md`, `docs/V2.8_RENDER_PIPELINE.md` — spec alignment
+
+### Certified
+- Build: 0 errors, 0 warnings. Flash +1,308 B (1,256,705 total), RAM +8 B (71,900 total)
+- Runtime: No crashes, no WDT, no Guru Meditation
+- Animation verification: Hardware observation — spring-damper converges, breathing cycles, TransitionPhase fires correctly, backward-compat fields intact
+- Mode transitions: Pet→Security→Aviation→Pet clean
+- Memory: Zero changes to MemoryEngine
+- Build platform: Seeed XIAO ESP32S3, 16MB Flash, Huge App partition, PSRAM enabled, Arduino ESP32 Core 3.x
+
+### Metadata
+- Branch: `main`
+- Tags: `v2.8-sprint2`
+- Validation log: `docs/v2.8 tests/sprint2_v2.8.txt`
+- Certification report: `docs/TESTING/V2.8_SPRINT2_RESULTS.md`
+
 ## [v2.7.2] — 2026-06-30
 
 ### Behavioral Consolidation — Canonical Ownership (Behavior-Preserving)

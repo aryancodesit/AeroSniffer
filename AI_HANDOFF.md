@@ -1,6 +1,12 @@
-# AI Handoff — AeroSniffer V2.7
+# AI Handoff — AeroSniffer V2.8
 
 ## Current State
+
+**V2.8 Sprint 1 — Presentation Intelligence is CERTIFIED.** Tag: `v2.8-sprint1`.
+
+**V2.8 Sprint 2 — Animation Intelligence is CERTIFIED.** Tag: `v2.8-sprint2`.
+
+PresentationProfile/PresentationState structs, 30 profile variants across 10 emotions (PROGMEM), event-driven integer Q8 scoring, deterministic xorshift32 PRNG, transition interpolation (geometry snap, color lerp), animation profile modulation (blink/gaze/bounce/speed), gaze range modulation, mood affinity scoring, engagement band threshold crossing, context bucket mapping (CALM/ACTIVE/FOCUSED/SOCIAL). Hardware-validated — all emotion variants fire correctly, transitions smooth, zero crashes. Test log: `docs/v2.8 tests/sprint1_v2.8.txt`.
 
 **V2.7.3 — Calibration Release is COMPLETE.** Tag: `v2.7.3`.
 
@@ -28,28 +34,79 @@ GitHub Actions pipeline validated across 5 runs (cold/warm/failure/recovery). `r
 
 V2.5 Sprint 1–3C complete. Sprint 4A (Creature Persistence) certified. **Sprint 5A (Autonomous Presence Layer / Behavior Layer V1) certified** — engagement_drive (0–100), mood-modulated decay, 3s→30s saccade, deep blink suppression, cross-mode carryover. No further tuning planned. A [Creature Brain Retrospective](docs/V2.5_CREATURE_BRAIN_RETROSPECTIVE.md) archives goals, bugs, architecture decisions (12 preserved), technical debt (3 items), and lessons learned.
 
-## V2.8 — Next Capability (Planned)
-
-### Objective
-New feature development. Calibration freeze lifted. All calibration infrastructure (Calibration.h, stamp tags, evidence pipeline, macro guard) remains in place for future campaigns — just uncomment `#define CALIBRATION` in `Calibration.h:8`.
-
-### Candidate Scope (TBD — Sprint 0)
-- **Behavior Layer V2** — Memory-informed action selection. The calibration baseline from V2.7.3 provides the behavioral floor to build on.
-- **Serial Bridge Service** — TCP + WebSocket bridge for single COM port ownership during development.
-- **EventBus Capacity** — Fix the known 6-subscriber silent overflow (AttentionEngine misses TOUCH_SHORT, FLIGHT_DETECTED, etc.).
-- **`ms_since_last_touch` saturation** — `uint16_t` overflow at 65.5s means the 30-min touch window comparison at BehaviorEngine.cpp:52 is always true. Fix type or logic.
-- **MoodEngine PLAYFUL entry tuning** — UX polish if desired.
-- **Anything the project owner finds interesting** — V2.8 is a creative release.
-
-### Key Files After V2.7.3
-- `AeroSniffer/Companion/Calibration.h` — `// #define CALIBRATION` (uncomment for future campaigns)
-- `docs/CALIBRATION/` — Full calibration evidence pipeline (raw/processed/reports/runtime)
-- `docs/CALIBRATION/CALIBRATION_REGISTRY.md` — B1/M8/M9 closure records
-- `docs/V2.7.3-Calibration-Plan.md` — Plan with closure rationale
-- `tools/serial_capture.py` — Timestamped serial capture utility
+## V2.8 Sprint 1 — Presentation Intelligence (Certified)
 
 ### Status
-📋 Planning — branch from `v2.7.3` tag when first commit lands.
+- **CERTIFIED** (hardware-validated — all emotion variants fire correctly, transitions smooth, zero crashes)
+- **FROZEN** — no further edits except bug fixes
+
+### Features
+- Presentation Intelligence architecture doc (`docs/V2.8_PRESENTATION_INTELLIGENCE.md`) created
+- `PresentationProfile`/`PresentationState` structs implemented
+- 30 profile variants across 10 emotions in PROGMEM
+- Event-driven selection with integer Q8 scoring
+- Deterministic xorshift32 PRNG
+- Transition interpolation (geometry snap, color lerp)
+- Animation profile modulation (blink, gaze, bounce, speed)
+- Gaze range modulation
+- Mood affinity scoring
+- Engagement band threshold crossing
+- Context bucket mapping (CALM/ACTIVE/FOCUSED/SOCIAL)
+- Hardware validation PASS — all emotion variants fire correctly, transitions smooth, zero crashes
+
+### Test Log
+`docs/v2.8 tests/sprint1_v2.8.txt`
+
+## V2.8 Sprint 2 — Animation Intelligence (Certified)
+
+### Status
+- **CERTIFIED** (build verification, runtime and animation validation via hardware observation)
+- **FROZEN** — no further edits except bug fixes
+
+### Objective
+Create a dedicated physical and biological animation intelligence layer within FaceEngine. This increases baseline expressiveness and kinetic high-fidelity before introducing complex micro-expressions or external desktop connectivity.
+
+### Delivered
+- **Physical Saccades:** Spring-damper physics (Target → Velocity → Ease → Settle) and continuous, organic micro-drift (tremor). Wall-clock dt clamped at 3.0x max.
+- **Biological Breathing:** 4-phase waveform (inhale → hold → exhale → rest) with 6-second period, modulating eye vertical scale and position.
+- **Focus Lock:** Hysteresis-based (engage ≥25, release <20) suspension of random saccades, locking gaze to attention source coordinate.
+- **Emotional Recovery:** Slow 1.5s brow / 2s eyelid decay when reverting from ALERT/ANGRY to CALM.
+- **Transition Polish:** 4-phase wall-clock timer-driven state machine (IDLE → Anticipate 50ms → Transition 150ms → Settle 100ms) with squeeze, overshoot, and elastic bounce.
+- **PresentationTarget (Additive):** Stage 1 output contract emitted alongside existing PresentationState — Sprint 1 untouched.
+- **Integer-Only AnimationPose:** All float→int resolution in Stage 2; Stage 3 receives only integer coordinates.
+- **ANIM_DEBUG Overlay:** Build-time toggle showing emotion + touch state on display.
+- **Backward Compatibility:** All existing render functions (renderActivityLayer, renderEffectLayer) work unchanged via backward-compat fields.
+
+### Key Architecture Decisions
+- **PresentationTarget is additive** — `updatePresentation()` emits `_pres_target` alongside `_pres_state`. Zero changes to Sprint 1 PresentationState.
+- **Wall-clock dt** — spring-damper uses actual elapsed wall-clock time, not frame count. Decouples physics from framerate variance.
+- **Focus-lock hysteresis** — 5-point band prevents lock/unlock oscillation.
+- **TransitionPhase & transition_progress coexist** — TransitionPhase governs physical effects via wall-clock timer; transition_progress (0–255) governs Sprint 1 profile blending.
+- **Integer-only Stage 3** — `produceAnimationPose()` converts all floats to ints. `drawEye()` and `drawBrows()` receive only integer values.
+- **No heap allocation** — all state statically declared in FaceEngineClass.
+- **No behavioral changes** — zero modifications to BehaviorEngine, MoodEngine, MemoryEngine, AttentionEngine, CreatureState.
+
+### Build Metrics
+- Flash: +1,308 bytes (1,256,705 total, 95%)
+- RAM: +8 bytes (71,900 total, 21%)
+- Compile: 0 errors, 0 warnings
+
+### Validation Artifacts
+- `docs/v2.8 tests/sprint2_v2.8.txt` — serial capture log
+- `docs/TESTING/V2.8_SPRINT2_RESULTS.md` — certification report
+- Animation behaviors validated on physical hardware through visual observation on DeskBuddy 2.0 (spring-damper convergence, breathing cycle, TransitionPhase sequencing, focus-lock hysteresis, recovery curves)
+
+## V2.8 Future Sprints
+
+### V2.8 Sprint 3 — Micro-Expressions (Planned)
+**Objective:** Add high-frequency visual overlays to represent fast micro-states:
+- Double blinks, one-eye blinks, squints, pupil flicks, eyebrow twitches.
+- These fire as transient overlays on top of the stable animation foundation, triggered by sudden external events or engagement shifts.
+- Depends on: V2.8 Sprint 2 (Animation Intelligence) — available and certified.
+
+### V2.8 Sprint 4 — Desktop Observer (Planned)
+**Objective:** Connect desktop observations (typing activity, code focus, media streams via `aerosniffer.vbat` / PC agent) to feed observations directly into behavioral state, which drives the mature animation system.
+- Depends on: V2.8 Sprint 2 (Animation Intelligence) — available and certified.
 
 ---
 
@@ -280,7 +337,11 @@ Memory Layer is an observer subsystem — reads touch events and domain events, 
 - **Release Engineering** (complete, certified): CI pipeline, evidence framework, signature matcher. Merged to `main` (`9cf1869`).
 - **V2.7 Sprint 1** (complete, certified): BehaviorEngine V1 — 3 transforms, additive, O(1), 125 lines. Tag: `v2.7-sprint1`.
 - **V2.7.2** (complete): Behavioral Consolidation — engagement lifecycle migrated to BehaviorEngine, FaceEngine stripped of behavioral logic, canonical ownership documented. Tag: `v2.7.2`.
-- **V2.7.3**: Calibration — measure real `domain_strength` distributions, tune thresholds using observed data instead of estimates, freeze constants after hardware validation.
+- **V2.7.3** (complete): Calibration — measure real `domain_strength` distributions, tune thresholds using observed data instead of estimates, freeze constants after hardware validation.
+- **V2.8 Sprint 1** (complete, certified): Presentation Intelligence — PresentationProfile/PresentationState, 30 profile variants, Q8 scoring, xorshift32 PRNG, transition interpolation, animation/gaze modulation, mood affinity scoring, engagement band thresholds, context bucket mapping. Hardware-validated.
+- **V2.8 Sprint 2** (complete, certified): Animation Intelligence — physical model eye movement (spring-damper, micro-drift), biological breathing cycle, focus locking, emotional recovery (ALERT/ANGRY decay to CALM), transition phase subdivision (IDLE/Anticipate/Transition/Settle). Tag: `v2.8-sprint2`.
+- **V2.8 Sprint 3** (planned): Micro-Expressions — Double blinks, squints, pupil flicks, eyebrow twitches as event feedback overlays.
+- **V2.8 Sprint 4** (planned): Desktop Observer — `aerosniffer.vbat` / PC agent observer integration to inject observations into behavioral layers.
 
 ## File Map
 - `AeroSniffer/AeroSnifferOS.h:74-79` — `MoodType` enum (RELAXED=0, PLAYFUL=1, ANXIOUS=2, MOOD_COUNT=3)
@@ -364,6 +425,6 @@ Memory Layer is an observer subsystem — reads touch events and domain events, 
 
 ## Git
 - Branch: `main`
-- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`, `v2.5-persistence`, `v2.6-memory-expansion`, `v2.6-memory-expansion-certified`, `v2.6-releng`, `v2.7-sprint1`, `v2.7.2`, `v2.7.3`
-- Commits: `v2.7.3` (HEAD — Calibration Release complete), `2cb9c37` (artifact structure), `ca9bc0e` (Phase 1 includes), `1791f7a` (MoodEngine sync), `v2.7.2` (Behavioral Consolidation)
+- Tags: `v2.5-attention-complete`, `v2.5-mood-foundation`, `v2.5-creature-brain-complete`, `v2.5-persistence`, `v2.6-memory-expansion`, `v2.6-memory-expansion-certified`, `v2.6-releng`, `v2.7-sprint1`, `v2.7.2`, `v2.7.3`, `v2.8-sprint1`, `v2.8-sprint2`
+- Commits: `v2.8-sprint2` (HEAD — Animation Intelligence certified), `v2.7.3` (Calibration Release), `2cb9c37` (artifact structure), `v2.7.2` (Behavioral Consolidation)
 - Upstream: `origin/main`
